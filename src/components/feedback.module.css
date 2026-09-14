@@ -1,0 +1,630 @@
+.feedbackPage {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background: #ffffff;
+    color: #141414;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ── Navbar ── */
+.navbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 2rem;
+    border-bottom: 1px solid #e5e5e5;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.logoIcon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #4793f7, #3c7dd2);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 0.85rem;
+}
+
+.navActions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.backBtn {
+    padding: 0.5rem 1.25rem;
+    border-radius: 8px;
+    border: 1px solid #e5e5e5;
+    background: transparent;
+    color: #6b7280;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.backBtn:hover {
+    background: #f5f5f5;
+    color: #141414;
+}
+
+.downloadBtn {
+    padding: 0.5rem 1.25rem;
+    border-radius: 8px;
+    border: none;
+    background: #4793f7;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.downloadBtn:hover {
+    background: #3c7dd2;
+}
+
+.logoutBtn {
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: 1px solid #e5e5e5;
+    color: #6b7280;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.logoutBtn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* ── Main Layout ── */
+.mainContent {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* ── Score Overview (Left) ── */
+.scorePanel {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.overallScoreCard {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 16px;
+    padding: 2.5rem;
+    display: flex;
+    align-items: center;
+    gap: 2.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.scoreCircle {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    flex-shrink: 0;
+}
+
+.scoreSvg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.scoreTrack {
+    fill: none;
+    stroke: #eeeeee;
+    stroke-width: 8;
+}
+
+.scoreFill {
+    fill: none;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1.5s ease;
+}
+
+.scoreCenter {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.scoreNumber {
+    font-size: 2.25rem;
+    font-weight: 800;
+    line-height: 1;
+    background: linear-gradient(135deg, #4793f7, #22C55E);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.scoreOutOf {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-top: 0.25rem;
+}
+
+.scoreInfo {
+    flex: 1;
+}
+
+.scoreTitle {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem;
+}
+
+.scoreSubtitle {
+    font-size: 0.9rem;
+    color: #6b7280;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.scoreBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 100px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-top: 0.75rem;
+}
+
+.scoreBadgeGood {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22C55E;
+}
+
+.scoreBadgeAvg {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+}
+
+/* ── Metrics Grid ── */
+.metricsGrid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+.metricCard {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+    padding: 1.25rem;
+    transition: all 0.2s ease;
+    cursor: default;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.metricCard:hover {
+    border-color: rgba(71, 147, 247, 0.4);
+}
+
+.metricHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.metricIconWrap {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.metricValue {
+    font-size: 1.5rem;
+    font-weight: 800;
+}
+
+.metricLabel {
+    font-size: 0.75rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.metricBar {
+    width: 100%;
+    height: 4px;
+    border-radius: 100px;
+    background: #eeeeee;
+    margin-top: 0.75rem;
+    overflow: hidden;
+}
+
+.metricBarFill {
+    height: 100%;
+    border-radius: 100px;
+    transition: width 1.2s ease;
+}
+
+/* ── Detail Panel (Right) ── */
+.detailPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.detailCard {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.detailTitle {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0 0 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.strengthsList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.strengthItem {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: rgba(34, 197, 94, 0.06);
+    border-radius: 10px;
+    border: 1px solid rgba(34, 197, 94, 0.1);
+    font-size: 0.85rem;
+    color: #374151;
+    line-height: 1.5;
+}
+
+.strengthIcon {
+    color: #22C55E;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+}
+
+.improvementItem {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: rgba(245, 158, 11, 0.06);
+    border-radius: 10px;
+    border: 1px solid rgba(245, 158, 11, 0.1);
+    font-size: 0.85rem;
+    color: #374151;
+    line-height: 1.5;
+}
+
+.improvementIcon {
+    color: #f59e0b;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+}
+
+/* ── Tips Section ── */
+.tipsGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.tipCard {
+    padding: 1rem;
+    background: rgba(71, 147, 247, 0.06);
+    border: 1px solid rgba(71, 147, 247, 0.12);
+    border-radius: 10px;
+}
+
+.tipNumber {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #4793f7;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.4rem;
+}
+
+.tipText {
+    font-size: 0.8rem;
+    color: #4b5563;
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* ── Session Info ── */
+.sessionInfo {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.sessionStat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.sessionStatLabel {
+    font-size: 0.7rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.sessionStatValue {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #141414;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+    .mainContent {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+    }
+
+    .overallScoreCard {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .metricsGrid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .tipsGrid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ── AI Loading State ── */
+.loadingContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 6rem 2rem;
+    text-align: center;
+    min-height: 60vh;
+}
+
+.loadingSpinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #e2e8f0;
+    border-top: 4px solid #4793f7;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1.5rem;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loadingTitle {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 0.5rem;
+}
+
+.loadingSubtitle {
+    font-size: 0.9rem;
+    color: #64748b;
+    max-width: 440px;
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* ── AI Error State ── */
+.errorContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 6rem 2rem;
+    text-align: center;
+    min-height: 60vh;
+}
+
+.errorIcon {
+    margin-bottom: 1.25rem;
+    color: #ef4444;
+}
+
+.retryBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #4793f7;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0.65rem 1.25rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 1.25rem;
+    transition: background 0.2s ease;
+}
+
+.retryBtn:hover {
+    background: #2563eb;
+}
+
+/* ── Quotes & Recommendations ── */
+.strengthQuote {
+    display: block;
+    margin-top: 0.4rem;
+    font-size: 0.8rem;
+    font-style: italic;
+    color: #059669;
+    background: rgba(16, 185, 129, 0.08);
+    padding: 0.35rem 0.6rem;
+    border-radius: 4px;
+    border-left: 2px solid #10b981;
+}
+
+.improvementRecommendation {
+    display: block;
+    margin-top: 0.4rem;
+    font-size: 0.8rem;
+    color: #475569;
+    background: #f8fafc;
+    padding: 0.4rem 0.6rem;
+    border-radius: 4px;
+    border-left: 2px solid #f59e0b;
+}
+
+/* ── QA Breakdown Section ── */
+.qaList {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 0.75rem;
+}
+
+.qaItem {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.qaItemHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.qaQuestionTitle {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #0f172a;
+    margin: 0;
+    line-height: 1.4;
+}
+
+.qaRatingBadge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.2rem 0.55rem;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+.badgeStrong {
+    background: rgba(34, 197, 94, 0.15);
+    color: #16a34a;
+}
+
+.badgeAvg {
+    background: rgba(245, 158, 11, 0.15);
+    color: #d97706;
+}
+
+.badgeNeedsWork {
+    background: rgba(239, 68, 68, 0.15);
+    color: #dc2626;
+}
+
+.qaCandidateAnswer {
+    font-size: 0.825rem;
+    color: #334155;
+    background: #f8fafc;
+    padding: 0.6rem 0.8rem;
+    border-radius: 6px;
+    margin: 0;
+    line-height: 1.45;
+}
+
+.qaFeedbackText {
+    font-size: 0.825rem;
+    color: #475569;
+    margin: 0;
+    line-height: 1.45;
+}
+
+.qaModelAnswer {
+    font-size: 0.8rem;
+    color: #0369a1;
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    padding: 0.6rem 0.8rem;
+    border-radius: 6px;
+    line-height: 1.45;
+}
+
+.qaSectionLabel {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: block;
+    margin-bottom: 0.2rem;
+}
+

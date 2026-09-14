@@ -1,0 +1,2783 @@
+[
+  {
+    "id": "gen_001",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "Tell me about yourself, aside from what I can see on your resume.",
+    "category": "opening",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_002",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "What do you know about our company?",
+    "category": "company_fit",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_003",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "Why are you interested in this position?",
+    "category": "motivation",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_004",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "What are your greatest strengths?",
+    "category": "self_assessment",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_005",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "Have you recently acquired a new skill, or are you looking to acquire new skills?",
+    "category": "growth_mindset",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_006",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "What interests you the most about this industry?",
+    "category": "motivation",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_007",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "Tell me about one thing you've created — an idea you brought to life.",
+    "category": "initiative",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_008",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "Why are you leaving your current job?",
+    "category": "background",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_009",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "What did you like the most about your last position?",
+    "category": "background",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_010",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "What didn't you like about your last position?",
+    "category": "background",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_011",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "How do you measure success?",
+    "category": "values",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_012",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "Tell me about your leadership style.",
+    "category": "leadership",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_013",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "What would you say are our company's weaknesses?",
+    "category": "company_fit",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_014",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "What steps would you take to help improve our company?",
+    "category": "initiative",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_015",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "Would you rather work in a team or individually?",
+    "category": "work_style",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_016",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "What type of work environment do you enjoy most?",
+    "category": "work_style",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_017",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "If hired, how do you plan to spend your first 90 days with our company?",
+    "category": "planning",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_018",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "What challenges are you looking for in this position?",
+    "category": "motivation",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_019",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "What is your salary expectation?",
+    "category": "logistics",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_020",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "Do you have any questions for us?",
+    "category": "closing",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_021",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "Tell me about a time you made a mistake at work and how you handled it.",
+    "category": "accountability",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_022",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "Tell me about a time you disagreed with a coworker. How did you resolve it?",
+    "category": "conflict_resolution",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_023",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "How do you handle constructive feedback from a supervisor?",
+    "category": "coachability",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_024",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "Where do you see yourself in three to five years?",
+    "category": "career_trajectory",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "gen_025",
+    "role_family": "general",
+    "sub_type": "all_roles",
+    "question": "How do you stay motivated during repetitive or high-pressure periods?",
+    "category": "resilience",
+    "applies_to_all": true,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_001",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "How would you define good customer service?",
+    "category": "general",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_002",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "Why do you want to work in customer service?",
+    "category": "motivation",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_003",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "How do you handle difficult or angry customers?",
+    "category": "situational",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_004",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "Describe a time you turned a negative customer situation into a positive one.",
+    "category": "behavioral",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_005",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "What do you do when you don't know the answer to a customer's question?",
+    "category": "situational",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_006",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "How do you stay organized in a fast-paced environment?",
+    "category": "work_style",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_007",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "What does empathy mean to you in a customer service role?",
+    "category": "values",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_008",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "How do you handle pressure or stressful moments?",
+    "category": "resilience",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_009",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "Tell me about a time you exceeded expectations for a customer.",
+    "category": "behavioral",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_010",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "What do you enjoy most about working with customers?",
+    "category": "motivation",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_011",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "How do you handle customer complaints?",
+    "category": "situational",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_012",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "How do you communicate with teammates during busy periods?",
+    "category": "teamwork",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_013",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "How do you prioritize tasks when multiple customers are waiting?",
+    "category": "time_management",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_014",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "How do you stay motivated doing repetitive or routine tasks?",
+    "category": "resilience",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_015",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "What tools or software have you used in past customer service roles (e.g. Zendesk, HubSpot)?",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_016",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "How would you handle a situation where the customer is factually wrong?",
+    "category": "situational",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_017",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "What makes you a strong fit for this customer service role?",
+    "category": "self_assessment",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_018",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "Describe a time you dealt with a customer you could not fully satisfy.",
+    "category": "behavioral",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_019",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "What would you do if a customer asked for something outside company policy?",
+    "category": "situational",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_020",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "How do you build rapport with customers quickly?",
+    "category": "skill",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_021",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "How would you handle a customer making false accusations against you?",
+    "category": "situational",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "cs_022",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "How would you handle a customer disputing a transaction on their bank account?",
+    "category": "situational_nigeria",
+    "applies_to_all": false,
+    "source": "adapted_myjobmag_profolio"
+  },
+  {
+    "id": "cs_023",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "What do you know about CBN consumer protection regulations?",
+    "category": "domain_knowledge_nigeria",
+    "applies_to_all": false,
+    "source": "adapted_profolio"
+  },
+  {
+    "id": "cs_024",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "How would you cross-sell a product to an existing customer without being pushy?",
+    "category": "situational",
+    "applies_to_all": false,
+    "source": "adapted_profolio"
+  },
+  {
+    "id": "cs_025",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "Describe how you would handle a queue of twenty customers with only two staff available.",
+    "category": "situational_high_volume",
+    "applies_to_all": false,
+    "source": "adapted_profolio"
+  },
+  {
+    "id": "cs_026",
+    "role_family": "customer_service",
+    "sub_type": "all_levels",
+    "question": "What certifications or training, if any, have you had in customer service (e.g. Customer Service Institute of Nigeria)?",
+    "category": "credentials",
+    "applies_to_all": false,
+    "source": "adapted_profolio"
+  },
+  {
+    "id": "sales_001",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "What motivates you in your work?",
+    "category": "motivation",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_002",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "Why do you enjoy business development / sales?",
+    "category": "motivation",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_003",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "What qualities make someone a good salesperson?",
+    "category": "self_assessment",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_004",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "How has your background prepared you for sales?",
+    "category": "background",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_005",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "Have you ever had to sell a product you didn't fully believe in? How did you handle it?",
+    "category": "ethics_behavioral",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_006",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "What's the most satisfying deal you've achieved, and why?",
+    "category": "behavioral",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_007",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "How do you use technology / CRM tools in your sales process?",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_008",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "Describe the process you follow for business development, end to end.",
+    "category": "process",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_009",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "What sales techniques have you used, and which were most/least effective?",
+    "category": "skill",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_010",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "Have you trained or mentored junior sales staff?",
+    "category": "leadership",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_011",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "Tell me about a time you did not meet your sales goal. What happened?",
+    "category": "behavioral",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_012",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "How comfortable are you with cold calling? What's your typical close ratio?",
+    "category": "skill_metrics",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_013",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "What would you do if a prospect kept finding excuses to avoid you?",
+    "category": "situational",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_014",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "What would you do if you learned a customer was testing a competitor's product?",
+    "category": "situational",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_015",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "If you had to sell our product, what two questions would you ask to understand a buyer's needs?",
+    "category": "skill",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_016",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "What do you think are the three most important factors when evaluating a deal?",
+    "category": "judgment",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_017",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "Describe a situation where you had to improvise during a sales interaction.",
+    "category": "behavioral",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_018",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "How do you decide which leads are worth pursuing, and how do you turn a lead into a long-term relationship?",
+    "category": "process",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_019",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "Pick something in this room and sell it to me.",
+    "category": "live_exercise",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_020",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "How do you sell an idea or product that's initially unpopular with the buyer?",
+    "category": "skill",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_021",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "Tell me about a time you used data/analysis to make a business-critical decision.",
+    "category": "behavioral",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_022",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "How do you balance acquiring new customers with retaining existing ones?",
+    "category": "process",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_023",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "Describe a time you lost a sale or a client. What did you learn?",
+    "category": "behavioral",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_024",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "What steps do you take to analyze trends and identify new opportunities?",
+    "category": "judgment",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_025",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "What is your management style, if you've led a sales team?",
+    "category": "leadership",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "sales_026",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "How do you understand pricing dynamics, competitor products, and customer behavior across different Nigerian regions/territories?",
+    "category": "domain_knowledge_nigeria",
+    "applies_to_all": false,
+    "source": "adapted_profolio"
+  },
+  {
+    "id": "sales_027",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "You manage a large territory spanning multiple LGAs — how do you plan routes and prioritize accounts?",
+    "category": "situational_nigeria",
+    "applies_to_all": false,
+    "source": "adapted_profolio"
+  },
+  {
+    "id": "sales_028",
+    "role_family": "sales_bizdev",
+    "sub_type": "all_levels",
+    "question": "How do you stay resilient through a difficult quarter with a thin pipeline?",
+    "category": "resilience",
+    "applies_to_all": false,
+    "source": "adapted_profolio"
+  },
+  {
+    "id": "bank_001",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "How do you define working capital?",
+    "category": "technical_corporate",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_002",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "Can you explain leveraged buyouts?",
+    "category": "technical_corporate",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_003",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "How do you assess a company's financial health?",
+    "category": "technical_corporate",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_004",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "What is your approach to risk management?",
+    "category": "judgment_corporate",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_005",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "Discuss a time you had to handle a difficult corporate client.",
+    "category": "behavioral_corporate",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_006",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "What are your views on recent monetary policy?",
+    "category": "domain_awareness_corporate",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_007",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "What do you understand about the role of a retail banker?",
+    "category": "general_retail",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_008",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "How do you handle customer complaints at the branch?",
+    "category": "situational_retail",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_009",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "How do you stay organized while handling multiple transactions and service requests?",
+    "category": "work_style_retail",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_010",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "What banking products are you most familiar with?",
+    "category": "domain_knowledge_retail",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_011",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "Why do you want to work in retail banking?",
+    "category": "motivation_retail",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_012",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "Tell me about a time you had to deal with a difficult customer.",
+    "category": "behavioral",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_013",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "Give an example of a mistake you made in a banking task and how you handled it.",
+    "category": "accountability",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_014",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "Tell me about a time you exceeded a customer's expectations.",
+    "category": "behavioral",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_015",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "Describe a situation where you worked closely with your branch team to solve a customer or process issue.",
+    "category": "teamwork",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_016",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "A customer insists their deposit hasn't been credited, but your system shows it was processed. What do you do?",
+    "category": "situational",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_017",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "You're handling a long line of customers and one becomes impatient and loud. What's your response?",
+    "category": "situational",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_018",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "A customer wants to open a product that doesn't match their financial needs. How do you proceed?",
+    "category": "situational",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_019",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "You suspect a customer may be trying to bypass KYC norms during account opening. What would you do?",
+    "category": "situational_compliance",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_020",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "How do you ensure accuracy while handling cash and transactions?",
+    "category": "skill",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_021",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "What systems or tools have you used for customer account management?",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_022",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "What steps do you take when opening a new account for a customer?",
+    "category": "process",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_023",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "How do you handle cross-selling banking products during a service interaction?",
+    "category": "situational",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_024",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "How do you stay updated on regulatory changes or new product offerings?",
+    "category": "growth_mindset",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "bank_025",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "Nigerian banks handle hundreds of customers and millions of naira daily — how do you stay accurate under that volume pressure?",
+    "category": "situational_nigeria",
+    "applies_to_all": false,
+    "source": "adapted_profolio"
+  },
+  {
+    "id": "bank_026",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "What do you know about KYC, AML, and CBN reporting thresholds relevant to teller operations?",
+    "category": "domain_knowledge_nigeria",
+    "applies_to_all": false,
+    "source": "adapted_profolio"
+  },
+  {
+    "id": "bank_027",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "How would you serve a customer who is more comfortable in a local language than English?",
+    "category": "situational_nigeria",
+    "applies_to_all": false,
+    "source": "adapted_profolio"
+  },
+  {
+    "id": "bank_028",
+    "role_family": "banking_finance",
+    "sub_type": "all_levels",
+    "question": "How do significant USD/NGN exchange rate movements affect the financial statements of an oil and gas company pricing in dollars?",
+    "category": "technical_nigeria_crossover",
+    "applies_to_all": false,
+    "source": "adapted_profolio"
+  },
+  {
+    "id": "va_001",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "How might your coworkers describe you?",
+    "category": "self_assessment",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_002",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "How might your current or most recent manager describe you?",
+    "category": "self_assessment",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_003",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "What's your greatest strength as a virtual assistant?",
+    "category": "self_assessment",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_004",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "What's your greatest weakness as a virtual assistant?",
+    "category": "self_assessment",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_005",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "Why do you want to be a virtual assistant?",
+    "category": "motivation",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_006",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "What's your ideal work environment?",
+    "category": "work_style",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_007",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "How soon are you available to start, and what's your preferred schedule?",
+    "category": "logistics",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_008",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "How many hours a week are you available?",
+    "category": "logistics",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_009",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "How did you become a virtual assistant, and how do you keep your skills up to date?",
+    "category": "background_growth",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_010",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "Which tools are your favorite to use as a virtual assistant?",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_011",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "What are your areas of expertise, and which core skills fall outside your scope?",
+    "category": "scope",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_012",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "What do you think is the most important skill for virtual assistants?",
+    "category": "judgment",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_013",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "Do you have social media management experience?",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_014",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "How many clients do you currently have, and how do you manage your capacity?",
+    "category": "work_style",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_015",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "Explain your process for prioritizing your work.",
+    "category": "time_management",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_016",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "What's your preferred communication method with clients?",
+    "category": "work_style",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_017",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "If you receive a task you don't know how to do, what would you do?",
+    "category": "situational",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_018",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "Tell me about a time you disagreed with a coworker or supervisor. How did you resolve it?",
+    "category": "conflict_resolution",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_019",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "Provide an example of your time management skills in practice.",
+    "category": "behavioral",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_020",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "Tell me about a time you had to work with someone with a very different communication style.",
+    "category": "behavioral",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_021",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "Explain your process for working with a difficult client or team member.",
+    "category": "situational",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_022",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "Explain how you proactively address a client's needs before they ask.",
+    "category": "initiative",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_023",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "How do you prioritize which emails to respond to first when your inbox is full?",
+    "category": "time_management",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_024",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "What do you do when a client isn't articulating their request clearly?",
+    "category": "situational",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_025",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "Explain how you would handle your laptop crashing while performing your duties for a client.",
+    "category": "situational_reliability",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "va_026",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "Nigerian VA job postings often specify tools like SAP or familiarity with FIRS documentation — which specific tools/platforms are you proficient in?",
+    "category": "technical_nigeria",
+    "applies_to_all": false,
+    "source": "adapted_profolio"
+  },
+  {
+    "id": "va_027",
+    "role_family": "virtual_assistant",
+    "sub_type": "all_levels",
+    "question": "How do you manage client work across time zones and unreliable power/internet conditions?",
+    "category": "situational_nigeria",
+    "applies_to_all": false,
+    "source": "adapted_general"
+  },
+  {
+    "id": "og_gen_001",
+    "role_family": "oil_gas",
+    "sub_type": "general",
+    "question": "Explain your understanding of the upstream, midstream, and downstream sectors of the oil and gas industry.",
+    "category": "general",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_gen_002",
+    "role_family": "oil_gas",
+    "sub_type": "general",
+    "question": "What are the main environmental considerations in the oil and gas industry?",
+    "category": "general_hse",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_gen_003",
+    "role_family": "oil_gas",
+    "sub_type": "general",
+    "question": "Tell me about a time you used data to solve a problem.",
+    "category": "behavioral",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_gen_004",
+    "role_family": "oil_gas",
+    "sub_type": "general",
+    "question": "What's your understanding of safety procedures in oil and gas operations?",
+    "category": "safety_awareness",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_gen_005",
+    "role_family": "oil_gas",
+    "sub_type": "general",
+    "question": "How do you handle working in high-stress environments?",
+    "category": "resilience",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_gen_006",
+    "role_family": "oil_gas",
+    "sub_type": "general",
+    "question": "What excites you most about this specific company and role?",
+    "category": "motivation",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_gen_007",
+    "role_family": "oil_gas",
+    "sub_type": "general",
+    "question": "Discuss the ethical considerations in exploration and production, particularly environmental impact and community engagement.",
+    "category": "ethics",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_gen_008",
+    "role_family": "oil_gas",
+    "sub_type": "general",
+    "question": "Why are you interested in Nigeria's oil and gas sector, and what safety practices matter most to you?",
+    "category": "motivation_safety",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_gen_009",
+    "role_family": "oil_gas",
+    "sub_type": "general",
+    "question": "What operational realities of the Niger Delta or deepwater Gulf of Guinea blocks should a candidate understand for this role?",
+    "category": "domain_knowledge_nigeria",
+    "applies_to_all": false,
+    "source": "adapted_profolio"
+  },
+  {
+    "id": "og_gen_010",
+    "role_family": "oil_gas",
+    "sub_type": "general",
+    "question": "How does DPR/NUPRC regulatory compliance factor into your day-to-day work?",
+    "category": "domain_knowledge_nigeria",
+    "applies_to_all": false,
+    "source": "adapted_profolio"
+  },
+  {
+    "id": "og_fresh_001",
+    "role_family": "oil_gas",
+    "sub_type": "fresher",
+    "question": "Given this PVT data, estimate reservoir pressure and potential production.",
+    "category": "technical_exercise",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_fresh_002",
+    "role_family": "oil_gas",
+    "sub_type": "fresher",
+    "question": "Explain the difference between porosity and permeability.",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_fresh_003",
+    "role_family": "oil_gas",
+    "sub_type": "fresher",
+    "question": "What are the main characteristics of crude oil?",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_fresh_004",
+    "role_family": "oil_gas",
+    "sub_type": "fresher",
+    "question": "Briefly describe the process of hydraulic fracturing.",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_fresh_005",
+    "role_family": "oil_gas",
+    "sub_type": "fresher",
+    "question": "What are common environmental concerns associated with oil and gas production?",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_fresh_006",
+    "role_family": "oil_gas",
+    "sub_type": "fresher",
+    "question": "How are oil and gas reserves typically quantified?",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_fresh_007",
+    "role_family": "oil_gas",
+    "sub_type": "fresher",
+    "question": "Describe the key properties of a good reservoir rock.",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_exp_001",
+    "role_family": "oil_gas",
+    "sub_type": "experienced",
+    "question": "Discuss the impact of new technologies like horizontal drilling on reservoir production.",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_exp_002",
+    "role_family": "oil_gas",
+    "sub_type": "experienced",
+    "question": "You're overseeing drilling in a remote location and encounter an unexpected geological formation that could compromise well integrity. How do you handle it?",
+    "category": "operations_situational",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_exp_003",
+    "role_family": "oil_gas",
+    "sub_type": "experienced",
+    "question": "Explain the trade-offs between horizontal and vertical drilling in unconventional resource development.",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_exp_004",
+    "role_family": "oil_gas",
+    "sub_type": "experienced",
+    "question": "Describe your experience integrating new technologies (automation, data analytics) into oil and gas operations.",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_exp_005",
+    "role_family": "oil_gas",
+    "sub_type": "experienced",
+    "question": "How would you approach optimizing production from a mature field with declining output?",
+    "category": "operations",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_exp_006",
+    "role_family": "oil_gas",
+    "sub_type": "experienced",
+    "question": "Discuss the advantages and disadvantages of horizontal vs vertical drilling.",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_exp_007",
+    "role_family": "oil_gas",
+    "sub_type": "experienced",
+    "question": "Explain the concept of reservoir pressure depletion and its impact on production.",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_exp_008",
+    "role_family": "oil_gas",
+    "sub_type": "experienced",
+    "question": "Describe the process of well completion and its key components.",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_exp_009",
+    "role_family": "oil_gas",
+    "sub_type": "experienced",
+    "question": "What are common wellbore stability challenges and how are they mitigated?",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_exp_010",
+    "role_family": "oil_gas",
+    "sub_type": "experienced",
+    "question": "How do you utilize data analytics in your oil and gas work?",
+    "category": "technical",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_exp_011",
+    "role_family": "oil_gas",
+    "sub_type": "experienced",
+    "question": "What are the key considerations for foundation design in an oil and gas processing facility?",
+    "category": "technical_civil_mep",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_exp_012",
+    "role_family": "oil_gas",
+    "sub_type": "experienced",
+    "question": "Describe the different types of piping materials used in onshore facilities and their suitability for various applications.",
+    "category": "technical_civil_mep",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_exp_013",
+    "role_family": "oil_gas",
+    "sub_type": "experienced",
+    "question": "Explain the design considerations for electrical systems in a hazardous area classification like Zone 1.",
+    "category": "technical_civil_mep",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_exp_014",
+    "role_family": "oil_gas",
+    "sub_type": "experienced",
+    "question": "What are the key accounting/commercial implications of Nigeria's Petroleum Industry Act 2021 relevant to your role?",
+    "category": "domain_knowledge_nigeria",
+    "applies_to_all": false,
+    "source": "adapted_profolio"
+  },
+  {
+    "id": "og_safe_001",
+    "role_family": "oil_gas",
+    "sub_type": "safety_officer",
+    "question": "Explain the hierarchy of controls in safety management, with examples for each level.",
+    "category": "safety",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_safe_002",
+    "role_family": "oil_gas",
+    "sub_type": "safety_officer",
+    "question": "Describe a confined space entry procedure and key safety considerations.",
+    "category": "safety",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_safe_003",
+    "role_family": "oil_gas",
+    "sub_type": "safety_officer",
+    "question": "What are the hazards associated with working with hydrogen sulfide (H2S)?",
+    "category": "safety",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_safe_004",
+    "role_family": "oil_gas",
+    "sub_type": "safety_officer",
+    "question": "How do you ensure safe handling and storage of flammable liquids at a facility?",
+    "category": "safety",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_safe_005",
+    "role_family": "oil_gas",
+    "sub_type": "safety_officer",
+    "question": "Describe the Permit to Work (PTW) system and its importance in preventing accidents.",
+    "category": "safety",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_safe_006",
+    "role_family": "oil_gas",
+    "sub_type": "safety_officer",
+    "question": "How do you stay informed about current safety regulations and best practices?",
+    "category": "safety_growth",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_safe_007",
+    "role_family": "oil_gas",
+    "sub_type": "safety_officer",
+    "question": "Describe a situation where you identified a potential safety hazard and took action.",
+    "category": "behavioral",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_safe_008",
+    "role_family": "oil_gas",
+    "sub_type": "safety_officer",
+    "question": "How do you handle observing a colleague engaging in unsafe work practices?",
+    "category": "situational_safety_culture",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_safe_009",
+    "role_family": "oil_gas",
+    "sub_type": "safety_officer",
+    "question": "What are your thoughts on using technology to improve safety in oil and gas?",
+    "category": "judgment",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_safe_010",
+    "role_family": "oil_gas",
+    "sub_type": "safety_officer",
+    "question": "Describe your experience conducting risk assessments. What tools and methodologies do you use?",
+    "category": "technical_safety_officer",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_safe_011",
+    "role_family": "oil_gas",
+    "sub_type": "safety_officer",
+    "question": "How do you ensure compliance with safety regulations in a complex, evolving environment?",
+    "category": "compliance_safety_officer",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_safe_012",
+    "role_family": "oil_gas",
+    "sub_type": "safety_officer",
+    "question": "Describe your experience with incident investigation and root cause analysis.",
+    "category": "technical_safety_officer",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_safe_013",
+    "role_family": "oil_gas",
+    "sub_type": "safety_officer",
+    "question": "How do you build and maintain a strong safety culture within an organization?",
+    "category": "leadership_safety_officer",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_safe_014",
+    "role_family": "oil_gas",
+    "sub_type": "safety_officer",
+    "question": "Describe a challenging safety situation you navigated successfully. What were the key lessons?",
+    "category": "behavioral_safety_officer",
+    "applies_to_all": false,
+    "source": "user_provided"
+  },
+  {
+    "id": "og_safe_015",
+    "role_family": "oil_gas",
+    "sub_type": "safety_officer",
+    "question": "How would you deliver a toolbox talk or safety induction to a mixed-literacy field workforce in Nigeria?",
+    "category": "situational_nigeria",
+    "applies_to_all": false,
+    "source": "adapted_profolio"
+  },
+  {
+    "id": "SWE_ALG_E_001",
+    "role_family": "software_tech",
+    "sub_type": "easy",
+    "question": "Case Study: You are tasked with processing a large stream of user input. **How would you efficiently design the algorithm** to find the first non-repeating character in that stream, and what data structures would you use?",
+    "category": "Algorithm/Data Structures",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_ALG_E_108",
+    "role_family": "software_tech",
+    "sub_type": "easy",
+    "question": "Case Study: A messaging platform needs to identify potentially offensive words by checking against a known set of anagrams. **How would you design the function** to check if two strings are anagrams in the most time-efficient way, given millions of comparisons?",
+    "category": "Algorithm/Data Structures",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_ALG_M_109",
+    "role_family": "software_tech",
+    "sub_type": "medium",
+    "question": "Case Study: You are optimizing a financial trading engine that processes long time series of profit/loss data. **How would you design the dynamic programming solution** to find the maximum sum of a contiguous subarray, and justify why this is the optimal approach for speed?",
+    "category": "Algorithm/Data Structures",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_ALG_M_110",
+    "role_family": "software_tech",
+    "sub_type": "medium",
+    "question": "Case Study: A core module of our database uses linked lists for managing internal buffers. **How would you design and implement the function** to reverse this linked list in place, minimizing memory usage and handling null pointers?",
+    "category": "Algorithm/Data Structures",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_ALG_H_111",
+    "role_family": "software_tech",
+    "sub_type": "hard",
+    "question": "Case Study: A large analytics platform needs to find the K-th largest element in a massive, unsorted dataset for real-time reporting. **How would you design the selection algorithm** (Quickselect or similar) to guarantee O(N) average time complexity, and how would you handle distributed data?",
+    "category": "Algorithm/Data Structures",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_SYS_M_010",
+    "role_family": "software_tech",
+    "sub_type": "medium",
+    "question": "Case Study: Your team is tasked with building a global, highly available **URL shortening service** like Bit.ly to handle 100 million redirects per day. **How would you design the complete system** (including API, hashing algorithm, database choice, and capacity estimation) to ensure low latency redirects?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_SYS_M_112",
+    "role_family": "software_tech",
+    "sub_type": "medium",
+    "question": "Case Study: Your company needs a custom, highly scalable, and fault-tolerant **distributed key-value store** for user profile data. **How would you design the core architecture** of this store, specifically addressing data partitioning (sharding), replica consistency (using techniques like Quorum), and conflict resolution?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_SYS_H_113",
+    "role_family": "software_tech",
+    "sub_type": "hard",
+    "question": "Case Study: We need to build a massive, **globally distributed notification service** capable of sending billions of real-time messages (SMS, push, email) across multiple protocols. **How would you design the architecture** to handle this scale, focusing on reliability, throughput, and failover mechanisms?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_ALG_E_133",
+    "role_family": "software_tech",
+    "sub_type": "easy",
+    "question": "Case Study: You need to simulate a transactional buffer (FIFO) but are limited to stack-like data structures. **How would you design the implementation** of a queue using two stacks, ensuring all queue operations (enqueue, dequeue) are efficient?",
+    "category": "Algorithm/Data Structures",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_SYS_M_134",
+    "role_family": "software_tech",
+    "sub_type": "medium",
+    "question": "Case Study: To protect our backend services from abuse and overload, we need to implement a **distributed Rate Limiter**. **How would you design this service**, detailing which algorithm (e.g., Leaky Bucket, Token Bucket) you would choose, and where in the service stack it would reside?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_SYS_H_143",
+    "role_family": "software_tech",
+    "sub_type": "hard",
+    "question": "Case Study: You are the lead engineer for a new competitive online game and must build a **real-time, globally synchronized leaderboard** for millions of players. **How would you design the database schema, API endpoints, and caching layer** to handle high-frequency updates and reads with minimal latency?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_ALG_M_147",
+    "role_family": "software_tech",
+    "sub_type": "medium",
+    "question": "Case Study: A search index uses a tree structure for navigation. **How would you design the traversal function** to print the nodes of a binary tree in level order (Breadth-First Search), and what is the space complexity of your solution?",
+    "category": "Algorithm/Data Structures",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_ALG_H_151",
+    "role_family": "software_tech",
+    "sub_type": "hard",
+    "question": "Case Study: You are processing large datasets from $k$ different sources, each sorted independently. **How would you design the optimal algorithm** to merge these $k$ sorted lists into a single sorted list, ensuring the overall time complexity is minimized (e.g., using a Min-Heap)?",
+    "category": "Algorithm/Data Structures",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_SYS_M_152",
+    "role_family": "software_tech",
+    "sub_type": "medium",
+    "question": "Case Study: Your company is launching a public, distributed **photo album service** (like Flickr). **How would you design the system** to handle large file uploads, metadata storage, read/write separation, and highly efficient content delivery?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_ALG_M_164",
+    "role_family": "software_tech",
+    "sub_type": "medium",
+    "question": "Case Study: A garbage collector uses linked lists to track memory segments. **How would you design the cycle detection function** using Floyd's Tortoise and Hare algorithm, and prove its correctness and time complexity?",
+    "category": "Algorithm/Data Structures",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_SYS_H_165",
+    "role_family": "software_tech",
+    "sub_type": "hard",
+    "question": "Case Study: Your product is a new **video streaming platform** aiming for 10 million daily users. **How would you design the end-to-end architecture**, from video ingestion and encoding to global content delivery (CDN strategy), to achieve low latency and handle variable network conditions?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_ALG_E_176",
+    "role_family": "software_tech",
+    "sub_type": "easy",
+    "question": "Case Study: You are building an index lookup for a database that uses sorted arrays for fast access. **How would you design and implement the binary search function** to be robust and handle edge cases like duplicated keys?",
+    "category": "Algorithm/Data Structures",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_SYS_M_177",
+    "role_family": "software_tech",
+    "sub_type": "medium",
+    "question": "Case Study: A financial analytics firm needs a high-throughput system to store and retrieve petabytes of **historical stock market data**. **How would you design the storage system and retrieval API**, considering the trade-offs between relational and NoSQL databases for time-series data?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_ALG_H_188",
+    "role_family": "software_tech",
+    "sub_type": "hard",
+    "question": "Case Study: A calendar application needs to optimize how it displays overlapping scheduled events. **How would you design the algorithm** to merge all overlapping intervals from a given list, and what is the optimal time complexity?",
+    "category": "Algorithm/Data Structures",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "SWE_SYS_E_189",
+    "role_family": "software_tech",
+    "sub_type": "easy",
+    "question": "Case Study: Your microservices architecture is experiencing high load during peak hours. **How would you design a solution using a message queue** (like Kafka) to decouple services and handle load spikes, and where in the system would you introduce it?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_STRAT_E_073",
+    "role_family": "product_management",
+    "sub_type": "easy",
+    "question": "What is the primary difference between a **mission** (why), a **vision** (what), and a **strategy** (how) in the context of a product?",
+    "category": "Product Strategy",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_STRAT_E_074",
+    "role_family": "product_management",
+    "sub_type": "easy",
+    "question": "Define the concept of **Product-Market Fit** (PMF). How do you know when a product has achieved it?",
+    "category": "Product Strategy",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_STRAT_M_075",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "Google is considering acquiring a popular vertical social media app (e.g., TikTok). Walk me through the framework you would use to recommend a 'Build vs. Buy' decision.",
+    "category": "Product Strategy",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_STRAT_M_076",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "You are launching a B2B SaaS product into a mature market with established competitors. Outline your **Go-to-Market (GTM)** strategy.",
+    "category": "Product Strategy",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_STRAT_H_077",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "You are the PM for Amazon Prime Video. Develop a **five-year strategy** focused on differentiating the product in the streaming war, considering content costs and global expansion.",
+    "category": "Product Strategy",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_STRAT_H_078",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "Our leadership wants to pivot the core product to target the Enterprise segment, moving away from SMBs. How do you manage this strategic shift, including stakeholder alignment and technical preparation?",
+    "category": "Product Strategy",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_EXEC_E_079",
+    "role_family": "product_management",
+    "sub_type": "easy",
+    "question": "Explain the **RICE scoring model** (Reach, Impact, Confidence, Effort) and how you would apply it to prioritize a backlog of 20 features.",
+    "category": "Execution/Prioritization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_EXEC_E_080",
+    "role_family": "product_management",
+    "sub_type": "easy",
+    "question": "What is an **MVP (Minimum Viable Product)**, and what are the three essential components you need to define before building one?",
+    "category": "Execution/Prioritization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_EXEC_M_081",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "You have a key engineer leaving in three weeks. How do you quickly re-prioritize the sprint and communicate the unavoidable trade-offs to the executive team?",
+    "category": "Execution/Prioritization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_EXEC_M_082",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "How do you manage conflicting priorities when the Sales team promises a customer a custom feature, but the Engineering team insists on a two-week security patch?",
+    "category": "Execution/Prioritization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_EXEC_H_083",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "You discover a major competitor is about to launch a feature that will neutralize your primary advantage. You have 60 days. Outline your roadmap adjustments and risk mitigation plan.",
+    "category": "Execution/Prioritization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_EXEC_H_084",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "Describe a time you had to **kill a feature or a product line** that you personally championed. What data led to the decision, and how did you manage the team's morale?",
+    "category": "Execution/Prioritization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DES_E_085",
+    "role_family": "product_management",
+    "sub_type": "easy",
+    "question": "What is one product you love, and one feature you would redesign or remove, and why?",
+    "category": "Product Design/UX",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DES_E_086",
+    "role_family": "product_management",
+    "sub_type": "easy",
+    "question": "How do you ensure a design is **accessible** and inclusive to users with disabilities?",
+    "category": "Product Design/UX",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DES_M_087",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "Design a fire alarm for a deaf person. Walk through your user segmentation, core feature set, and success metrics.",
+    "category": "Product Design/UX",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DES_M_088",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "How would you improve the current experience of setting up a new Wi-Fi router for the average user?",
+    "category": "Product Design/UX",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DES_H_089",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "You are the PM for Tesla's in-car entertainment system. Design a new feature that incentivizes responsible driving habits. Consider safety, user flow, and the business goal.",
+    "category": "Product Design/UX",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DES_H_090",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "Explain the **CIRCLES framework** and use it to design a product that solves the problem of 'losing small, high-value items' (e.g., keys, wallets) in a crowded area.",
+    "category": "Product Design/UX",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DATA_E_091",
+    "role_family": "product_management",
+    "sub_type": "easy",
+    "question": "You are the PM for Facebook Events. How would you define your **North Star Metric** and three supporting metrics (KPIs)?",
+    "category": "Analytics/Guesstimation",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DATA_E_092",
+    "role_family": "product_management",
+    "sub_type": "easy",
+    "question": "What is the difference between a **leading indicator** and a **lagging indicator**? Provide an example of each for a mobile e-commerce application.",
+    "category": "Analytics/Guesstimation",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DATA_M_093",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "How would you set up an **A/B test** to determine if a new recommendation algorithm should replace the current one on a streaming service's homepage?",
+    "category": "Analytics/Guesstimation",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DATA_M_094",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "Estimate the total number of commercial flights that take off in the United States every day.",
+    "category": "Analytics/Guesstimation",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DATA_M_095",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "Your product's conversion funnel shows a **20% drop-off** on the payment page. What are the top 3 hypotheses you would investigate, and what data would you use to validate them?",
+    "category": "Analytics/Guesstimation",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DATA_H_096",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "Your CEO asks you to determine the financial impact of a new, highly-requested, but technically complex feature. Walk me through how you would model the **projected revenue** and **cost-benefit analysis**.",
+    "category": "Analytics/Guesstimation",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_TECH_E_097",
+    "role_family": "product_management",
+    "sub_type": "easy",
+    "question": "Explain the difference between a **front-end** and a **back-end** to a non-technical marketing executive.",
+    "category": "Technical Acumen",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_TECH_M_098",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "Explain **API** and **RESTful architecture** in the context of building a weather application that pulls data from multiple sources.",
+    "category": "Technical Acumen",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_TECH_M_099",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "Tell me about a time you had to make a **technical trade-off** that affected the user experience. How did you negotiate with the engineering team?",
+    "category": "Technical Acumen",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_TECH_H_100",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "You are building a real-time collaborative document editor (like Google Docs). Describe the high-level **system architecture** (e.g., databases, servers, concurrency handling) and the trade-offs you face.",
+    "category": "Technical Acumen",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_TECH_H_101",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "Explain what **technical debt** is, why it occurs, and how you as a PM manage it versus prioritizing new feature development.",
+    "category": "Technical Acumen",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DATA_H_102",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "You are the PM for a popular photo-sharing app. You notice that the average time a user spends editing a photo has decreased by 30%. Is this good or bad, and how do you find the root cause?",
+    "category": "Analytics/Guesstimation",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_STRAT_M_103",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "How would you price a new enterprise SaaS product that saves customers an average of $50,000 per year? Detail your pricing strategy.",
+    "category": "Product Strategy",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_EXEC_M_104",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "Walk me through the process of writing a **Product Requirements Document (PRD)** for a new feature.",
+    "category": "Execution/Prioritization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DES_M_105",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "How would you improve the discovery experience for new content on a platform like Netflix or Spotify?",
+    "category": "Product Design/UX",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DATA_M_106",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "We are experiencing a sudden 15% drop in Daily Active Users (DAU). How do you start your investigation and what potential root causes would you explore?",
+    "category": "Analytics/Guesstimation",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_TECH_M_107",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "Explain the concept of **latency** and **throughput** to a marketing PM. How do these technical concepts impact the user experience?",
+    "category": "Technical Acumen",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_STRAT_M_123",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "How do you handle a situation where a major competitor undercuts your pricing by 50%? Detail your strategic response.",
+    "category": "Product Strategy",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_EXEC_E_124",
+    "role_family": "product_management",
+    "sub_type": "easy",
+    "question": "Explain the concept of **MoSCoW prioritization** and when you would use it instead of RICE.",
+    "category": "Execution/Prioritization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DES_E_125",
+    "role_family": "product_management",
+    "sub_type": "easy",
+    "question": "How do you distinguish between **User Needs** and **Business Needs** when defining product requirements?",
+    "category": "Product Design/UX",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DATA_M_126",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "Estimate the total number of cups of coffee sold in an average Starbucks store in San Francisco in one day.",
+    "category": "Analytics/Guesstimation",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_TECH_E_127",
+    "role_family": "product_management",
+    "sub_type": "easy",
+    "question": "What is the difference between **SQL** and **NoSQL** databases? Give an example of a product that would use each.",
+    "category": "Technical Acumen",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_STRAT_H_128",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "If you were the PM for Twitter/X, what would be your strategy to increase revenue from non-advertising sources?",
+    "category": "Product Strategy",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_EXEC_H_129",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "You have two high-impact features, but your engineering team says they can only build one this quarter. How do you lead the trade-off discussion and make the final decision?",
+    "category": "Execution/Prioritization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DES_H_130",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "Design a product for autonomous vehicles to communicate their next maneuver to pedestrians. Focus on safety, clarity, and non-distraction.",
+    "category": "Product Design/UX",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DATA_H_131",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "Daily user logins have remained stable, but Monthly Active Users (MAU) is declining. What does this suggest, and how do you investigate?",
+    "category": "Analytics/Guesstimation",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_TECH_H_132",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "Explain how a recommendation system based on **collaborative filtering** works at a high level. What are its limitations?",
+    "category": "Technical Acumen",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_STRAT_M_159",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "How would you decide on the **monetization model** (e.g., subscription, freemium, ad-supported) for a new mobile game?",
+    "category": "Product Strategy",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_EXEC_E_160",
+    "role_family": "product_management",
+    "sub_type": "easy",
+    "question": "What are **User Stories** and what makes a good one (e.g., INVEST criteria)?",
+    "category": "Execution/Prioritization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DES_M_161",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "How would you improve the experience of finding a parking spot in a major city using a mobile app?",
+    "category": "Product Design/UX",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DATA_M_162",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "Estimate the total length of all roads in the state of California.",
+    "category": "Analytics/Guesstimation",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_TECH_H_163",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "Describe a major scalability issue you've faced with a product and how the technical team solved it.",
+    "category": "Technical Acumen",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_STRAT_H_171",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "Develop a strategy for a company to transition from being purely B2C to having a significant B2B/Enterprise offering.",
+    "category": "Product Strategy",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_EXEC_M_172",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "How do you define and manage a successful **Beta program** for a new product launch?",
+    "category": "Execution/Prioritization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DES_E_173",
+    "role_family": "product_management",
+    "sub_type": "easy",
+    "question": "Explain the concept of 'Jobs-to-be-Done' (JTBD) and how you use it in product discovery.",
+    "category": "Product Design/UX",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DATA_H_174",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "Your recommendation engine team argues for optimizing for 'long-term value' while the business team demands 'short-term revenue.' How do you create an alignment metric?",
+    "category": "Analytics/Guesstimation",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_TECH_E_175",
+    "role_family": "product_management",
+    "sub_type": "easy",
+    "question": "Explain the difference between **synchronous** and **asynchronous** communication in systems.",
+    "category": "Technical Acumen",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_STRAT_M_183",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "Use the **Ansoff Matrix** (Market Penetration, Market Development, Product Development, Diversification) to analyze the growth strategy of a major tech company.",
+    "category": "Product Strategy",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_EXEC_H_184",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "Your product uses an offshore engineering team. Detail your communication strategy to ensure product alignment and effective execution across time zones and cultural barriers.",
+    "category": "Execution/Prioritization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DES_H_185",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "Design a feature for LinkedIn that uses AI to improve professional networking in a remote work environment. Detail the user flow and guardrails.",
+    "category": "Product Design/UX",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DATA_M_186",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "How many emails are sent per day by people living in Manhattan?",
+    "category": "Analytics/Guesstimation",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_TECH_M_187",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "Explain the three pillars of **object-oriented programming (OOP)** and how they apply to product development and maintainability.",
+    "category": "Technical Acumen",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_STRAT_E_195",
+    "role_family": "product_management",
+    "sub_type": "easy",
+    "question": "What is the **Value Proposition Canvas** and how does it relate to product strategy?",
+    "category": "Product Strategy",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_EXEC_M_196",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "How do you define **Done** for a product feature? What steps are included in the definition?",
+    "category": "Execution/Prioritization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DES_M_197",
+    "role_family": "product_management",
+    "sub_type": "medium",
+    "question": "How do you use **user journey mapping** to identify pain points and new opportunities?",
+    "category": "Product Design/UX",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_DATA_H_198",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "Design the key metrics and dashboards for a product that is designed for **habit formation** (e.g., a language learning app).",
+    "category": "Analytics/Guesstimation",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_TECH_H_199",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "How do you incorporate a **Machine Learning model** into a live product? Detail the infrastructure and monitoring requirements.",
+    "category": "Technical Acumen",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "PM_STRAT_H_200",
+    "role_family": "product_management",
+    "sub_type": "hard",
+    "question": "We are facing a situation where our product's primary user is being slowly cannibalized by a new feature we launched. Is this a failure or a win, and how should we adjust our strategy?",
+    "category": "Product Strategy",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DS_STAT_H_025",
+    "role_family": "data_science",
+    "sub_type": "hard",
+    "question": "You are running an A/B test with an unexpected result: Conversion rate increased, but overall revenue decreased. How do you investigate this, and what is the potential root cause?",
+    "category": "Statistics/A/B Testing",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DS_STAT_E_114",
+    "role_family": "data_science",
+    "sub_type": "easy",
+    "question": "Explain the difference between **Type I and Type II errors** in hypothesis testing.",
+    "category": "Statistics/A/B Testing",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DS_STAT_M_115",
+    "role_family": "data_science",
+    "sub_type": "medium",
+    "question": "How do you calculate the required **sample size** for an A/B test, given a baseline conversion rate and a minimum detectable effect (MDE)?",
+    "category": "Statistics/A/B Testing",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DS_MODEL_M_116",
+    "role_family": "data_science",
+    "sub_type": "medium",
+    "question": "Explain **regularization** (L1 and L2) in linear models. How does it help prevent overfitting?",
+    "category": "Modeling/ML",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DS_MODEL_H_117",
+    "role_family": "data_science",
+    "sub_type": "hard",
+    "question": "You built a classification model with 99% accuracy, but the business is complaining about its performance. What metric is likely the issue, and how would you fix it?",
+    "category": "Modeling/ML",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DS_STAT_M_135",
+    "role_family": "data_science",
+    "sub_type": "medium",
+    "question": "Explain the concept of **p-value** and its proper interpretation in an A/B test context.",
+    "category": "Statistics/A/B Testing",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DS_MODEL_E_136",
+    "role_family": "data_science",
+    "sub_type": "easy",
+    "question": "What is the bias-variance tradeoff? How does a complex model typically behave in terms of bias and variance?",
+    "category": "Modeling/ML",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DS_STAT_H_142",
+    "role_family": "data_science",
+    "sub_type": "hard",
+    "question": "Explain the concept of **Switchback Testing** (or time-series A/B testing) and when it's necessary for a product.",
+    "category": "Statistics/A/B Testing",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DS_MODEL_H_149",
+    "role_family": "data_science",
+    "sub_type": "hard",
+    "question": "Your sentiment analysis model performs well in the lab but poorly in production due to a large number of typos in user input. How do you address this **data drift**?",
+    "category": "Modeling/ML",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DS_STAT_E_153",
+    "role_family": "data_science",
+    "sub_type": "easy",
+    "question": "What is the difference between correlation and causation? Give a common example.",
+    "category": "Statistics/A/B Testing",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DS_MODEL_M_154",
+    "role_family": "data_science",
+    "sub_type": "medium",
+    "question": "Describe the **ROC curve** and **AUC score**. When is AUC a better metric than F1-score?",
+    "category": "Modeling/ML",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DS_STAT_M_166",
+    "role_family": "data_science",
+    "sub_type": "medium",
+    "question": "When is it appropriate to use a **t-test** versus a **chi-squared test** in A/B test analysis?",
+    "category": "Statistics/A/B Testing",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DS_MODEL_H_167",
+    "role_family": "data_science",
+    "sub_type": "hard",
+    "question": "How do you explain the decision of a **complex deep learning model** to a non-technical executive?",
+    "category": "Modeling/ML",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DS_STAT_H_178",
+    "role_family": "data_science",
+    "sub_type": "hard",
+    "question": "How do you detect and handle the **Novelty Effect** or **Change Aversion** when analyzing A/B test results?",
+    "category": "Statistics/A/B Testing",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DS_MODEL_M_179",
+    "role_family": "data_science",
+    "sub_type": "medium",
+    "question": "What is the difference between **Bagging** and **Boosting**? Name an algorithm for each.",
+    "category": "Modeling/ML",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DS_STAT_E_190",
+    "role_family": "data_science",
+    "sub_type": "easy",
+    "question": "Explain the difference between **Descriptive, Predictive, and Prescriptive Analytics**.",
+    "category": "Statistics/A/B Testing",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DS_MODEL_E_191",
+    "role_family": "data_science",
+    "sub_type": "easy",
+    "question": "What are the common strategies for handling **missing data** in a dataset?",
+    "category": "Modeling/ML",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DEVOPS_KUBE_E_042",
+    "role_family": "devops_sre",
+    "sub_type": "easy",
+    "question": "Explain the difference between a **Pod**, a **Deployment**, and a **Service** in Kubernetes.",
+    "category": "Kubernetes/Containerization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DEVOPS_KUBE_M_118",
+    "role_family": "devops_sre",
+    "sub_type": "medium",
+    "question": "How do you perform a **rolling update** in Kubernetes? What mechanisms ensure zero downtime?",
+    "category": "Kubernetes/Containerization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DEVOPS_CLOUD_H_119",
+    "role_family": "devops_sre",
+    "sub_type": "hard",
+    "question": "Design a highly-available, multi-region architecture for a web application. Focus on database replication and DNS failover.",
+    "category": "Cloud/Infrastructure",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DEVOPS_CLOUD_M_120",
+    "role_family": "devops_sre",
+    "sub_type": "medium",
+    "question": "Explain the principles of **Infrastructure as Code (IaC)**. Compare and contrast Terraform and Ansible.",
+    "category": "Cloud/Infrastructure",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DEVOPS_KUBE_E_137",
+    "role_family": "devops_sre",
+    "sub_type": "easy",
+    "question": "What is a **Helm Chart** and why is it useful for deploying applications to Kubernetes?",
+    "category": "Kubernetes/Containerization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DEVOPS_CLOUD_H_138",
+    "role_family": "devops_sre",
+    "sub_type": "hard",
+    "question": "Design a robust logging and monitoring pipeline for a microservices architecture. Detail the tools and data flow.",
+    "category": "Cloud/Infrastructure",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DEVOPS_KUBE_H_145",
+    "role_family": "devops_sre",
+    "sub_type": "hard",
+    "question": "How would you implement **autoscaling** for a cluster running a mix of CPU-intensive and memory-intensive workloads?",
+    "category": "Kubernetes/Containerization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DEVOPS_KUBE_M_155",
+    "role_family": "devops_sre",
+    "sub_type": "medium",
+    "question": "Explain the purpose of a **sidecar container** pattern in a Kubernetes Pod and provide an example use case.",
+    "category": "Kubernetes/Containerization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DEVOPS_CLOUD_E_156",
+    "role_family": "devops_sre",
+    "sub_type": "easy",
+    "question": "What is the difference between a **load balancer** and a **reverse proxy**?",
+    "category": "Cloud/Infrastructure",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DEVOPS_KUBE_H_168",
+    "role_family": "devops_sre",
+    "sub_type": "hard",
+    "question": "Explain how **service mesh** (e.g., Istio) solves common microservices problems like traffic control and security.",
+    "category": "Kubernetes/Containerization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DEVOPS_CLOUD_M_169",
+    "role_family": "devops_sre",
+    "sub_type": "medium",
+    "question": "What is the purpose of a **CDN (Content Delivery Network)**? How does it improve performance and availability?",
+    "category": "Cloud/Infrastructure",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DEVOPS_KUBE_E_180",
+    "role_family": "devops_sre",
+    "sub_type": "easy",
+    "question": "What is a **CI/CD pipeline** and what are the main stages in a typical workflow?",
+    "category": "Kubernetes/Containerization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DEVOPS_CLOUD_H_181",
+    "role_family": "devops_sre",
+    "sub_type": "hard",
+    "question": "Explain the concept of **Chaos Engineering**. How would you apply it to a production environment?",
+    "category": "Cloud/Infrastructure",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DEVOPS_KUBE_M_192",
+    "role_family": "devops_sre",
+    "sub_type": "medium",
+    "question": "How do you secure sensitive information (like database passwords) in a Kubernetes cluster?",
+    "category": "Kubernetes/Containerization",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "DEVOPS_CLOUD_M_193",
+    "role_family": "devops_sre",
+    "sub_type": "medium",
+    "question": "Explain the concept of **idempotency** in API design and infrastructure scripting (e.g., Ansible).",
+    "category": "Cloud/Infrastructure",
+    "applies_to_all": false,
+    "source": "questions_json"
+  },
+  {
+    "id": "BEH_LEAD_M_060",
+    "role_family": "general",
+    "sub_type": "medium",
+    "question": "Tell me about a time you had to deliver bad news to an executive or senior stakeholder. How did you prepare, and what was the outcome?",
+    "category": "conflict_resolution",
+    "applies_to_all": true,
+    "source": "questions_json"
+  },
+  {
+    "id": "BEH_PROC_H_072",
+    "role_family": "general",
+    "sub_type": "hard",
+    "question": "Describe a project where you completely misread the market or user needs, resulting in a product failure. What was your biggest learning, and how did you lead the team through the post-mortem?",
+    "category": "growth_mindset",
+    "applies_to_all": true,
+    "source": "questions_json"
+  },
+  {
+    "id": "BEH_LEAD_E_121",
+    "role_family": "general",
+    "sub_type": "easy",
+    "question": "Walk me through your proudest accomplishment. What was your specific role and impact?",
+    "category": "conflict_resolution",
+    "applies_to_all": true,
+    "source": "questions_json"
+  },
+  {
+    "id": "BEH_PROC_M_122",
+    "role_family": "general",
+    "sub_type": "medium",
+    "question": "Tell me about a time you had a fundamental disagreement with your manager or a senior leader. How did you handle the conflict and what was the resolution?",
+    "category": "growth_mindset",
+    "applies_to_all": true,
+    "source": "questions_json"
+  },
+  {
+    "id": "BEH_LEAD_M_139",
+    "role_family": "general",
+    "sub_type": "medium",
+    "question": "Tell me about a time you successfully influenced a decision where you had no formal authority.",
+    "category": "conflict_resolution",
+    "applies_to_all": true,
+    "source": "questions_json"
+  },
+  {
+    "id": "BEH_PROC_E_148",
+    "role_family": "general",
+    "sub_type": "easy",
+    "question": "What is your process for giving and receiving constructive criticism?",
+    "category": "growth_mindset",
+    "applies_to_all": true,
+    "source": "questions_json"
+  },
+  {
+    "id": "BEH_LEAD_H_157",
+    "role_family": "general",
+    "sub_type": "hard",
+    "question": "Describe a situation where your team had to **pivot completely** under extreme pressure. How did you manage the team's stress and uncertainty?",
+    "category": "conflict_resolution",
+    "applies_to_all": true,
+    "source": "questions_json"
+  },
+  {
+    "id": "BEH_PROC_M_158",
+    "role_family": "general",
+    "sub_type": "medium",
+    "question": "Tell me about a time you launched a feature that had bugs in production. Walk through your immediate response and the post-incident review.",
+    "category": "growth_mindset",
+    "applies_to_all": true,
+    "source": "questions_json"
+  },
+  {
+    "id": "BEH_LEAD_E_170",
+    "role_family": "general",
+    "sub_type": "easy",
+    "question": "What is the most important quality a good product manager/engineer/scientist must possess, and why?",
+    "category": "conflict_resolution",
+    "applies_to_all": true,
+    "source": "questions_json"
+  },
+  {
+    "id": "BEH_PROC_H_182",
+    "role_family": "general",
+    "sub_type": "hard",
+    "question": "Describe a time when you realized a project was going to miss its hard deadline. What steps did you take, and how did you manage the scope and expectations of leadership?",
+    "category": "growth_mindset",
+    "applies_to_all": true,
+    "source": "questions_json"
+  },
+  {
+    "id": "BEH_LEAD_M_194",
+    "role_family": "general",
+    "sub_type": "medium",
+    "question": "How do you motivate an underperforming team member? Describe your process.",
+    "category": "conflict_resolution",
+    "applies_to_all": true,
+    "source": "questions_json"
+  }
+]

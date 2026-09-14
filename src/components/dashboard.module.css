@@ -1,0 +1,2195 @@
+/* ==========================================================================
+   Dashboard — Brand System (#4782F6)
+   Matches Admin Panel Primary Actions
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+.dashboardPage {
+    min-height: 100vh;
+    min-height: 100dvh;
+    background-color: #F5F6FA;
+    background-color: #F4F6FA;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #141414;
+    font-weight: 400;
+    position: relative;
+    isolation: isolate;
+}
+
+/* ── Disable all animations and transitions on Dashboard ── */
+.dashboardPage,
+.dashboardPage *,
+.dashboardPage *::before,
+.dashboardPage *::after {
+    animation: none !important;
+    transition: none !important;
+}
+
+/* ── Top Navigation Bar ── */
+.navbar {
+    height: 70px;
+    background-color: #ffffff;
+    border-bottom: 1px solid #E8EAF0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2.25rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.navLeft {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #141414;
+    letter-spacing: -0.01em;
+}
+
+.logoIcon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: #4782F6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.searchBar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: #F5F6FA;
+    border: 1px solid #E8EAF0;
+    border-radius: 10px;
+    padding: 0.5rem 1rem;
+    min-width: 300px;
+    color: #94A3B8;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.searchBar:hover {
+    border-color: #CBD5E1;
+}
+
+.searchBarText {
+    color: #94A3B8;
+    font-weight: 400;
+}
+
+.navRight {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.xpBadge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    border-radius: 20px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #4782F6;
+}
+
+.xpDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #4782F6;
+}
+
+.streakBadge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: #ffffff;
+    border: 1px solid #E8EAF0;
+    border-radius: 20px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #64748B;
+}
+
+.streakDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #94A3B8;
+}
+
+.notificationBtn {
+    background: none;
+    border: none;
+    color: #94A3B8;
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s;
+}
+
+.notificationBtn:hover {
+    color: #141414;
+}
+
+.logoutBtn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: 1px solid #E8EAF0;
+    color: #64748B;
+    font-size: 0.75rem;
+    font-weight: 400;
+    padding: 0.4rem 0.75rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.logoutBtn:hover {
+    color: #141414;
+    border-color: #CBD5E1;
+    background: #F8FAFC;
+}
+
+.avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #4782F6;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* ── Main Content ── */
+.mainContent {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.75rem 2.25rem 3rem;
+    position: relative;
+    z-index: 1;
+}
+
+/* ── Hero Section (Suggested Interviews) ── */
+.heroSection {
+    background: linear-gradient(135deg, #4782F6 0%, #3B71E8 100%);
+    border-radius: 6px;
+    padding: 2.75rem 2.5rem;
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    gap: 2.25rem;
+    align-items: center;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(71, 130, 246, 0.2);
+}
+
+.heroSection::after {
+    content: '';
+    position: absolute;
+    top: -80px;
+    right: -80px;
+    width: 260px;
+    height: 260px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    pointer-events: none;
+}
+
+.heroTextBlock {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.heroGreeting {
+    font-size: 0.95rem;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.heroHeading {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 2.25rem;
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1.2;
+    letter-spacing: -0.03em;
+}
+
+.heroProgressBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    background: #ffffff;
+    border: none;
+    color: #4782F6;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 0.75rem 1.5rem;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: fit-content;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.heroProgressBtn:hover {
+    background: #F8FAFC;
+    color: #3B71E8;
+    transform: translateY(-1px);
+}
+
+.heroProgressArrow {
+    font-size: 0.9rem;
+}
+
+/* ── Suggested Interviews Module Cards (Horizontal Scroll) ── */
+.moduleCardsScroll {
+    display: flex;
+    gap: 1rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 0.5rem 0.25rem;
+}
+
+.moduleCardsScroll::-webkit-scrollbar {
+    display: none;
+}
+
+.moduleCard {
+    min-width: 185px;
+    max-width: 210px;
+    min-height: 280px;
+    background: #ffffff;
+    border-radius: 6px;
+    padding: 1.4rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    cursor: pointer;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.moduleCard:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.moduleCardWithIllustration {
+    padding-bottom: 0;
+}
+
+.moduleCardTop {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    position: relative;
+    z-index: 2;
+}
+
+.moduleCardHeaderRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.moduleCardNumber {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #4782F6;
+    letter-spacing: 0.05em;
+}
+
+.cardPlayButton {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-left: 2px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.moduleCard:hover .cardPlayButton {
+    background: #4782F6;
+    border-color: #4782F6;
+}
+
+.moduleCard:hover .cardPlayButton svg {
+    fill: #ffffff !important;
+    color: #ffffff !important;
+}
+
+.moduleCardTitle {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #1E293B;
+    line-height: 1.35;
+    letter-spacing: -0.01em;
+}
+
+/* Icon card image container */
+.moduleCardImage {
+    width: 100%;
+    height: 110px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #4782F6;
+    margin-top: auto;
+    background: #F8FAFC;
+    border-radius: 6px;
+    border: 1px dashed #E2E8F0;
+}
+
+/* Module Illustration Container - anchored flush to the bottom */
+.moduleIllustrationWrap {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 165px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    overflow: hidden;
+    pointer-events: none;
+    border-radius: 0 0 6px 6px;
+    padding: 0 6px 4px 6px;
+}
+
+.moduleIllustration {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: bottom center;
+    display: block;
+    filter: drop-shadow(0 4px 12px rgba(0, 48, 143, 0.08));
+}
+
+.moduleIllustrationWrapTall {
+    height: 175px;
+    padding: 0;
+}
+
+.moduleIllustrationTall {
+    object-fit: cover;
+    object-position: center top;
+}
+
+/* ── Bottom Grid: Job Opportunities + Chats ── */
+.dashboardGrid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0;
+    align-items: stretch;
+    width: 100%;
+}
+
+/* ── Module Progress / Top Job Picks Panel ── */
+.moduleProgressPanel {
+    background: #ffffff;
+    border: 1px solid #E8EAF0;
+    border-right: none;
+    border-radius: 6px 0 0 6px;
+    padding: 1.75rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    position: relative;
+    z-index: 5;
+}
+
+.topJobPicksHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+}
+
+.recruiterAvatarRow {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.recruiterAvatarImg {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #E2E8F0;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.topJobPicksTitle {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #181829;
+    letter-spacing: -0.015em;
+    margin: 0;
+    line-height: 1.3;
+}
+
+.topJobPicksSubtitle {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.84rem;
+    color: #64748B;
+    font-weight: 400;
+    margin: 0.35rem 0 0 0;
+    line-height: 1.45;
+}
+
+.topJobPicksRight {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    flex-shrink: 0;
+}
+
+.showAllLink {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #4782F6;
+    text-decoration: none;
+    transition: color 0.15s ease;
+    white-space: nowrap;
+}
+
+.showAllLink:hover {
+    color: #3B71E8;
+    text-decoration: underline;
+}
+
+/* ── Recruiter Tab Selector ── */
+.recruiterTabGroup {
+    display: inline-flex;
+    align-items: center;
+    background: #F1F5F9;
+    border-radius: 6px;
+    padding: 2px;
+    gap: 2px;
+}
+
+.recruiterTabBtn {
+    border: none;
+    background: transparent;
+    padding: 5px 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #64748B;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: 'Inter', sans-serif;
+    white-space: nowrap;
+}
+
+.recruiterTabBtn:hover {
+    color: #0F172A;
+}
+
+.recruiterTabBtnActive {
+    background: #FFFFFF;
+    color: #4782F6;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* ── Job Picks List (Matching Reference Design) — scrollable, max 5 visible ── */
+.jobPickList {
+    display: flex;
+    flex-direction: column;
+    width: calc(100% + 3.5rem);
+    margin-top: 1.25rem;
+    flex: none;
+    overflow-y: auto;
+    max-height: 380px;
+    margin-left: -1.75rem;
+    margin-right: -1.75rem;
+    margin-bottom: -1.75rem;
+    scrollbar-width: thin;
+    scrollbar-color: #94A3B8 #F1F5F9;
+}
+
+.jobPickList::-webkit-scrollbar {
+    width: 6px;
+}
+
+.jobPickList::-webkit-scrollbar-track {
+    background: #F1F5F9;
+}
+
+.jobPickList::-webkit-scrollbar-thumb {
+    background: #94A3B8;
+    border-radius: 9999px;
+}
+
+.jobPickList::-webkit-scrollbar-thumb:hover {
+    background: #4782F6;
+}
+
+.jobPickRow {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.85rem 1.75rem;
+    background: #ffffff;
+    border-top: 1px solid #E8EAF0;
+    border-bottom: 1px solid #E8EAF0;
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 0;
+    position: relative;
+}
+
+.jobPickRow + .jobPickRow {
+    margin-top: -1px;
+}
+
+.jobPickRow:first-child,
+.jobPickRow:first-child:hover {
+    border-top: none;
+}
+
+.jobPickRow:hover {
+    background: #F8FAFC;
+    border-top-color: #CBD5E1;
+    border-bottom-color: #CBD5E1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+    z-index: 1;
+}
+
+.jobPickLogoWrap {
+    width: 42px;
+    height: 42px;
+    border-radius: 6px;
+    background: #ffffff;
+    border: 1px solid #E2E8F0;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.jobPickInfo {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 3px;
+}
+
+.jobPickTitle {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.94rem;
+    font-weight: 400;
+    color: #181829;
+    line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -0.01em;
+}
+
+.jobPickMeta {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.82rem;
+    color: #6B7280;
+    font-weight: 400;
+    line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.jobPickSalaryCol {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    flex-shrink: 0;
+    text-align: right;
+    min-width: 90px;
+}
+
+.jobPickSalaryPeriod {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.72rem;
+    color: #94A3B8;
+    font-weight: 500;
+    margin-bottom: 1px;
+    line-height: 1;
+}
+
+.jobPickSalaryAmount {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #181829;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+}
+
+.jobRowPracticeBtn,
+.roleSimulateBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #4782F6;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.jobRowPracticeBtn:hover,
+.roleSimulateBtn:hover {
+    background: #3B71E8;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(71, 130, 246, 0.25);
+}
+
+/* ── Role Recommendations Header & Meta Styles ── */
+.rolesHeaderRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1.15rem;
+}
+
+.rolesHeaderLeft {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.locationSwitcherWrap {
+    position: relative;
+    display: inline-block;
+    z-index: 50;
+}
+
+.locationBadgePill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #EFF6FF;
+    color: #4782F6;
+    border: 1px solid #BFDBFE;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.73rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.locationBadgePill:hover {
+    background: #DBEAFE;
+    border-color: #93C5FD;
+}
+
+.locationDropdownMenu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    left: auto;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+    padding: 6px;
+    min-width: 220px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.locationDropdownItem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    color: #334155;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+    width: 100%;
+}
+
+.locationDropdownItem:hover {
+    background: #F1F5F9;
+    color: #4782F6;
+}
+
+.locationDropdownItemActive {
+    background: #EFF6FF;
+    color: #4782F6;
+    font-weight: 600;
+}
+
+.jobMetaRow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 3px;
+}
+
+.jobLocationTag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.7rem;
+    color: #4782F6;
+    background: #EFF6FF;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.jobCompanyTag {
+    font-size: 0.72rem;
+    color: #64748B;
+    font-weight: 500;
+}
+
+.jobActionGroup {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.jobEmptyMessage {
+    padding: 2rem 1.75rem;
+    text-align: center;
+    color: #64748B;
+    font-size: 0.85rem;
+    border-top: 1px solid #E8EAF0;
+}
+
+/* ── Job Description Modal ── */
+.jobModalBackdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(3px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 600;
+    padding: 1rem;
+}
+
+.jobModalBox {
+    background: #FFFFFF;
+    border-radius: 6px;
+    width: 100%;
+    max-width: 580px;
+    max-height: 85vh;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.jobModalHeader {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #E2E8F0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.jobModalTitleGroup {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.jobModalTitle {
+    font-size: 1.15rem;
+    font-weight: 500;
+    color: #0F172A;
+    margin: 0;
+    line-height: 1.3;
+}
+
+.jobModalSub {
+    font-size: 0.82rem;
+    color: #64748B;
+    margin-top: 2px;
+}
+
+.jobModalCloseBtn {
+    background: #F1F5F9;
+    border: none;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    color: #64748B;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+
+.jobModalCloseBtn:hover {
+    background: #E2E8F0;
+    color: #0F172A;
+}
+
+.jobModalBody {
+    padding: 1.5rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.jobModalMetaGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.75rem;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    padding: 1rem;
+}
+
+.jobModalMetaItem {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.jobModalMetaLabel {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748B;
+    font-weight: 600;
+}
+
+.jobModalMetaVal {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #0F172A;
+}
+
+.jobModalSectionTitle {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #0F172A;
+    margin-bottom: 0.5rem;
+}
+
+.jobModalText {
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: #334155;
+    margin: 0;
+}
+
+.jobModalFooter {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #E2E8F0;
+    background: #F8FAFC;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+/* ── Scheduled / Chats Panel ── */
+.scheduledPanel {
+    background: #ffffff;
+    border: 1px solid #E8EAF0;
+    border-radius: 0 6px 6px 0;
+    padding: 1.75rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+}
+
+.scheduledHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+}
+
+.headerCharacterGroup {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.characterAvatarsRow {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    flex-shrink: 0;
+}
+
+.headerCharAvatarButton {
+    position: relative;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    outline: none;
+}
+
+.headerCharAvatarCircle {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 2px solid #E2E8F0;
+    object-fit: cover;
+    display: block;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    background: #ffffff;
+}
+
+.headerCharAvatarButtonActive .headerCharAvatarCircle {
+    border-color: #4782F6;
+    box-shadow: 0 0 0 2px rgba(71, 130, 246, 0.25);
+}
+
+.charUnreadBadge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    background: #EF4444;
+    color: #ffffff;
+    font-size: 0.55rem;
+    font-weight: 700;
+    font-family: 'Inter', sans-serif;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid #ffffff;
+    box-shadow: 0 1px 2px rgba(239, 68, 68, 0.35);
+    line-height: 1;
+    pointer-events: none;
+}
+
+/* ── iMessage Style Blue Chat Bubble (Hero Blue) ── */
+.imessageRoleBubble {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    background: linear-gradient(135deg, #4782F6 0%, #3B71E8 100%);
+    border-radius: 18px 18px 18px 4px;
+    padding: 0.55rem 0.85rem;
+    box-shadow: 0 4px 14px rgba(71, 130, 246, 0.22);
+    max-width: 320px;
+    margin: 0 0.35rem;
+    z-index: 10;
+    flex-shrink: 1;
+}
+
+.imessageBubbleTail {
+    position: absolute;
+    left: -5px;
+    bottom: 7px;
+    width: 10px;
+    height: 10px;
+    background: #4782F6;
+    transform: rotate(45deg);
+    border-radius: 1px;
+}
+
+.imessageBubbleContent {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.imessageRoleText {
+    font-size: 0.735rem;
+    color: #ffffff;
+    line-height: 1.35;
+    margin: 0;
+    font-weight: 400;
+}
+
+.imessageCloseBtn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: #ffffff;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 0.55rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: background 0.15s ease;
+}
+
+.imessageCloseBtn:hover {
+    background: rgba(255, 255, 255, 0.35);
+}
+
+.scheduledSeeAll {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #94A3B8;
+    cursor: pointer;
+    background: none;
+    border: none;
+    transition: color 0.15s;
+}
+
+.scheduledSeeAll:hover {
+    color: #4782F6;
+}
+
+/* ── Active Character Subheader ── */
+.activeCharacterBar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-bottom: 0.85rem;
+    padding: 0 0.15rem;
+}
+
+.activeCharacterName {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #0F172A;
+    letter-spacing: -0.01em;
+}
+
+.activeCharacterSub {
+    font-size: 0.72rem;
+    color: #64748B;
+    background: #F1F5F9;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.chatActiveTabHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.85rem;
+    padding: 0 0.25rem;
+}
+
+.chatActiveTabTitle {
+    font-size: 0.825rem;
+    font-weight: 700;
+    color: #4782F6;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.chatActiveTabBadge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #10B981;
+    background: #DCFCE7;
+    padding: 2px 8px;
+    border-radius: 9999px;
+}
+
+/* ── Conversation Style UI (Distinct independent scrollbars) — max 5 visible ── */
+.conversationDmList {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    flex: 1;
+    overflow-y: auto;
+    max-height: 380px;
+    margin-left: -1.75rem;
+    margin-right: -1.75rem;
+    margin-bottom: -1.75rem;
+    scrollbar-width: thin;
+    scrollbar-color: #94A3B8 #F1F5F9;
+}
+
+.conversationDmList::-webkit-scrollbar {
+    width: 6px;
+}
+
+.conversationDmList::-webkit-scrollbar-track {
+    background: #F1F5F9;
+}
+
+.conversationDmList::-webkit-scrollbar-thumb {
+    background: #94A3B8;
+    border-radius: 9999px;
+}
+
+.conversationDmList::-webkit-scrollbar-thumb:hover {
+    background: #4782F6;
+}
+
+.conversationBox {
+    background: #ffffff;
+    border-top: 1px solid #E8EAF0;
+    border-bottom: 1px solid #E8EAF0;
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+    padding: 0.85rem 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.conversationBox + .conversationBox {
+    margin-top: -1px;
+}
+
+.conversationBox:hover {
+    border-top-color: #CBD5E1;
+    border-bottom-color: #CBD5E1;
+    background: #F8FAFC;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+    z-index: 1;
+}
+
+.conversationBoxOpen {
+    background: #ffffff;
+    border-top: 1px solid #4782F6;
+    border-bottom: 1px solid #4782F6;
+    border-left: none;
+    border-right: none;
+    box-shadow: 0 4px 16px rgba(71, 130, 246, 0.12);
+    position: relative;
+    z-index: 2;
+}
+
+.conversationSenderRow {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+}
+
+.conversationAvatarWrap {
+    position: relative;
+    width: 42px;
+    height: 42px;
+    border-radius: 6px;
+    background: #ffffff;
+    border: 1px solid #E2E8F0;
+    padding: 2px;
+    flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.conversationAvatar {
+    width: 100%;
+    height: 100%;
+    border-radius: 4px;
+    object-fit: cover;
+    display: block;
+}
+
+.conversationOnlineDot {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #10B981;
+    border: 2px solid #ffffff;
+}
+
+.conversationSenderInfo {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.dmSenderTopLine {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.conversationSenderName {
+    font-size: 0.78rem;
+    font-weight: 700;
+    background: #E2E8F0;
+    color: #0F172A;
+    padding: 2px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+}
+
+.dmTopicBadge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #4782F6;
+    background: #EFF6FF;
+    padding: 2px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+}
+
+.dmSnippetPreview {
+    font-size: 0.78rem;
+    color: #64748B;
+    margin: 0.25rem 0 0 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.35;
+}
+
+.dmHeaderRight {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.conversationTime {
+    font-size: 0.72rem;
+    color: #94A3B8;
+}
+
+.dmChevron {
+    color: #64748B;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #F1F5F9;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.conversationBoxOpen .dmChevron {
+    background: #4782F6;
+    color: #ffffff;
+}
+
+.dmExpandedContent {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #F1F5F9;
+}
+
+/* Speech bubbles stack */
+.conversationBubbles {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    margin-left: 52px;
+}
+
+.speechBubble {
+    background: #ffffff;
+    border: 1px solid #E2E8F0;
+    border-radius: 4px 16px 16px 16px;
+    padding: 0.85rem 1rem;
+    font-size: 0.86rem;
+    line-height: 1.48;
+    color: #1E293B;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.speechBubble:nth-child(2) {
+    border-radius: 16px;
+}
+
+.speechBubbleIndicator {
+    background: #ffffff;
+    border: 1px solid #E2E8F0;
+    border-radius: 9999px;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.76rem;
+    color: #475569;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    width: fit-content;
+}
+
+.indicatorDiamond {
+    width: 6px;
+    height: 6px;
+    background: #F97316;
+    transform: rotate(45deg);
+    border-radius: 1px;
+    flex-shrink: 0;
+}
+
+.indicatorDotsGroup {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.indicatorMiniDot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+}
+
+.indicatorText {
+    font-weight: 500;
+    color: #475569;
+}
+
+/* Bottom Action Buttons (like the buttons in the reference image) */
+.conversationActionsRow {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.4rem;
+    margin-left: 52px;
+    flex-wrap: wrap;
+}
+
+.conversationBtnPrimary {
+    background: #4782F6;
+    color: #FFFFFF;
+    border: 1px solid #4782F6;
+    border-radius: 9999px;
+    padding: 0.45rem 1.1rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+}
+
+.conversationBtnPrimary:hover {
+    background: #3B71E8;
+    border-color: #3B71E8;
+}
+
+.conversationBtnSecondary {
+    background: #EFF6FF;
+    color: #4782F6;
+    border: 1px solid #BFDBFE;
+    border-radius: 9999px;
+    padding: 0.45rem 1.1rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+}
+
+.conversationBtnSecondary:hover {
+    background: #DBEAFE;
+    border-color: #93C5FD;
+}
+
+.conversationBtnIcon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 1px solid #CBD5E1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748B;
+    cursor: pointer;
+    margin-left: auto;
+}
+
+/* ── Mobile Bottom Navigation ── */
+.bottomNav {
+    display: none;
+    pointer-events: none;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+    .dashboardGrid {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+    .moduleProgressPanel {
+        border-right: 1px solid #E8EAF0;
+        border-bottom: none;
+        border-radius: 6px 6px 0 0;
+    }
+    .scheduledPanel {
+        border-radius: 0 0 6px 6px;
+    }
+    .heroSection {
+        grid-template-columns: 1fr;
+    }
+    .searchBar {
+        display: none;
+    }
+}
+
+@media (max-width: 1024px) {
+    .dashboardPage {
+        min-height: 100dvh;
+        height: 100dvh;
+        max-height: 100dvh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    .navbar {
+        flex-shrink: 0;
+    }
+    .mainContent {
+        flex: 1;
+        min-height: 0;
+        padding: 0.5rem 1rem 74px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .bottomNav {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 64px;
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-top: 1px solid #E8EAF0;
+        justify-content: space-around;
+        align-items: center;
+        padding-bottom: env(safe-area-inset-bottom);
+        z-index: 99999;
+        pointer-events: auto;
+    }
+
+    .bottomNavLink {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.25rem;
+        color: #94A3B8;
+        text-decoration: none;
+        font-size: 0.65rem;
+        font-weight: 500;
+        transition: color 0.2s ease;
+    }
+
+    .bottomNavLinkActive {
+        color: #4782F6;
+    }
+
+    .bottomNavLink:active {
+        transform: scale(0.95);
+    }
+
+    .bottomNavBtn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.25rem;
+        color: #94A3B8;
+        background: none;
+        border: none;
+        font-size: 0.68rem;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 0.35rem 1rem;
+        transition: color 0.15s ease, transform 0.15s ease;
+        font-family: inherit;
+        -webkit-tap-highlight-color: transparent;
+        position: relative;
+        z-index: 10000;
+        pointer-events: auto;
+    }
+
+    .bottomNavBtn * {
+        pointer-events: none;
+    }
+
+    .bottomNavBtnActive {
+        color: #4782F6;
+    }
+
+    .bottomNavBtn:active {
+        transform: scale(0.92);
+    }
+
+    .bottomNavAvatarWrap {
+        position: relative;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .bottomNavAvatar {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1.5px solid #CBD5E1;
+        transition: all 0.15s ease;
+    }
+
+    .bottomNavAvatarActive {
+        border-color: #4782F6;
+        box-shadow: 0 0 0 2px rgba(71, 130, 246, 0.25);
+    }
+
+    .bottomNavDot {
+        position: absolute;
+        bottom: -1px;
+        right: -1px;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #3B82F6;
+        border: 1.5px solid #FFFFFF;
+    }
+
+    /* ── Mobile: Remove shadow from front card only ── */
+    .deckCardBase {
+        box-shadow: none !important;
+    }
+    .deckFrontCard {
+        box-shadow: none !important;
+        /* Inset front card slightly so background layers peek out */
+        inset: 6px !important;
+        width: calc(100% - 12px) !important;
+        height: calc(100% - 12px) !important;
+    }
+    /* Keep background layer shadows and make them more visible */
+    .deckBackLayer1 {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+        border: 1px solid #CBD5E1 !important;
+    }
+    .deckBackLayer2 {
+        box-shadow: 0 3px 12px rgba(0, 0, 0, 0.07) !important;
+        border: 1px solid #CBD5E1 !important;
+    }
+    .deckBackLayer3 {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+        border: 1px solid #CBD5E1 !important;
+    }
+
+    /* ── Mobile: Clip outer container but allow deck overflow ── */
+    .deckSectionContainer {
+        overflow: visible !important;
+    }
+    .deckViewport {
+        overflow: visible !important;
+    }
+    .deckStackWrapper {
+        overflow: visible !important;
+    }
+
+    /* ── Mobile: Dots tight below card ── */
+    .deckNavDotsRow {
+        padding: 2px 0 0;
+        margin: 0;
+    }
+
+    /* ── Mobile: Contain scroll to mobileViewContainer ── */
+    .mobileViewContainer {
+        overflow: hidden !important;
+        -webkit-overflow-scrolling: auto;
+    }
+}
+
+@media (max-width: 768px) {
+    .heroSection {
+        padding: 1.5rem;
+        border-radius: 14px;
+    }
+    .heroHeading {
+        font-size: 1.5rem;
+    }
+    .moduleCard {
+        min-width: 150px;
+    }
+    .scheduledHeader {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+    .topJobPicksRight {
+        width: 100%;
+        justify-content: space-between;
+    }
+    .navbar {
+        padding: 0 0.75rem;
+        height: 50px;
+    }
+    .xpBadge, .streakBadge {
+        display: none;
+    }
+    .bottomNav {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 64px;
+        background: rgba(255, 255, 255, 0.97);
+        backdrop-filter: blur(20px);
+        border-top: 1px solid #E8EAF0;
+        justify-content: space-around;
+        align-items: center;
+        padding-bottom: env(safe-area-inset-bottom);
+        z-index: 9999;
+    }
+}
+
+/* ── Location Badge Icon-Only ── */
+.locationBadgeIconOnly {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 50%;
+    justify-content: center;
+    gap: 0;
+}
+
+/* ── Mobile vs Desktop View Containers ── */
+.desktopViewContainer {
+    display: block;
+    width: 100%;
+}
+
+.mobileViewContainer {
+    display: none;
+    width: 100%;
+}
+
+.mobileHomeWrap {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 0;
+    flex: 1;
+    min-height: 0;
+}
+
+.mobileHomeHeader {
+    padding: 0.85rem 1.25rem 0.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    text-align: left;
+    align-items: flex-start;
+    width: 100%;
+}
+
+.mobileHomeGreeting {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #4782F6;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.mobileHomeHeading {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 1.35rem;
+    font-weight: 500;
+    color: #0F172A;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    margin: 0;
+}
+
+@media (max-width: 1024px) {
+    .desktopViewContainer {
+        display: none;
+    }
+    .mobileViewContainer {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        gap: 0;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+}
+
+/* ── Tinder Deck Section (White Desktop Cards, Fill Available Space) ── */
+.deckSectionContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    padding: 0.5rem 0 0;
+    overflow: hidden;
+}
+
+.deckViewport {
+    position: relative;
+    width: 100%;
+    max-width: 440px;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+}
+
+.deckStackWrapper {
+    position: relative;
+    width: min(90vw, 385px);
+    height: 100%;
+    max-height: 570px;
+    min-height: 380px;
+    margin: 0 auto;
+}
+
+.deckCardBase {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 18px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Background cards fanning out in layers */
+.deckBackLayer3 {
+    transform: rotate(-10deg) scale(0.88) translateY(-6px);
+    z-index: 1;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+    opacity: 0.94;
+}
+
+.deckBackLayer2 {
+    transform: rotate(7deg) scale(0.92) translateY(-3px);
+    z-index: 2;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
+    opacity: 0.97;
+}
+
+.deckBackLayer1 {
+    transform: rotate(-5deg) scale(0.96);
+    z-index: 3;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.06);
+}
+
+.deckFrontCard {
+    z-index: 10;
+    cursor: grab;
+    will-change: transform;
+    user-select: none;
+    touch-action: pan-y;
+    border: 1px solid #E2E8F0;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.09);
+}
+
+.deckCardDragging {
+    cursor: grabbing;
+}
+
+/* Swipe Badges (PRACTICE / SKIP) */
+.deckStampBadge {
+    position: absolute;
+    top: 18px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 1.15rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    padding: 3px 12px;
+    border-radius: 8px;
+    pointer-events: none;
+    z-index: 30;
+}
+
+.deckStampPractice {
+    right: 14px;
+    border: 2.5px solid #10B981;
+    color: #10B981;
+    background: rgba(255, 255, 255, 0.96);
+    transform: rotate(12deg);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.deckStampSkip {
+    left: 14px;
+    border: 2.5px solid #64748B;
+    color: #64748B;
+    background: rgba(255, 255, 255, 0.96);
+    transform: rotate(-12deg);
+    box-shadow: 0 4px 12px rgba(100, 116, 139, 0.2);
+}
+
+/* Front Card Content - Matching Desktop Card Structure */
+.deckCardTopContent {
+    padding: 1.35rem 1.35rem 0.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    position: relative;
+    z-index: 2;
+}
+
+.deckCardHeaderRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.deckCardNumber {
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: #4782F6;
+    letter-spacing: 0.05em;
+}
+
+.deckPlayButton {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-left: 2px;
+    transition: all 0.2s ease;
+}
+
+.deckFrontCard:hover .deckPlayButton {
+    background: #4782F6;
+    border-color: #4782F6;
+}
+
+.deckFrontCard:hover .deckPlayButton svg {
+    fill: #ffffff !important;
+    color: #ffffff !important;
+}
+
+.deckCardTitle {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 1.22rem;
+    font-weight: 700;
+    color: #1E293B;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    margin: 0;
+}
+
+.deckCardTagline {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #64748B;
+    line-height: 1.3;
+}
+
+/* Module Illustration Container - Anchored Flush to Bottom */
+.deckCardIllustrationWrap {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0 8px 8px 8px;
+    overflow: hidden;
+    pointer-events: none;
+    border-radius: 0 0 18px 18px;
+}
+
+.deckCardIllustration {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: bottom center;
+    display: block;
+    filter: drop-shadow(0 4px 12px rgba(0, 48, 143, 0.08));
+    pointer-events: none;
+}
+
+/* Two-Way Navigator Buttons (Chevrons — small inline arrows) */
+.deckNavArrowBtn {
+    background: none;
+    border: none;
+    box-shadow: none;
+    color: #94A3B8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 2px;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    transition: color 0.15s ease;
+}
+
+.deckNavArrowBtn:hover {
+    color: #4782F6;
+}
+
+.deckNavArrowBtn:active {
+    transform: scale(0.9);
+}
+
+/* Navigation Dots Row (arrows + dots inline, directly below cards) */
+.deckNavDotsRow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.deckNavDot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #CBD5E1;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.deckNavDotActive {
+    width: 22px;
+    height: 7px;
+    border-radius: 9999px;
+    background: #4782F6;
+    box-shadow: 0 2px 6px rgba(71, 130, 246, 0.35);
+}
+
+.deckSystemPracticeBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    height: 46px;
+    background: #4782F6;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 12px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(71, 130, 246, 0.28);
+    transition: all 0.2s ease;
+}
+
+.deckSystemPracticeBtn:hover {
+    background: #3B71E8;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(71, 130, 246, 0.36);
+}
+
+.deckSystemPracticeBtn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(71, 130, 246, 0.2);
+}
+
+.deckSwipeHintText {
+    font-size: 0.76rem;
+    font-weight: 500;
+    color: #94A3B8;
+    text-align: center;
+}
+
+/* Completed Deck State */
+.deckCompletedCard {
+    width: 255px;
+    height: 325px;
+    margin: 0 auto;
+    background: #FFFFFF;
+    border: 1px dashed #CBD5E1;
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 1.5rem;
+}
+
+.deckCompletedIconCircle {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+    padding-left: 2px;
+}
+
+.deckCompletedTitle {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #1E293B;
+    margin-bottom: 0.35rem;
+}
+
+.deckCompletedSubtitle {
+    font-size: 0.8rem;
+    color: #64748B;
+    margin-bottom: 1.25rem;
+    line-height: 1.4;
+}
+
+.deckResetBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #4782F6;
+    color: #FFFFFF;
+    border: none;
+    padding: 0.65rem 1.25rem;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgba(71, 130, 246, 0.25);
+    transition: all 0.2s ease;
+}
+
+.deckResetBtn:hover {
+    background: #3B71E8;
+    transform: translateY(-1px);
+}
+
+
+
+

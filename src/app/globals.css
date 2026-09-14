@@ -1,0 +1,106 @@
+@import url('https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@300;400;500;600;700;800;900&display=swap');
+
+@font-face {
+  font-family: 'Parabole';
+  src: url('/fonts/Parabole.eot');
+  src: local('Parabole'),
+       url('/fonts/Parabole.eot?#iefix') format('embedded-opentype'),
+       url('/fonts/Parabole.woff2') format('woff2'),
+       url('/fonts/Parabole.woff') format('woff'),
+       url('/fonts/Parabole.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* Brand Palette (landing design system) */
+  --bg-body: #FFFFFF;
+  /* Pure White */
+  --bg-card: #FFFFFF;
+  --bg-sidebar: #FFFFFF;
+
+  --text-primary: #141414;
+  /* Ink */
+  --text-secondary: #6B7280;
+  /* Gray 500 */
+
+  --border-color: #E5E7EB;
+  /* Gray 200 */
+
+  --accent: #4793f7;
+  /* Brand Blue */
+  --accent-hover: #3c7dd2;
+  /* Brand Blue Dark */
+  --accent-light: #eef5ff;
+  /* Brand Blue Tint */
+
+  --success: #10B981;
+  --success-bg: #D1FAE5;
+}
+
+body {
+  background-color: #ffffff;
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+/* Utilities */
+.card-shadow {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+.dashboard-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.btn-primary {
+  background-color: var(--accent);
+  color: white;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  transition: background-color 0.2s;
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-hover);
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  color: var(--text-secondary);
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.sidebar-link:hover,
+.sidebar-link.active {
+  background-color: var(--bg-body);
+  color: var(--text-primary);
+}
+
+.input-saas {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input-saas:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}

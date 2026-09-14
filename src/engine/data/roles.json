@@ -1,0 +1,82 @@
+[
+  {
+    "id": "role_001",
+    "title": "Product Designer",
+    "domain": "Product & Design"
+  },
+  {
+    "id": "role_002",
+    "title": "Product Manager",
+    "domain": "Product & Design"
+  },
+  {
+    "id": "role_003",
+    "title": "Product Marketer",
+    "domain": "Product & Design"
+  },
+  {
+    "id": "role_004",
+    "title": "Product Engineer",
+    "domain": "Product & Design"
+  },
+  {
+    "id": "role_005",
+    "title": "Frontend Developer",
+    "domain": "Software & Engineering"
+  },
+  {
+    "id": "role_006",
+    "title": "Backend Engineer",
+    "domain": "Software & Engineering"
+  },
+  {
+    "id": "role_007",
+    "title": "Full Stack Developer",
+    "domain": "Software & Engineering"
+  },
+  {
+    "id": "role_008",
+    "title": "Data Analyst",
+    "domain": "Data & Analytics"
+  },
+  {
+    "id": "role_009",
+    "title": "Data Scientist",
+    "domain": "Data & Analytics"
+  },
+  {
+    "id": "role_010",
+    "title": "Business Analyst",
+    "domain": "Business & Operations"
+  },
+  {
+    "id": "role_011",
+    "title": "UX Researcher",
+    "domain": "Product & Design"
+  },
+  {
+    "id": "role_012",
+    "title": "DevOps / SRE",
+    "domain": "Software & Engineering"
+  },
+  {
+    "id": "role_013",
+    "title": "AI Research Scientist",
+    "domain": "Software & Engineering"
+  },
+  {
+    "id": "role_014",
+    "title": "Robotics Architect",
+    "domain": "Robotics & AI"
+  },
+  {
+    "id": "role_015",
+    "title": "Invesment Banker",
+    "domain": "Banking and Finance"
+  },
+  {
+    "id": "role_016",
+    "title": "Cloud Solutions Architect",
+    "domain": "Software & Engineering"
+  }
+]

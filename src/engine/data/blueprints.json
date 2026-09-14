@@ -1,0 +1,1015 @@
+{
+  "generalBehavioralPool": {
+    "poolId": "general_behavioral",
+    "description": "Shared across every blueprint. Not every candidate gets every question.",
+    "roleFamily": "general",
+    "targetQuestionRange": {
+      "min": 4,
+      "max": 6
+    },
+    "diversityRule": "Prefer covering distinct sub-categories (motivation, accountability, work_style, closing) over repeating one sub-category."
+  },
+  "blueprints": {
+    "customer_service": {
+      "blueprintId": "customer_service",
+      "role": "Customer Service / Call Centre",
+      "level": "all_levels",
+      "totalTimeBudgetSeconds": 2700,
+      "generalBehavioral": {
+        "targetQuestionRange": {
+          "min": 4,
+          "max": 6
+        }
+      },
+      "persona": {
+        "voice": "Warm and patient, but attentive to specifics rather than platitudes.",
+        "domainJudgmentNotes": "Vague claims about handling difficult customers should be probed — specificity here predicts real performance more than tone does."
+      },
+      "competencies": [
+        {
+          "id": "service_judgment",
+          "label": "Service judgment",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "customer_service",
+            "category_in": [
+              "situational",
+              "situational_nigeria",
+              "situational_high_volume"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 2,
+            "max": 3
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 180,
+          "maxTimeSeconds": 420
+        },
+        {
+          "id": "empathy_communication",
+          "label": "Empathy & communication",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "customer_service",
+            "category_in": [
+              "values",
+              "behavioral",
+              "self_assessment"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 1,
+            "max": 2
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 180,
+          "maxTimeSeconds": 420
+        },
+        {
+          "id": "resilience_workstyle",
+          "label": "Resilience & work style",
+          "priority": "important",
+          "questionPoolFilter": {
+            "role_family": "customer_service",
+            "category_in": [
+              "resilience",
+              "work_style",
+              "time_management",
+              "teamwork"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 1,
+            "max": 2
+          },
+          "maxFollowUps": 1,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        },
+        {
+          "id": "domain_knowledge",
+          "label": "Domain knowledge",
+          "priority": "important",
+          "questionPoolFilter": {
+            "role_family": "customer_service",
+            "category_in": [
+              "technical",
+              "domain_knowledge_nigeria",
+              "credentials"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 1,
+            "max": 1
+          },
+          "maxFollowUps": 1,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        },
+        {
+          "id": "motivation_fit",
+          "label": "Motivation & fit",
+          "priority": "optional",
+          "questionPoolFilter": {
+            "role_family": "customer_service",
+            "category_in": [
+              "motivation",
+              "general"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 0,
+            "max": 1
+          },
+          "maxFollowUps": 0,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        }
+      ]
+    },
+    "sales_bizdev": {
+      "blueprintId": "sales_bizdev",
+      "role": "Sales & Business Development",
+      "level": "all_levels",
+      "totalTimeBudgetSeconds": 2700,
+      "generalBehavioral": {
+        "targetQuestionRange": {
+          "min": 4,
+          "max": 6
+        }
+      },
+      "persona": {
+        "voice": "Direct and results-oriented, comfortable pushing back on soft answers.",
+        "domainJudgmentNotes": "Sales candidates round up numbers instinctively — close rates, deal sizes, quota attainment claims should almost always be probed for the actual figure."
+      },
+      "competencies": [
+        {
+          "id": "deal_execution",
+          "label": "Deal execution",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "sales_bizdev",
+            "category_in": [
+              "behavioral",
+              "skill",
+              "skill_metrics",
+              "live_exercise"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 2,
+            "max": 3
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 180,
+          "maxTimeSeconds": 420
+        },
+        {
+          "id": "situational_judgment",
+          "label": "Situational judgment",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "sales_bizdev",
+            "category_in": [
+              "situational",
+              "judgment",
+              "ethics_behavioral"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 1,
+            "max": 2
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 180,
+          "maxTimeSeconds": 420
+        },
+        {
+          "id": "process_technical",
+          "label": "Process & territory",
+          "priority": "important",
+          "questionPoolFilter": {
+            "role_family": "sales_bizdev",
+            "category_in": [
+              "process",
+              "technical",
+              "domain_knowledge_nigeria",
+              "situational_nigeria"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 1,
+            "max": 2
+          },
+          "maxFollowUps": 1,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        },
+        {
+          "id": "leadership_growth",
+          "label": "Leadership & growth",
+          "priority": "optional",
+          "questionPoolFilter": {
+            "role_family": "sales_bizdev",
+            "category_in": [
+              "leadership",
+              "background",
+              "resilience"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 0,
+            "max": 1
+          },
+          "maxFollowUps": 1,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        },
+        {
+          "id": "motivation_fit",
+          "label": "Motivation & fit",
+          "priority": "optional",
+          "questionPoolFilter": {
+            "role_family": "sales_bizdev",
+            "category_in": [
+              "motivation",
+              "self_assessment"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 0,
+            "max": 1
+          },
+          "maxFollowUps": 0,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        }
+      ]
+    },
+    "banking_finance": {
+      "blueprintId": "banking_finance",
+      "role": "Banking & Finance",
+      "level": "all_levels",
+      "totalTimeBudgetSeconds": 2700,
+      "generalBehavioral": {
+        "targetQuestionRange": {
+          "min": 4,
+          "max": 6
+        }
+      },
+      "persona": {
+        "voice": "Formal and precise, uses banking/compliance terminology naturally.",
+        "domainJudgmentNotes": "Vague answers about KYC/compliance handling should almost always be probed — regulatory specificity is close to non-negotiable in this role family."
+      },
+      "competencies": [
+        {
+          "id": "compliance_situational",
+          "label": "Compliance & situational",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "banking_finance",
+            "category_in": [
+              "situational",
+              "situational_compliance",
+              "situational_retail",
+              "situational_nigeria"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 2,
+            "max": 3
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 180,
+          "maxTimeSeconds": 420
+        },
+        {
+          "id": "domain_knowledge",
+          "label": "Domain knowledge",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "banking_finance",
+            "category_in": [
+              "technical_corporate",
+              "domain_knowledge_retail",
+              "domain_knowledge_nigeria",
+              "technical_nigeria_crossover",
+              "general_retail"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 1,
+            "max": 2
+          },
+          "maxFollowUps": 1,
+          "minTimeSeconds": 180,
+          "maxTimeSeconds": 420
+        },
+        {
+          "id": "accuracy_process",
+          "label": "Accuracy & process",
+          "priority": "important",
+          "questionPoolFilter": {
+            "role_family": "banking_finance",
+            "category_in": [
+              "accountability",
+              "skill",
+              "technical",
+              "process",
+              "work_style_retail"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 1,
+            "max": 2
+          },
+          "maxFollowUps": 1,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        },
+        {
+          "id": "judgment_risk",
+          "label": "Judgment & risk",
+          "priority": "important",
+          "questionPoolFilter": {
+            "role_family": "banking_finance",
+            "category_in": [
+              "judgment_corporate",
+              "behavioral_corporate",
+              "domain_awareness_corporate"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 1,
+            "max": 1
+          },
+          "maxFollowUps": 1,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        },
+        {
+          "id": "growth_fit",
+          "label": "Growth & fit",
+          "priority": "optional",
+          "questionPoolFilter": {
+            "role_family": "banking_finance",
+            "category_in": [
+              "growth_mindset",
+              "motivation_retail",
+              "teamwork",
+              "behavioral"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 0,
+            "max": 1
+          },
+          "maxFollowUps": 0,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        }
+      ]
+    },
+    "virtual_assistant": {
+      "blueprintId": "virtual_assistant",
+      "role": "Virtual Assistant",
+      "level": "all_levels",
+      "totalTimeBudgetSeconds": 2700,
+      "generalBehavioral": {
+        "targetQuestionRange": {
+          "min": 4,
+          "max": 6
+        }
+      },
+      "persona": {
+        "voice": "Conversational and practical, focused on real workflows over credentials.",
+        "domainJudgmentNotes": "Naming tools without a concrete workflow example is a strong probe signal — tool familiarity claims are cheap to make and worth checking."
+      },
+      "competencies": [
+        {
+          "id": "autonomy_judgment",
+          "label": "Autonomy & judgment",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "virtual_assistant",
+            "category_in": [
+              "situational",
+              "judgment",
+              "situational_reliability",
+              "situational_nigeria"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 2,
+            "max": 2
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 180,
+          "maxTimeSeconds": 420
+        },
+        {
+          "id": "time_management_ownership",
+          "label": "Time management & ownership",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "virtual_assistant",
+            "category_in": [
+              "time_management",
+              "initiative",
+              "behavioral"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 1,
+            "max": 2
+          },
+          "maxFollowUps": 1,
+          "minTimeSeconds": 180,
+          "maxTimeSeconds": 420
+        },
+        {
+          "id": "tooling_scope",
+          "label": "Tooling & scope",
+          "priority": "important",
+          "questionPoolFilter": {
+            "role_family": "virtual_assistant",
+            "category_in": [
+              "technical",
+              "scope",
+              "technical_nigeria",
+              "background_growth"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 1,
+            "max": 2
+          },
+          "maxFollowUps": 1,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        },
+        {
+          "id": "communication_conflict",
+          "label": "Communication & conflict",
+          "priority": "important",
+          "questionPoolFilter": {
+            "role_family": "virtual_assistant",
+            "category_in": [
+              "conflict_resolution",
+              "work_style"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 1,
+            "max": 1
+          },
+          "maxFollowUps": 1,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        },
+        {
+          "id": "logistics_fit",
+          "label": "Logistics & fit",
+          "priority": "optional",
+          "questionPoolFilter": {
+            "role_family": "virtual_assistant",
+            "category_in": [
+              "logistics",
+              "motivation",
+              "self_assessment"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 0,
+            "max": 1
+          },
+          "maxFollowUps": 0,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        }
+      ]
+    },
+    "oil_gas_fresher": {
+      "blueprintId": "oil_gas_fresher",
+      "role": "Engineering — Oil & Gas",
+      "level": "fresher",
+      "totalTimeBudgetSeconds": 2700,
+      "generalBehavioral": {
+        "targetQuestionRange": {
+          "min": 4,
+          "max": 6
+        }
+      },
+      "persona": {
+        "voice": "Encouraging but rigorous on fundamentals.",
+        "domainJudgmentNotes": "Push on core concepts (porosity, reservoir basics, crude properties) rather than expecting operational field experience fresher candidates likely don't have yet."
+      },
+      "competencies": [
+        {
+          "id": "fundamentals",
+          "label": "Technical fundamentals",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "oil_gas",
+            "category_in": [
+              "technical_exercise",
+              "technical"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 3,
+            "max": 4
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 180,
+          "maxTimeSeconds": 420
+        },
+        {
+          "id": "domain_orientation",
+          "label": "Domain orientation",
+          "priority": "important",
+          "questionPoolFilter": {
+            "role_family": "oil_gas",
+            "category_in": [
+              "general",
+              "general_hse",
+              "safety_awareness",
+              "motivation",
+              "motivation_safety"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 1,
+            "max": 2
+          },
+          "maxFollowUps": 1,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        }
+      ]
+    },
+    "oil_gas_experienced": {
+      "blueprintId": "oil_gas_experienced",
+      "role": "Engineering — Oil & Gas",
+      "level": "experienced",
+      "totalTimeBudgetSeconds": 2700,
+      "generalBehavioral": {
+        "targetQuestionRange": {
+          "min": 4,
+          "max": 6
+        }
+      },
+      "persona": {
+        "voice": "Peer-level and technically direct.",
+        "domainJudgmentNotes": "Prioritize probing operational tradeoff answers (drilling method choices, production optimization decisions) over textbook definitions — the interview should reveal judgment, not recall."
+      },
+      "competencies": [
+        {
+          "id": "advanced_technical",
+          "label": "Advanced technical",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "oil_gas",
+            "category_in": [
+              "technical",
+              "operations_situational",
+              "operations"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 2,
+            "max": 3
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 180,
+          "maxTimeSeconds": 420
+        },
+        {
+          "id": "domain_knowledge_nigeria",
+          "label": "Nigeria regulatory context",
+          "priority": "important",
+          "questionPoolFilter": {
+            "role_family": "oil_gas",
+            "category_in": [
+              "domain_knowledge_nigeria"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 1,
+            "max": 1
+          },
+          "maxFollowUps": 1,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        },
+        {
+          "id": "civil_mep_technical",
+          "label": "Civil / MEP technical",
+          "priority": "optional",
+          "questionPoolFilter": {
+            "role_family": "oil_gas",
+            "category_in": [
+              "technical_civil_mep"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 0,
+            "max": 1
+          },
+          "maxFollowUps": 1,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        },
+        {
+          "id": "domain_orientation",
+          "label": "Domain orientation",
+          "priority": "optional",
+          "questionPoolFilter": {
+            "role_family": "oil_gas",
+            "category_in": [
+              "general",
+              "general_hse",
+              "ethics"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 0,
+            "max": 1
+          },
+          "maxFollowUps": 0,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        }
+      ]
+    },
+    "oil_gas_safety_officer": {
+      "blueprintId": "oil_gas_safety_officer",
+      "role": "Engineering — Oil & Gas",
+      "level": "safety_officer",
+      "totalTimeBudgetSeconds": 2700,
+      "generalBehavioral": {
+        "targetQuestionRange": {
+          "min": 4,
+          "max": 6
+        }
+      },
+      "persona": {
+        "voice": "Procedural, rigorous, safety-first tone.",
+        "domainJudgmentNotes": "Vague answers about safety procedures (Permit to Work, hazard identification, incident response) should almost always be probed — safety specificity is non-negotiable here, more so than in any other role family."
+      },
+      "competencies": [
+        {
+          "id": "safety_fundamentals",
+          "label": "Safety fundamentals",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "oil_gas",
+            "category_in": [
+              "safety",
+              "safety_growth",
+              "situational_safety_culture",
+              "judgment"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 2,
+            "max": 3
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 180,
+          "maxTimeSeconds": 420
+        },
+        {
+          "id": "safety_officer_expertise",
+          "label": "Safety officer expertise",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "oil_gas",
+            "category_in": [
+              "technical_safety_officer",
+              "compliance_safety_officer",
+              "leadership_safety_officer",
+              "behavioral_safety_officer"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 2,
+            "max": 3
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 180,
+          "maxTimeSeconds": 420
+        },
+        {
+          "id": "nigeria_context",
+          "label": "Nigeria field context",
+          "priority": "important",
+          "questionPoolFilter": {
+            "role_family": "oil_gas",
+            "category_in": [
+              "situational_nigeria"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 1,
+            "max": 1
+          },
+          "maxFollowUps": 1,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        },
+        {
+          "id": "domain_orientation",
+          "label": "Domain orientation",
+          "priority": "optional",
+          "questionPoolFilter": {
+            "role_family": "oil_gas",
+            "category_in": [
+              "general",
+              "general_hse",
+              "motivation_safety"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 0,
+            "max": 1
+          },
+          "maxFollowUps": 0,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        }
+      ]
+    },
+    "product_management": {
+      "blueprintId": "product_management",
+      "role": "Product Management",
+      "level": "all_levels",
+      "totalTimeBudgetSeconds": 2700,
+      "generalBehavioral": {
+        "targetQuestionRange": {
+          "min": 2,
+          "max": 3
+        }
+      },
+      "persona": {
+        "voice": "Strategic, inquisitive, and user-obsessed. Probes for business metrics, product strategy, and cross-functional leadership.",
+        "domainJudgmentNotes": "Look for crisp frameworks (RICE, PMF, North Star), prioritization rationale, user research synthesis, and data-informed decision making."
+      },
+      "competencies": [
+        {
+          "id": "product_strategy",
+          "label": "Product Strategy & Vision",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "product_management",
+            "category_in": [
+              "Product Strategy"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 2,
+            "max": 3
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 180,
+          "maxTimeSeconds": 480
+        },
+        {
+          "id": "execution_prioritization",
+          "label": "Execution & Prioritization",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "product_management",
+            "category_in": [
+              "Execution/Prioritization"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 2,
+            "max": 3
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 180,
+          "maxTimeSeconds": 480
+        },
+        {
+          "id": "product_design_ux",
+          "label": "Product Design & UX",
+          "priority": "important",
+          "questionPoolFilter": {
+            "role_family": "product_management",
+            "category_in": [
+              "Product Design/UX"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 1,
+            "max": 2
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 150,
+          "maxTimeSeconds": 360
+        },
+        {
+          "id": "analytics_metrics",
+          "label": "Analytics & Experimentation",
+          "priority": "important",
+          "questionPoolFilter": {
+            "role_family": "product_management",
+            "category_in": [
+              "Analytics/Guesstimation"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 1,
+            "max": 2
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 150,
+          "maxTimeSeconds": 360
+        },
+        {
+          "id": "technical_acumen",
+          "label": "Technical Acumen & Architecture",
+          "priority": "optional",
+          "questionPoolFilter": {
+            "role_family": "product_management",
+            "category_in": [
+              "Technical Acumen"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 1,
+            "max": 2
+          },
+          "maxFollowUps": 1,
+          "minTimeSeconds": 120,
+          "maxTimeSeconds": 300
+        }
+      ]
+    },
+    "software_tech": {
+      "blueprintId": "software_tech",
+      "role": "Software Engineering",
+      "level": "all_levels",
+      "totalTimeBudgetSeconds": 2700,
+      "generalBehavioral": {
+        "targetQuestionRange": {
+          "min": 2,
+          "max": 3
+        }
+      },
+      "persona": {
+        "voice": "Pragmatic, rigorous, and architecture-minded. Probes for clean code, distributed systems trade-offs, and scalability bottlenecks.",
+        "domainJudgmentNotes": "Probe for deep understanding of algorithmic complexity (time/space), database choices, concurrency, and fault tolerance."
+      },
+      "competencies": [
+        {
+          "id": "system_design",
+          "label": "System Design & Scalability",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "software_tech",
+            "category_in": [
+              "System Design"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 2,
+            "max": 3
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 240,
+          "maxTimeSeconds": 600
+        },
+        {
+          "id": "algorithms_data_structures",
+          "label": "Algorithms & Problem Solving",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "software_tech",
+            "category_in": [
+              "Algorithm/Data Structures"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 2,
+            "max": 3
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 240,
+          "maxTimeSeconds": 600
+        }
+      ]
+    },
+    "data_science_analytics": {
+      "blueprintId": "data_science_analytics",
+      "role": "Data Science & Analytics",
+      "level": "all_levels",
+      "totalTimeBudgetSeconds": 2700,
+      "generalBehavioral": {
+        "targetQuestionRange": {
+          "min": 2,
+          "max": 3
+        }
+      },
+      "persona": {
+        "voice": "Analytical, statistically rigorous, and focused on practical business outcomes.",
+        "domainJudgmentNotes": "Probe for statistical validity, ML model evaluation metrics, bias/variance trade-offs, and feature engineering rationale."
+      },
+      "competencies": [
+        {
+          "id": "statistics_ab_testing",
+          "label": "Statistics & A/B Testing",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "data_science",
+            "category_in": [
+              "Statistics/A/B Testing"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 2,
+            "max": 3
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 200,
+          "maxTimeSeconds": 500
+        },
+        {
+          "id": "modeling_ml",
+          "label": "Machine Learning & Modeling",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "data_science",
+            "category_in": [
+              "Modeling/ML"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 2,
+            "max": 3
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 200,
+          "maxTimeSeconds": 500
+        }
+      ]
+    },
+    "devops_cloud_sre": {
+      "blueprintId": "devops_cloud_sre",
+      "role": "DevOps & Cloud Infrastructure",
+      "level": "all_levels",
+      "totalTimeBudgetSeconds": 2700,
+      "generalBehavioral": {
+        "targetQuestionRange": {
+          "min": 2,
+          "max": 3
+        }
+      },
+      "persona": {
+        "voice": "Reliability-first, security-conscious, and automation-driven.",
+        "domainJudgmentNotes": "Probe for Kubernetes primitives, CI/CD pipeline optimization, zero-downtime deployments, and production observability."
+      },
+      "competencies": [
+        {
+          "id": "kubernetes_containers",
+          "label": "Kubernetes & Containerization",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "devops_sre",
+            "category_in": [
+              "Kubernetes/Containerization"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 2,
+            "max": 3
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 200,
+          "maxTimeSeconds": 500
+        },
+        {
+          "id": "cloud_infrastructure",
+          "label": "Cloud Infrastructure & Reliability",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "devops_sre",
+            "category_in": [
+              "Cloud/Infrastructure"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 2,
+            "max": 3
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 200,
+          "maxTimeSeconds": 500
+        }
+      ]
+    }
+  }
+}

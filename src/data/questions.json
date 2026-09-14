@@ -1,0 +1,926 @@
+{
+    "interview_question_bank": {
+        "version": "4.0",
+        "total_questions_in_sample": 200,
+        "categories": [
+            "SWE_ALG",
+            "SWE_SYS",
+            "DS_STAT",
+            "DS_MODEL",
+            "DEVOPS_KUBE",
+            "DEVOPS_CLOUD",
+            "BEH_LEAD",
+            "BEH_PROC",
+            "PM_STRAT",
+            "PM_EXEC",
+            "PM_DES",
+            "PM_DATA",
+            "PM_TECH"
+        ],
+        "questions": [
+            {
+                "id": "SWE_ALG_E_001",
+                "role": "SWE",
+                "domain": "Algorithm/Data Structures",
+                "difficulty": "Easy",
+                "question": "Case Study: You are tasked with processing a large stream of user input. **How would you efficiently design the algorithm** to find the first non-repeating character in that stream, and what data structures would you use?"
+            },
+            {
+                "id": "SWE_ALG_E_108",
+                "role": "SWE",
+                "domain": "Algorithm/Data Structures",
+                "difficulty": "Easy",
+                "question": "Case Study: A messaging platform needs to identify potentially offensive words by checking against a known set of anagrams. **How would you design the function** to check if two strings are anagrams in the most time-efficient way, given millions of comparisons?"
+            },
+            {
+                "id": "SWE_ALG_M_109",
+                "role": "SWE",
+                "domain": "Algorithm/Data Structures",
+                "difficulty": "Medium",
+                "question": "Case Study: You are optimizing a financial trading engine that processes long time series of profit/loss data. **How would you design the dynamic programming solution** to find the maximum sum of a contiguous subarray, and justify why this is the optimal approach for speed?"
+            },
+            {
+                "id": "SWE_ALG_M_110",
+                "role": "SWE",
+                "domain": "Algorithm/Data Structures",
+                "difficulty": "Medium",
+                "question": "Case Study: A core module of our database uses linked lists for managing internal buffers. **How would you design and implement the function** to reverse this linked list in place, minimizing memory usage and handling null pointers?"
+            },
+            {
+                "id": "SWE_ALG_H_111",
+                "role": "SWE",
+                "domain": "Algorithm/Data Structures",
+                "difficulty": "Hard",
+                "question": "Case Study: A large analytics platform needs to find the K-th largest element in a massive, unsorted dataset for real-time reporting. **How would you design the selection algorithm** (Quickselect or similar) to guarantee O(N) average time complexity, and how would you handle distributed data?"
+            },
+            {
+                "id": "SWE_SYS_M_010",
+                "role": "SWE",
+                "domain": "System Design",
+                "difficulty": "Medium",
+                "question": "Case Study: Your team is tasked with building a global, highly available **URL shortening service** like Bit.ly to handle 100 million redirects per day. **How would you design the complete system** (including API, hashing algorithm, database choice, and capacity estimation) to ensure low latency redirects?"
+            },
+            {
+                "id": "SWE_SYS_M_112",
+                "role": "SWE",
+                "domain": "System Design",
+                "difficulty": "Medium",
+                "question": "Case Study: Your company needs a custom, highly scalable, and fault-tolerant **distributed key-value store** for user profile data. **How would you design the core architecture** of this store, specifically addressing data partitioning (sharding), replica consistency (using techniques like Quorum), and conflict resolution?"
+            },
+            {
+                "id": "SWE_SYS_H_113",
+                "role": "SWE",
+                "domain": "System Design",
+                "difficulty": "Hard",
+                "question": "Case Study: We need to build a massive, **globally distributed notification service** capable of sending billions of real-time messages (SMS, push, email) across multiple protocols. **How would you design the architecture** to handle this scale, focusing on reliability, throughput, and failover mechanisms?"
+            },
+            {
+                "id": "SWE_ALG_E_133",
+                "role": "SWE",
+                "domain": "Algorithm/Data Structures",
+                "difficulty": "Easy",
+                "question": "Case Study: You need to simulate a transactional buffer (FIFO) but are limited to stack-like data structures. **How would you design the implementation** of a queue using two stacks, ensuring all queue operations (enqueue, dequeue) are efficient?"
+            },
+            {
+                "id": "SWE_SYS_M_134",
+                "role": "SWE",
+                "domain": "System Design",
+                "difficulty": "Medium",
+                "question": "Case Study: To protect our backend services from abuse and overload, we need to implement a **distributed Rate Limiter**. **How would you design this service**, detailing which algorithm (e.g., Leaky Bucket, Token Bucket) you would choose, and where in the service stack it would reside?"
+            },
+            {
+                "id": "SWE_SYS_H_143",
+                "role": "SWE",
+                "domain": "System Design",
+                "difficulty": "Hard",
+                "question": "Case Study: You are the lead engineer for a new competitive online game and must build a **real-time, globally synchronized leaderboard** for millions of players. **How would you design the database schema, API endpoints, and caching layer** to handle high-frequency updates and reads with minimal latency?"
+            },
+            {
+                "id": "SWE_ALG_M_147",
+                "role": "SWE",
+                "domain": "Algorithm/Data Structures",
+                "difficulty": "Medium",
+                "question": "Case Study: A search index uses a tree structure for navigation. **How would you design the traversal function** to print the nodes of a binary tree in level order (Breadth-First Search), and what is the space complexity of your solution?"
+            },
+            {
+                "id": "SWE_ALG_H_151",
+                "role": "SWE",
+                "domain": "Algorithm/Data Structures",
+                "difficulty": "Hard",
+                "question": "Case Study: You are processing large datasets from $k$ different sources, each sorted independently. **How would you design the optimal algorithm** to merge these $k$ sorted lists into a single sorted list, ensuring the overall time complexity is minimized (e.g., using a Min-Heap)?"
+            },
+            {
+                "id": "SWE_SYS_M_152",
+                "role": "SWE",
+                "domain": "System Design",
+                "difficulty": "Medium",
+                "question": "Case Study: Your company is launching a public, distributed **photo album service** (like Flickr). **How would you design the system** to handle large file uploads, metadata storage, read/write separation, and highly efficient content delivery?"
+            },
+            {
+                "id": "SWE_ALG_M_164",
+                "role": "SWE",
+                "domain": "Algorithm/Data Structures",
+                "difficulty": "Medium",
+                "question": "Case Study: A garbage collector uses linked lists to track memory segments. **How would you design the cycle detection function** using Floyd's Tortoise and Hare algorithm, and prove its correctness and time complexity?"
+            },
+            {
+                "id": "SWE_SYS_H_165",
+                "role": "SWE",
+                "domain": "System Design",
+                "difficulty": "Hard",
+                "question": "Case Study: Your product is a new **video streaming platform** aiming for 10 million daily users. **How would you design the end-to-end architecture**, from video ingestion and encoding to global content delivery (CDN strategy), to achieve low latency and handle variable network conditions?"
+            },
+            {
+                "id": "SWE_ALG_E_176",
+                "role": "SWE",
+                "domain": "Algorithm/Data Structures",
+                "difficulty": "Easy",
+                "question": "Case Study: You are building an index lookup for a database that uses sorted arrays for fast access. **How would you design and implement the binary search function** to be robust and handle edge cases like duplicated keys?"
+            },
+            {
+                "id": "SWE_SYS_M_177",
+                "role": "SWE",
+                "domain": "System Design",
+                "difficulty": "Medium",
+                "question": "Case Study: A financial analytics firm needs a high-throughput system to store and retrieve petabytes of **historical stock market data**. **How would you design the storage system and retrieval API**, considering the trade-offs between relational and NoSQL databases for time-series data?"
+            },
+            {
+                "id": "SWE_ALG_H_188",
+                "role": "SWE",
+                "domain": "Algorithm/Data Structures",
+                "difficulty": "Hard",
+                "question": "Case Study: A calendar application needs to optimize how it displays overlapping scheduled events. **How would you design the algorithm** to merge all overlapping intervals from a given list, and what is the optimal time complexity?"
+            },
+            {
+                "id": "SWE_SYS_E_189",
+                "role": "SWE",
+                "domain": "System Design",
+                "difficulty": "Easy",
+                "question": "Case Study: Your microservices architecture is experiencing high load during peak hours. **How would you design a solution using a message queue** (like Kafka) to decouple services and handle load spikes, and where in the system would you introduce it?"
+            },
+            {
+                "id": "PM_STRAT_E_073",
+                "role": "PM",
+                "domain": "Product Strategy",
+                "difficulty": "Easy",
+                "question": "What is the primary difference between a **mission** (why), a **vision** (what), and a **strategy** (how) in the context of a product?"
+            },
+            {
+                "id": "PM_STRAT_E_074",
+                "role": "PM",
+                "domain": "Product Strategy",
+                "difficulty": "Easy",
+                "question": "Define the concept of **Product-Market Fit** (PMF). How do you know when a product has achieved it?"
+            },
+            {
+                "id": "PM_STRAT_M_075",
+                "role": "PM",
+                "domain": "Product Strategy",
+                "difficulty": "Medium",
+                "question": "Google is considering acquiring a popular vertical social media app (e.g., TikTok). Walk me through the framework you would use to recommend a 'Build vs. Buy' decision."
+            },
+            {
+                "id": "PM_STRAT_M_076",
+                "role": "PM",
+                "domain": "Product Strategy",
+                "difficulty": "Medium",
+                "question": "You are launching a B2B SaaS product into a mature market with established competitors. Outline your **Go-to-Market (GTM)** strategy."
+            },
+            {
+                "id": "PM_STRAT_H_077",
+                "role": "PM",
+                "domain": "Product Strategy",
+                "difficulty": "Hard",
+                "question": "You are the PM for Amazon Prime Video. Develop a **five-year strategy** focused on differentiating the product in the streaming war, considering content costs and global expansion."
+            },
+            {
+                "id": "PM_STRAT_H_078",
+                "role": "PM",
+                "domain": "Product Strategy",
+                "difficulty": "Hard",
+                "question": "Our leadership wants to pivot the core product to target the Enterprise segment, moving away from SMBs. How do you manage this strategic shift, including stakeholder alignment and technical preparation?"
+            },
+            {
+                "id": "PM_EXEC_E_079",
+                "role": "PM",
+                "domain": "Execution/Prioritization",
+                "difficulty": "Easy",
+                "question": "Explain the **RICE scoring model** (Reach, Impact, Confidence, Effort) and how you would apply it to prioritize a backlog of 20 features."
+            },
+            {
+                "id": "PM_EXEC_E_080",
+                "role": "PM",
+                "domain": "Execution/Prioritization",
+                "difficulty": "Easy",
+                "question": "What is an **MVP (Minimum Viable Product)**, and what are the three essential components you need to define before building one?"
+            },
+            {
+                "id": "PM_EXEC_M_081",
+                "role": "PM",
+                "domain": "Execution/Prioritization",
+                "difficulty": "Medium",
+                "question": "You have a key engineer leaving in three weeks. How do you quickly re-prioritize the sprint and communicate the unavoidable trade-offs to the executive team?"
+            },
+            {
+                "id": "PM_EXEC_M_082",
+                "role": "PM",
+                "domain": "Execution/Prioritization",
+                "difficulty": "Medium",
+                "question": "How do you manage conflicting priorities when the Sales team promises a customer a custom feature, but the Engineering team insists on a two-week security patch?"
+            },
+            {
+                "id": "PM_EXEC_H_083",
+                "role": "PM",
+                "domain": "Execution/Prioritization",
+                "difficulty": "Hard",
+                "question": "You discover a major competitor is about to launch a feature that will neutralize your primary advantage. You have 60 days. Outline your roadmap adjustments and risk mitigation plan."
+            },
+            {
+                "id": "PM_EXEC_H_084",
+                "role": "PM",
+                "domain": "Execution/Prioritization",
+                "difficulty": "Hard",
+                "question": "Describe a time you had to **kill a feature or a product line** that you personally championed. What data led to the decision, and how did you manage the team's morale?"
+            },
+            {
+                "id": "PM_DES_E_085",
+                "role": "PM",
+                "domain": "Product Design/UX",
+                "difficulty": "Easy",
+                "question": "What is one product you love, and one feature you would redesign or remove, and why?"
+            },
+            {
+                "id": "PM_DES_E_086",
+                "role": "PM",
+                "domain": "Product Design/UX",
+                "difficulty": "Easy",
+                "question": "How do you ensure a design is **accessible** and inclusive to users with disabilities?"
+            },
+            {
+                "id": "PM_DES_M_087",
+                "role": "PM",
+                "domain": "Product Design/UX",
+                "difficulty": "Medium",
+                "question": "Design a fire alarm for a deaf person. Walk through your user segmentation, core feature set, and success metrics."
+            },
+            {
+                "id": "PM_DES_M_088",
+                "role": "PM",
+                "domain": "Product Design/UX",
+                "difficulty": "Medium",
+                "question": "How would you improve the current experience of setting up a new Wi-Fi router for the average user?"
+            },
+            {
+                "id": "PM_DES_H_089",
+                "role": "PM",
+                "domain": "Product Design/UX",
+                "difficulty": "Hard",
+                "question": "You are the PM for Tesla's in-car entertainment system. Design a new feature that incentivizes responsible driving habits. Consider safety, user flow, and the business goal."
+            },
+            {
+                "id": "PM_DES_H_090",
+                "role": "PM",
+                "domain": "Product Design/UX",
+                "difficulty": "Hard",
+                "question": "Explain the **CIRCLES framework** and use it to design a product that solves the problem of 'losing small, high-value items' (e.g., keys, wallets) in a crowded area."
+            },
+            {
+                "id": "PM_DATA_E_091",
+                "role": "PM",
+                "domain": "Analytics/Guesstimation",
+                "difficulty": "Easy",
+                "question": "You are the PM for Facebook Events. How would you define your **North Star Metric** and three supporting metrics (KPIs)?"
+            },
+            {
+                "id": "PM_DATA_E_092",
+                "role": "PM",
+                "domain": "Analytics/Guesstimation",
+                "difficulty": "Easy",
+                "question": "What is the difference between a **leading indicator** and a **lagging indicator**? Provide an example of each for a mobile e-commerce application."
+            },
+            {
+                "id": "PM_DATA_M_093",
+                "role": "PM",
+                "domain": "Analytics/Guesstimation",
+                "difficulty": "Medium",
+                "question": "How would you set up an **A/B test** to determine if a new recommendation algorithm should replace the current one on a streaming service's homepage?"
+            },
+            {
+                "id": "PM_DATA_M_094",
+                "role": "PM",
+                "domain": "Analytics/Guesstimation",
+                "difficulty": "Medium",
+                "question": "Estimate the total number of commercial flights that take off in the United States every day."
+            },
+            {
+                "id": "PM_DATA_M_095",
+                "role": "PM",
+                "domain": "Analytics/Guesstimation",
+                "difficulty": "Medium",
+                "question": "Your product's conversion funnel shows a **20% drop-off** on the payment page. What are the top 3 hypotheses you would investigate, and what data would you use to validate them?"
+            },
+            {
+                "id": "PM_DATA_H_096",
+                "role": "PM",
+                "domain": "Analytics/Guesstimation",
+                "difficulty": "Hard",
+                "question": "Your CEO asks you to determine the financial impact of a new, highly-requested, but technically complex feature. Walk me through how you would model the **projected revenue** and **cost-benefit analysis**."
+            },
+            {
+                "id": "PM_TECH_E_097",
+                "role": "PM",
+                "domain": "Technical Acumen",
+                "difficulty": "Easy",
+                "question": "Explain the difference between a **front-end** and a **back-end** to a non-technical marketing executive."
+            },
+            {
+                "id": "PM_TECH_M_098",
+                "role": "PM",
+                "domain": "Technical Acumen",
+                "difficulty": "Medium",
+                "question": "Explain **API** and **RESTful architecture** in the context of building a weather application that pulls data from multiple sources."
+            },
+            {
+                "id": "PM_TECH_M_099",
+                "role": "PM",
+                "domain": "Technical Acumen",
+                "difficulty": "Medium",
+                "question": "Tell me about a time you had to make a **technical trade-off** that affected the user experience. How did you negotiate with the engineering team?"
+            },
+            {
+                "id": "PM_TECH_H_100",
+                "role": "PM",
+                "domain": "Technical Acumen",
+                "difficulty": "Hard",
+                "question": "You are building a real-time collaborative document editor (like Google Docs). Describe the high-level **system architecture** (e.g., databases, servers, concurrency handling) and the trade-offs you face."
+            },
+            {
+                "id": "PM_TECH_H_101",
+                "role": "PM",
+                "domain": "Technical Acumen",
+                "difficulty": "Hard",
+                "question": "Explain what **technical debt** is, why it occurs, and how you as a PM manage it versus prioritizing new feature development."
+            },
+            {
+                "id": "PM_DATA_H_102",
+                "role": "PM",
+                "domain": "Analytics/Guesstimation",
+                "difficulty": "Hard",
+                "question": "You are the PM for a popular photo-sharing app. You notice that the average time a user spends editing a photo has decreased by 30%. Is this good or bad, and how do you find the root cause?"
+            },
+            {
+                "id": "PM_STRAT_M_103",
+                "role": "PM",
+                "domain": "Product Strategy",
+                "difficulty": "Medium",
+                "question": "How would you price a new enterprise SaaS product that saves customers an average of $50,000 per year? Detail your pricing strategy."
+            },
+            {
+                "id": "PM_EXEC_M_104",
+                "role": "PM",
+                "domain": "Execution/Prioritization",
+                "difficulty": "Medium",
+                "question": "Walk me through the process of writing a **Product Requirements Document (PRD)** for a new feature."
+            },
+            {
+                "id": "PM_DES_M_105",
+                "role": "PM",
+                "domain": "Product Design/UX",
+                "difficulty": "Medium",
+                "question": "How would you improve the discovery experience for new content on a platform like Netflix or Spotify?"
+            },
+            {
+                "id": "PM_DATA_M_106",
+                "role": "PM",
+                "domain": "Analytics/Guesstimation",
+                "difficulty": "Medium",
+                "question": "We are experiencing a sudden 15% drop in Daily Active Users (DAU). How do you start your investigation and what potential root causes would you explore?"
+            },
+            {
+                "id": "PM_TECH_M_107",
+                "role": "PM",
+                "domain": "Technical Acumen",
+                "difficulty": "Medium",
+                "question": "Explain the concept of **latency** and **throughput** to a marketing PM. How do these technical concepts impact the user experience?"
+            },
+            {
+                "id": "PM_STRAT_M_123",
+                "role": "PM",
+                "domain": "Product Strategy",
+                "difficulty": "Medium",
+                "question": "How do you handle a situation where a major competitor undercuts your pricing by 50%? Detail your strategic response."
+            },
+            {
+                "id": "PM_EXEC_E_124",
+                "role": "PM",
+                "domain": "Execution/Prioritization",
+                "difficulty": "Easy",
+                "question": "Explain the concept of **MoSCoW prioritization** and when you would use it instead of RICE."
+            },
+            {
+                "id": "PM_DES_E_125",
+                "role": "PM",
+                "domain": "Product Design/UX",
+                "difficulty": "Easy",
+                "question": "How do you distinguish between **User Needs** and **Business Needs** when defining product requirements?"
+            },
+            {
+                "id": "PM_DATA_M_126",
+                "role": "PM",
+                "domain": "Analytics/Guesstimation",
+                "difficulty": "Medium",
+                "question": "Estimate the total number of cups of coffee sold in an average Starbucks store in San Francisco in one day."
+            },
+            {
+                "id": "PM_TECH_E_127",
+                "role": "PM",
+                "domain": "Technical Acumen",
+                "difficulty": "Easy",
+                "question": "What is the difference between **SQL** and **NoSQL** databases? Give an example of a product that would use each."
+            },
+            {
+                "id": "PM_STRAT_H_128",
+                "role": "PM",
+                "domain": "Product Strategy",
+                "difficulty": "Hard",
+                "question": "If you were the PM for Twitter/X, what would be your strategy to increase revenue from non-advertising sources?"
+            },
+            {
+                "id": "PM_EXEC_H_129",
+                "role": "PM",
+                "domain": "Execution/Prioritization",
+                "difficulty": "Hard",
+                "question": "You have two high-impact features, but your engineering team says they can only build one this quarter. How do you lead the trade-off discussion and make the final decision?"
+            },
+            {
+                "id": "PM_DES_H_130",
+                "role": "PM",
+                "domain": "Product Design/UX",
+                "difficulty": "Hard",
+                "question": "Design a product for autonomous vehicles to communicate their next maneuver to pedestrians. Focus on safety, clarity, and non-distraction."
+            },
+            {
+                "id": "PM_DATA_H_131",
+                "role": "PM",
+                "domain": "Analytics/Guesstimation",
+                "difficulty": "Hard",
+                "question": "Daily user logins have remained stable, but Monthly Active Users (MAU) is declining. What does this suggest, and how do you investigate?"
+            },
+            {
+                "id": "PM_TECH_H_132",
+                "role": "PM",
+                "domain": "Technical Acumen",
+                "difficulty": "Hard",
+                "question": "Explain how a recommendation system based on **collaborative filtering** works at a high level. What are its limitations?"
+            },
+            {
+                "id": "PM_STRAT_M_159",
+                "role": "PM",
+                "domain": "Product Strategy",
+                "difficulty": "Medium",
+                "question": "How would you decide on the **monetization model** (e.g., subscription, freemium, ad-supported) for a new mobile game?"
+            },
+            {
+                "id": "PM_EXEC_E_160",
+                "role": "PM",
+                "domain": "Execution/Prioritization",
+                "difficulty": "Easy",
+                "question": "What are **User Stories** and what makes a good one (e.g., INVEST criteria)?"
+            },
+            {
+                "id": "PM_DES_M_161",
+                "role": "PM",
+                "domain": "Product Design/UX",
+                "difficulty": "Medium",
+                "question": "How would you improve the experience of finding a parking spot in a major city using a mobile app?"
+            },
+            {
+                "id": "PM_DATA_M_162",
+                "role": "PM",
+                "domain": "Analytics/Guesstimation",
+                "difficulty": "Medium",
+                "question": "Estimate the total length of all roads in the state of California."
+            },
+            {
+                "id": "PM_TECH_H_163",
+                "role": "PM",
+                "domain": "Technical Acumen",
+                "difficulty": "Hard",
+                "question": "Describe a major scalability issue you've faced with a product and how the technical team solved it."
+            },
+            {
+                "id": "PM_STRAT_H_171",
+                "role": "PM",
+                "domain": "Product Strategy",
+                "difficulty": "Hard",
+                "question": "Develop a strategy for a company to transition from being purely B2C to having a significant B2B/Enterprise offering."
+            },
+            {
+                "id": "PM_EXEC_M_172",
+                "role": "PM",
+                "domain": "Execution/Prioritization",
+                "difficulty": "Medium",
+                "question": "How do you define and manage a successful **Beta program** for a new product launch?"
+            },
+            {
+                "id": "PM_DES_E_173",
+                "role": "PM",
+                "domain": "Product Design/UX",
+                "difficulty": "Easy",
+                "question": "Explain the concept of 'Jobs-to-be-Done' (JTBD) and how you use it in product discovery."
+            },
+            {
+                "id": "PM_DATA_H_174",
+                "role": "PM",
+                "domain": "Analytics/Guesstimation",
+                "difficulty": "Hard",
+                "question": "Your recommendation engine team argues for optimizing for 'long-term value' while the business team demands 'short-term revenue.' How do you create an alignment metric?"
+            },
+            {
+                "id": "PM_TECH_E_175",
+                "role": "PM",
+                "domain": "Technical Acumen",
+                "difficulty": "Easy",
+                "question": "Explain the difference between **synchronous** and **asynchronous** communication in systems."
+            },
+            {
+                "id": "PM_STRAT_M_183",
+                "role": "PM",
+                "domain": "Product Strategy",
+                "difficulty": "Medium",
+                "question": "Use the **Ansoff Matrix** (Market Penetration, Market Development, Product Development, Diversification) to analyze the growth strategy of a major tech company."
+            },
+            {
+                "id": "PM_EXEC_H_184",
+                "role": "PM",
+                "domain": "Execution/Prioritization",
+                "difficulty": "Hard",
+                "question": "Your product uses an offshore engineering team. Detail your communication strategy to ensure product alignment and effective execution across time zones and cultural barriers."
+            },
+            {
+                "id": "PM_DES_H_185",
+                "role": "PM",
+                "domain": "Product Design/UX",
+                "difficulty": "Hard",
+                "question": "Design a feature for LinkedIn that uses AI to improve professional networking in a remote work environment. Detail the user flow and guardrails."
+            },
+            {
+                "id": "PM_DATA_M_186",
+                "role": "PM",
+                "domain": "Analytics/Guesstimation",
+                "difficulty": "Medium",
+                "question": "How many emails are sent per day by people living in Manhattan?"
+            },
+            {
+                "id": "PM_TECH_M_187",
+                "role": "PM",
+                "domain": "Technical Acumen",
+                "difficulty": "Medium",
+                "question": "Explain the three pillars of **object-oriented programming (OOP)** and how they apply to product development and maintainability."
+            },
+            {
+                "id": "PM_STRAT_E_195",
+                "role": "PM",
+                "domain": "Product Strategy",
+                "difficulty": "Easy",
+                "question": "What is the **Value Proposition Canvas** and how does it relate to product strategy?"
+            },
+            {
+                "id": "PM_EXEC_M_196",
+                "role": "PM",
+                "domain": "Execution/Prioritization",
+                "difficulty": "Medium",
+                "question": "How do you define **Done** for a product feature? What steps are included in the definition?"
+            },
+            {
+                "id": "PM_DES_M_197",
+                "role": "PM",
+                "domain": "Product Design/UX",
+                "difficulty": "Medium",
+                "question": "How do you use **user journey mapping** to identify pain points and new opportunities?"
+            },
+            {
+                "id": "PM_DATA_H_198",
+                "role": "PM",
+                "domain": "Analytics/Guesstimation",
+                "difficulty": "Hard",
+                "question": "Design the key metrics and dashboards for a product that is designed for **habit formation** (e.g., a language learning app)."
+            },
+            {
+                "id": "PM_TECH_H_199",
+                "role": "PM",
+                "domain": "Technical Acumen",
+                "difficulty": "Hard",
+                "question": "How do you incorporate a **Machine Learning model** into a live product? Detail the infrastructure and monitoring requirements."
+            },
+            {
+                "id": "PM_STRAT_H_200",
+                "role": "PM",
+                "domain": "Product Strategy",
+                "difficulty": "Hard",
+                "question": "We are facing a situation where our product's primary user is being slowly cannibalized by a new feature we launched. Is this a failure or a win, and how should we adjust our strategy?"
+            },
+            {
+                "id": "DS_STAT_H_025",
+                "role": "DS",
+                "domain": "Statistics/A/B Testing",
+                "difficulty": "Hard",
+                "question": "You are running an A/B test with an unexpected result: Conversion rate increased, but overall revenue decreased. How do you investigate this, and what is the potential root cause?"
+            },
+            {
+                "id": "DS_STAT_E_114",
+                "role": "DS",
+                "domain": "Statistics/A/B Testing",
+                "difficulty": "Easy",
+                "question": "Explain the difference between **Type I and Type II errors** in hypothesis testing."
+            },
+            {
+                "id": "DS_STAT_M_115",
+                "role": "DS",
+                "domain": "Statistics/A/B Testing",
+                "difficulty": "Medium",
+                "question": "How do you calculate the required **sample size** for an A/B test, given a baseline conversion rate and a minimum detectable effect (MDE)?"
+            },
+            {
+                "id": "DS_MODEL_M_116",
+                "role": "DS",
+                "domain": "Modeling/ML",
+                "difficulty": "Medium",
+                "question": "Explain **regularization** (L1 and L2) in linear models. How does it help prevent overfitting?"
+            },
+            {
+                "id": "DS_MODEL_H_117",
+                "role": "DS",
+                "domain": "Modeling/ML",
+                "difficulty": "Hard",
+                "question": "You built a classification model with 99% accuracy, but the business is complaining about its performance. What metric is likely the issue, and how would you fix it?"
+            },
+            {
+                "id": "DS_STAT_M_135",
+                "role": "DS",
+                "domain": "Statistics/A/B Testing",
+                "difficulty": "Medium",
+                "question": "Explain the concept of **p-value** and its proper interpretation in an A/B test context."
+            },
+            {
+                "id": "DS_MODEL_E_136",
+                "role": "DS",
+                "domain": "Modeling/ML",
+                "difficulty": "Easy",
+                "question": "What is the bias-variance tradeoff? How does a complex model typically behave in terms of bias and variance?"
+            },
+            {
+                "id": "DS_STAT_H_142",
+                "role": "DS",
+                "domain": "Statistics/A/B Testing",
+                "difficulty": "Hard",
+                "question": "Explain the concept of **Switchback Testing** (or time-series A/B testing) and when it's necessary for a product."
+            },
+            {
+                "id": "DS_MODEL_H_149",
+                "role": "DS",
+                "domain": "Modeling/ML",
+                "difficulty": "Hard",
+                "question": "Your sentiment analysis model performs well in the lab but poorly in production due to a large number of typos in user input. How do you address this **data drift**?"
+            },
+            {
+                "id": "DS_STAT_E_153",
+                "role": "DS",
+                "domain": "Statistics/A/B Testing",
+                "difficulty": "Easy",
+                "question": "What is the difference between correlation and causation? Give a common example."
+            },
+            {
+                "id": "DS_MODEL_M_154",
+                "role": "DS",
+                "domain": "Modeling/ML",
+                "difficulty": "Medium",
+                "question": "Describe the **ROC curve** and **AUC score**. When is AUC a better metric than F1-score?"
+            },
+            {
+                "id": "DS_STAT_M_166",
+                "role": "DS",
+                "domain": "Statistics/A/B Testing",
+                "difficulty": "Medium",
+                "question": "When is it appropriate to use a **t-test** versus a **chi-squared test** in A/B test analysis?"
+            },
+            {
+                "id": "DS_MODEL_H_167",
+                "role": "DS",
+                "domain": "Modeling/ML",
+                "difficulty": "Hard",
+                "question": "How do you explain the decision of a **complex deep learning model** to a non-technical executive?"
+            },
+            {
+                "id": "DS_STAT_H_178",
+                "role": "DS",
+                "domain": "Statistics/A/B Testing",
+                "difficulty": "Hard",
+                "question": "How do you detect and handle the **Novelty Effect** or **Change Aversion** when analyzing A/B test results?"
+            },
+            {
+                "id": "DS_MODEL_M_179",
+                "role": "DS",
+                "domain": "Modeling/ML",
+                "difficulty": "Medium",
+                "question": "What is the difference between **Bagging** and **Boosting**? Name an algorithm for each."
+            },
+            {
+                "id": "DS_STAT_E_190",
+                "role": "DS",
+                "domain": "Statistics/A/B Testing",
+                "difficulty": "Easy",
+                "question": "Explain the difference between **Descriptive, Predictive, and Prescriptive Analytics**."
+            },
+            {
+                "id": "DS_MODEL_E_191",
+                "role": "DS",
+                "domain": "Modeling/ML",
+                "difficulty": "Easy",
+                "question": "What are the common strategies for handling **missing data** in a dataset?"
+            },
+            {
+                "id": "DEVOPS_KUBE_E_042",
+                "role": "DevOps/SRE",
+                "domain": "Kubernetes/Containerization",
+                "difficulty": "Easy",
+                "question": "Explain the difference between a **Pod**, a **Deployment**, and a **Service** in Kubernetes."
+            },
+            {
+                "id": "DEVOPS_KUBE_M_118",
+                "role": "DevOps/SRE",
+                "domain": "Kubernetes/Containerization",
+                "difficulty": "Medium",
+                "question": "How do you perform a **rolling update** in Kubernetes? What mechanisms ensure zero downtime?"
+            },
+            {
+                "id": "DEVOPS_CLOUD_H_119",
+                "role": "DevOps/SRE",
+                "domain": "Cloud/Infrastructure",
+                "difficulty": "Hard",
+                "question": "Design a highly-available, multi-region architecture for a web application. Focus on database replication and DNS failover."
+            },
+            {
+                "id": "DEVOPS_CLOUD_M_120",
+                "role": "DevOps/SRE",
+                "domain": "Cloud/Infrastructure",
+                "difficulty": "Medium",
+                "question": "Explain the principles of **Infrastructure as Code (IaC)**. Compare and contrast Terraform and Ansible."
+            },
+            {
+                "id": "DEVOPS_KUBE_E_137",
+                "role": "DevOps/SRE",
+                "domain": "Kubernetes/Containerization",
+                "difficulty": "Easy",
+                "question": "What is a **Helm Chart** and why is it useful for deploying applications to Kubernetes?"
+            },
+            {
+                "id": "DEVOPS_CLOUD_H_138",
+                "role": "DevOps/SRE",
+                "domain": "Cloud/Infrastructure",
+                "difficulty": "Hard",
+                "question": "Design a robust logging and monitoring pipeline for a microservices architecture. Detail the tools and data flow."
+            },
+            {
+                "id": "DEVOPS_KUBE_H_145",
+                "role": "DevOps/SRE",
+                "domain": "Kubernetes/Containerization",
+                "difficulty": "Hard",
+                "question": "How would you implement **autoscaling** for a cluster running a mix of CPU-intensive and memory-intensive workloads?"
+            },
+            {
+                "id": "DEVOPS_KUBE_M_155",
+                "role": "DevOps/SRE",
+                "domain": "Kubernetes/Containerization",
+                "difficulty": "Medium",
+                "question": "Explain the purpose of a **sidecar container** pattern in a Kubernetes Pod and provide an example use case."
+            },
+            {
+                "id": "DEVOPS_CLOUD_E_156",
+                "role": "DevOps/SRE",
+                "domain": "Cloud/Infrastructure",
+                "difficulty": "Easy",
+                "question": "What is the difference between a **load balancer** and a **reverse proxy**?"
+            },
+            {
+                "id": "DEVOPS_KUBE_H_168",
+                "role": "DevOps/SRE",
+                "domain": "Kubernetes/Containerization",
+                "difficulty": "Hard",
+                "question": "Explain how **service mesh** (e.g., Istio) solves common microservices problems like traffic control and security."
+            },
+            {
+                "id": "DEVOPS_CLOUD_M_169",
+                "role": "DevOps/SRE",
+                "domain": "Cloud/Infrastructure",
+                "difficulty": "Medium",
+                "question": "What is the purpose of a **CDN (Content Delivery Network)**? How does it improve performance and availability?"
+            },
+            {
+                "id": "DEVOPS_KUBE_E_180",
+                "role": "DevOps/SRE",
+                "domain": "Kubernetes/Containerization",
+                "difficulty": "Easy",
+                "question": "What is a **CI/CD pipeline** and what are the main stages in a typical workflow?"
+            },
+            {
+                "id": "DEVOPS_CLOUD_H_181",
+                "role": "DevOps/SRE",
+                "domain": "Cloud/Infrastructure",
+                "difficulty": "Hard",
+                "question": "Explain the concept of **Chaos Engineering**. How would you apply it to a production environment?"
+            },
+            {
+                "id": "DEVOPS_KUBE_M_192",
+                "role": "DevOps/SRE",
+                "domain": "Kubernetes/Containerization",
+                "difficulty": "Medium",
+                "question": "How do you secure sensitive information (like database passwords) in a Kubernetes cluster?"
+            },
+            {
+                "id": "DEVOPS_CLOUD_M_193",
+                "role": "DevOps/SRE",
+                "domain": "Cloud/Infrastructure",
+                "difficulty": "Medium",
+                "question": "Explain the concept of **idempotency** in API design and infrastructure scripting (e.g., Ansible)."
+            },
+            {
+                "id": "BEH_LEAD_M_060",
+                "role": "Behavioral",
+                "domain": "Leadership/Conflict",
+                "difficulty": "Medium",
+                "question": "Tell me about a time you had to deliver bad news to an executive or senior stakeholder. How did you prepare, and what was the outcome?"
+            },
+            {
+                "id": "BEH_PROC_H_072",
+                "role": "Behavioral",
+                "domain": "Process/Failure",
+                "difficulty": "Hard",
+                "question": "Describe a project where you completely misread the market or user needs, resulting in a product failure. What was your biggest learning, and how did you lead the team through the post-mortem?"
+            },
+            {
+                "id": "BEH_LEAD_E_121",
+                "role": "Behavioral",
+                "domain": "Leadership/Conflict",
+                "difficulty": "Easy",
+                "question": "Walk me through your proudest accomplishment. What was your specific role and impact?"
+            },
+            {
+                "id": "BEH_PROC_M_122",
+                "role": "Behavioral",
+                "domain": "Process/Failure",
+                "difficulty": "Medium",
+                "question": "Tell me about a time you had a fundamental disagreement with your manager or a senior leader. How did you handle the conflict and what was the resolution?"
+            },
+            {
+                "id": "BEH_LEAD_M_139",
+                "role": "Behavioral",
+                "domain": "Leadership/Conflict",
+                "difficulty": "Medium",
+                "question": "Tell me about a time you successfully influenced a decision where you had no formal authority."
+            },
+            {
+                "id": "BEH_PROC_E_148",
+                "role": "Behavioral",
+                "domain": "Process/Failure",
+                "difficulty": "Easy",
+                "question": "What is your process for giving and receiving constructive criticism?"
+            },
+            {
+                "id": "BEH_LEAD_H_157",
+                "role": "Behavioral",
+                "domain": "Leadership/Conflict",
+                "difficulty": "Hard",
+                "question": "Describe a situation where your team had to **pivot completely** under extreme pressure. How did you manage the team's stress and uncertainty?"
+            },
+            {
+                "id": "BEH_PROC_M_158",
+                "role": "Behavioral",
+                "domain": "Process/Failure",
+                "difficulty": "Medium",
+                "question": "Tell me about a time you launched a feature that had bugs in production. Walk through your immediate response and the post-incident review."
+            },
+            {
+                "id": "BEH_LEAD_E_170",
+                "role": "Behavioral",
+                "domain": "Leadership/Conflict",
+                "difficulty": "Easy",
+                "question": "What is the most important quality a good product manager/engineer/scientist must possess, and why?"
+            },
+            {
+                "id": "BEH_PROC_H_182",
+                "role": "Behavioral",
+                "domain": "Process/Failure",
+                "difficulty": "Hard",
+                "question": "Describe a time when you realized a project was going to miss its hard deadline. What steps did you take, and how did you manage the scope and expectations of leadership?"
+            },
+            {
+                "id": "BEH_LEAD_M_194",
+                "role": "Behavioral",
+                "domain": "Leadership/Conflict",
+                "difficulty": "Medium",
+                "question": "How do you motivate an underperforming team member? Describe your process."
+            }
+        ]
+    }
+}
