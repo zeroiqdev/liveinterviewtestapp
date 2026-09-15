@@ -204,6 +204,26 @@ export default function OnboardingPage() {
             onboarded: true,
         };
         localStorage.setItem("useladder_user", JSON.stringify(userProfile));
+
+        // Persist credentials & profile to MongoDB
+        fetch("/api/auth/user", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                email: userProfile.email,
+                name: userProfile.name,
+                role: userProfile.role,
+                domain: userProfile.domain,
+                seniority: userProfile.seniority,
+                resume: selectedResumeId && cvData && cvName ? {
+                    id: selectedResumeId,
+                    name: cvName,
+                    rawText: cvData,
+                    score: 80,
+                } : undefined,
+            }),
+        }).catch((err) => console.warn("Could not sync user to DB:", err));
+
         updateSettings({
             domain: domainVal,
             role: roleVal as InterviewRole,

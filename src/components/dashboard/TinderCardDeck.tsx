@@ -1,53 +1,21 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useMemo } from "react";
 import { Play, CaretLeft, CaretRight } from "@phosphor-icons/react";
 import styles from "../dashboard.module.css";
-
-export interface InterviewRoundCard {
-    id: string;
-    number: string;
-    title: string;
-    tagline: string;
-    image: string;
-}
-
-const ROUNDS_DATA: InterviewRoundCard[] = [
-    {
-        id: "technical",
-        number: "01",
-        title: "Technical Interview",
-        tagline: "Live Coding & Problem Solving",
-        image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786680377/0c08bf7e241268702484002634c7ee15-removebg-preview_2_zmpv2l.png",
-    },
-    {
-        id: "behavioral",
-        number: "02",
-        title: "Behavioral Interview",
-        tagline: "STAR Method & Leadership",
-        image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786682354/f37d1ccf89f44a94d6effda08b05c8e2_laveh3.jpg",
-    },
-    {
-        id: "system-design",
-        number: "03",
-        title: "System Design",
-        tagline: "Architecture & Scale",
-        image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786679257/0c08bf7e241268702484002634c7ee15-removebg-preview_zfigrw.png",
-    },
-    {
-        id: "skills-assessment",
-        number: "04",
-        title: "Skills Assessment",
-        tagline: "Core Engineering Drills",
-        image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786680091/0c08bf7e241268702484002634c7ee15-removebg-preview_1_jyel0f.png",
-    },
-];
+import { getInterviewRoundsForRole } from "./constants";
 
 interface TinderCardDeckProps {
     onPractice: () => void;
+    userRole?: string;
+    userRoleFamily?: string;
 }
 
-export function TinderCardDeck({ onPractice }: TinderCardDeckProps) {
+export function TinderCardDeck({ onPractice, userRole, userRoleFamily }: TinderCardDeckProps) {
+    const roundsData = useMemo(() => {
+        return getInterviewRoundsForRole(userRole, userRoleFamily);
+    }, [userRole, userRoleFamily]);
+
     const [currentIndex, setCurrentIndex] = useState(0);
     const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
@@ -55,26 +23,28 @@ export function TinderCardDeck({ onPractice }: TinderCardDeckProps) {
 
     const startPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
-    const totalCards = ROUNDS_DATA.length;
-    const currentCard = ROUNDS_DATA[currentIndex];
+    const totalCards = roundsData.length;
+    // Guard index bounds if role changes and roundsData length differs
+    const safeIndex = currentIndex % (totalCards || 1);
+    const currentCard = roundsData[safeIndex] || roundsData[0];
 
     // Background card previews for fanned stack effect (wrapping around)
-    const layer1Card = ROUNDS_DATA[(currentIndex + 1) % totalCards];
-    const layer2Card = ROUNDS_DATA[(currentIndex + 2) % totalCards];
-    const layer3Card = ROUNDS_DATA[(currentIndex + 3) % totalCards];
+    const layer1Card = roundsData[(safeIndex + 1) % totalCards];
+    const layer2Card = roundsData[(safeIndex + 2) % totalCards];
+    const layer3Card = roundsData[(safeIndex + 3) % totalCards];
 
     // Navigation both ways
-    const handlePrev = () => {
+    const handlePrev = useCallback(() => {
         setDragOffset({ x: 0, y: 0 });
         setSwipeDirection(null);
         setCurrentIndex((prev) => (prev > 0 ? prev - 1 : totalCards - 1));
-    };
+    }, [totalCards]);
 
-    const handleNext = () => {
+    const handleNext = useCallback(() => {
         setDragOffset({ x: 0, y: 0 });
         setSwipeDirection(null);
         setCurrentIndex((prev) => (prev < totalCards - 1 ? prev + 1 : 0));
-    };
+    }, [totalCards]);
 
     // Drag handlers for Tinder-style swiping
     const handleStart = (clientX: number, clientY: number) => {
@@ -128,12 +98,7 @@ export function TinderCardDeck({ onPractice }: TinderCardDeckProps) {
             setDragOffset({ x: 0, y: 0 });
             setSwipeDirection(null);
         }
-    }, [isDragging, dragOffset.x, dragOffset.y, onPractice]);
-
-    // Practice button handler
-    const handleMainPractice = () => {
-        onPractice();
-    };
+    }, [isDragging, dragOffset.x, dragOffset.y, onPractice, handleNext]);
 
     return (
         <div className={styles.deckSectionContainer}>
@@ -281,7 +246,7 @@ export function TinderCardDeck({ onPractice }: TinderCardDeckProps) {
                     <CaretLeft size={14} weight="bold" />
                 </button>
 
-                {ROUNDS_DATA.map((round, idx) => (
+                {roundsData.map((round, idx) => (
                     <button
                         key={round.id}
                         type="button"

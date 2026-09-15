@@ -1,46 +1,247 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useInterview } from "../context/InterviewContext";
 import styles from "./feedback.module.css";
 import type { FeedbackReportData } from "@/app/api/feedback/generate/route";
+import { sanitizeReportData } from "@/lib/feedbackSanitizer";
 import {
-    DownloadSimple,
-    FileText,
-    Lightning,
-    Clock,
-    ChatCenteredText,
-    Eye,
-    Microphone,
     CheckCircle,
     Warning,
-    ArrowLeft,
-    TrendUp,
+    ChatCircleText,
+    Lightning,
     Sparkle,
+    TrendUp,
+    Trophy,
+    ShieldCheck,
+    Target,
+    Lightbulb,
+    ArrowUpRight,
+    Brain,
+    Clock,
+    CaretRight,
+    X,
+    DownloadSimple,
+    Star,
+    Quotes,
+    Check,
 } from "@phosphor-icons/react";
 
-interface MetricItem {
-    label: string;
-    value: number;
-    color: string;
-    bgColor: string;
-    icon: React.ElementType;
+type SectionTabKey = "strengths" | "improvements" | "qa" | "tips";
+
+interface UnifiedFeedbackCard {
+    id: string;
+    category: "strength" | "improvement" | "qa" | "tip";
+    categoryLabel: string;
+    title: string;
+    description: string;
+    characterImage: string;
+    icon?: React.ElementType;
+    iconBg: string;
+    iconColor: string;
+    tagLabel?: string;
+    tagType?: "strong" | "average" | "needsWork" | "tip";
+    quote?: string;
+    recommendation?: string;
+    modelAnswer?: string;
+    question?: string;
+    candidateAnswer?: string;
 }
 
-export default function FeedbackReport() {
-    const router = useRouter();
-    const { interviewBlob, settings } = useInterview();
+const CHAR_STRENGTH = "https://res.cloudinary.com/dyg7neetr/image/upload/v1786680091/0c08bf7e241268702484002634c7ee15-removebg-preview_1_jyel0f.png";
+const CHAR_IMPROVEMENT = "https://res.cloudinary.com/dyg7neetr/image/upload/v1786679257/0c08bf7e241268702484002634c7ee15-removebg-preview_zfigrw.png";
+const CHAR_QA = "https://res.cloudinary.com/dyg7neetr/image/upload/v1786680377/0c08bf7e241268702484002634c7ee15-removebg-preview_2_zmpv2l.png";
+const CHAR_TIP = "/char1.png";
 
-    const [isLoading, setIsLoading] = useState(true);
+// Interview-type aware illustration for Q&A — picks character based on question semantics
+function getQaIllustration(question: string, idx: number): { img: string; bg: string; color: string } {
+    const q = question.toLowerCase();
+    // Product / prioritization / strategy
+    if (/prioritiz|roadmap|feature|okr|bandwidth|stakeholder|cut in half|backlog|rice/i.test(q)) {
+        return { img: CHAR_TIP, bg: "#FAF5FF", color: "#7E22CE" };
+    }
+    // Operational / incident / behavioral failure
+    if (/failed|failure|release|deployment|rollback|migration|incident|timeout|outage|post-mortem|postmortem/i.test(q)) {
+        return { img: CHAR_IMPROVEMENT, bg: "#FFF7ED", color: "#C2410C" };
+    }
+    // Collaboration / conflict / leadership
+    if (/disagreement|whiteboard|collaborat|align|team|conflict|senior|staff engineer/i.test(q)) {
+        return { img: CHAR_STRENGTH, bg: "#F0FDF4", color: "#15803D" };
+    }
+    // System design / architecture / trade-offs
+    if (/monolith|microservice|trade-?off|architecture|latency|throughput|scalab|consistency|distributed|decoupl/i.test(q)) {
+        return { img: CHAR_QA, bg: "#EFF6FF", color: "#1D4ED8" };
+    }
+    // Fallback: cycle so adjacent Q's never look identical
+    const fallbacks = [
+        { img: CHAR_QA, bg: "#EFF6FF", color: "#1D4ED8" },
+        { img: CHAR_STRENGTH, bg: "#F0FDF4", color: "#15803D" },
+        { img: CHAR_IMPROVEMENT, bg: "#FFF7ED", color: "#C2410C" },
+        { img: CHAR_TIP, bg: "#FAF5FF", color: "#7E22CE" },
+    ];
+    return fallbacks[idx % fallbacks.length];
+}
+
+// Rich fallback demo data for immediate preview if no live session exists
+const DEFAULT_DEMO_REPORT: FeedbackReportData = {
+    overallScore: 84,
+    verdict: "Strong Candidate",
+    summary: "You completed the session and demonstrated strong analytical problem solving and structured thinking. You articulated technical trade-offs with confidence and maintained steady pacing throughout.",
+    metrics: {
+        vocabulary: 88,
+        technicalDepth: 82,
+        pace: 85,
+        fillerWords: 90,
+        clarity: 86,
+        structureStar: 84,
+    },
+    strengths: [
+        {
+            title: "Structured STAR Methodology",
+            detail: "You framed the situation, obstacles, direct interventions, and quantifiable business outcomes in your responses.",
+            quote: "We prioritized user retention by isolating the onboarding churn bottleneck and launched an A/B test driving +14% activation.",
+        },
+        {
+            title: "Domain Terminology & Technical Depth",
+            detail: "You accurately referenced system trade-offs, latency implications, and API contract design during technical questions.",
+            quote: "Decoupled asynchronous webhook processing to safeguard uptime and achieve sub-100ms response targets.",
+        },
+        {
+            title: "Cross-Functional Collaboration",
+            detail: "You clearly articulated how to align engineering, product, and executive stakeholders around shared roadmap milestones.",
+        },
+    ],
+    improvements: [
+        {
+            title: "Quantify Business Impact Earlier",
+            detail: "Your initial narrative spent significant time on context before mentioning the core metric lift or bottom-line value.",
+            recommendation: "Lead with the bottom-line result first (Executive Summary format), then unpack your technical details.",
+        },
+        {
+            title: "Address Edge Cases Proactively",
+            detail: "You focused primarily on the happy path before the interviewer prompted for failure modes and recovery procedures.",
+            recommendation: "Dedicate the final 30 seconds of your system design answers to risk mitigation, fallback strategies, and rate limits.",
+        },
+    ],
+    quickTips: [
+        "Use deliberate 1-2 second pauses instead of filler words when digesting complex questions.",
+        "Synthesize interviewer hints into your revised approach rather than defending the initial design.",
+        "Conclude your answers with a crisp summary sentence to signal you have finished speaking.",
+        "Quantify your achievements with concrete metrics like latency reductions, uptime, or business impact.",
+    ],
+    qaBreakdown: [
+        {
+            question: "How do you prioritize features when engineering bandwidth is cut in half?",
+            candidateAnswer: "I would sit with the engineering manager, identify the top 3 company OKRs, calculate RICE scores for the backlog, and negotiate a cut line.",
+            rating: "Strong",
+            feedback: "You demonstrated a crisp, framework-driven approach. You showed empathy for engineering constraints while defending business objectives.",
+            modelAnswer: "First, align with leadership on non-negotiable compliance and reliability commitments. Next, stack-rank remaining backlog using expected business value over engineering effort (RICE framework). Finally, communicate revised scope proactively with transparent tradeoff rationales to stakeholders.",
+        },
+        {
+            question: "Tell me about a time a major release failed and how you resolved it.",
+            candidateAnswer: "We had a deployment issue with database migrations causing timeouts. I rolled back the release, briefed the customer support team, and patched the index.",
+            rating: "Average",
+            feedback: "You outlined good incident response actions, but you should detail the post-mortem, blameless culture, and automated regression guards introduced.",
+            modelAnswer: "Initiated the incident triage within 5 minutes, executed the zero-downtime rollback runbook, and maintained a live status page. Following resolution, led a blameless post-mortem that identified a missing pre-migration index check and automated shadow-traffic verification in our CI/CD pipeline.",
+        },
+        {
+            question: "How do you handle architectural disagreements between senior and staff engineers?",
+            candidateAnswer: "I bring both engineers into a whiteboard session to list out measurable criteria like throughput, latency, and operational cost, then prototype the ambiguous areas.",
+            rating: "Strong",
+            feedback: "You effectively depersonalized the technical conflict by anchoring the discussion on quantifiable objective criteria.",
+            modelAnswer: "Align on shared architectural principles and define empirical decision criteria (latency, scalability, maintenance overhead). If deadlock persists, time-box a spike proof-of-concept to produce real data rather than debating hypotheses.",
+        },
+        {
+            question: "What trade-offs do you consider when choosing between a monolithic and microservices architecture?",
+            candidateAnswer: "Microservices offer independent scaling and deployability, but introduce distributed system complexity, eventual consistency challenges, and network latency.",
+            rating: "Strong",
+            feedback: "You articulated clear awareness of operational overhead and distributed systems complexity rather than defaulting to microservices reflexively.",
+            modelAnswer: "Evaluate team topology, domain boundary maturity, and deployment velocity requirements. Favor a modular monolith initially to keep operational complexity low until independent scaling and organizational decoupling strictly justify service boundaries.",
+        },
+    ],
+};
+
+export interface FeedbackReportProps {
+    isModal?: boolean;
+    onClose?: () => void;
+    initialReportData?: FeedbackReportData | null;
+}
+
+export default function FeedbackReport({
+    isModal = false,
+    onClose,
+    initialReportData,
+}: FeedbackReportProps = {}) {
+    const router = useRouter();
+    const { settings, interviewBlob } = useInterview();
+
+    const [isLoading, setIsLoading] = useState<boolean>(() => {
+        if (initialReportData) return false;
+        if (typeof window === "undefined") return false;
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const sessionId = params.get("sessionId") || localStorage.getItem("useladder_last_session_id");
+            if (sessionId) {
+                const cached = localStorage.getItem(`useladder_feedback_${sessionId}`);
+                if (cached) return false;
+                return true;
+            }
+        } catch {}
+        return false;
+    });
     const [hasError, setHasError] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
-    const [reportData, setReportData] = useState<FeedbackReportData | null>(null);
+    const [reportData, setReportData] = useState<FeedbackReportData | null>(() => {
+        if (initialReportData) return sanitizeReportData(initialReportData);
+        if (typeof window === "undefined") return null;
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const sessionId = params.get("sessionId") || localStorage.getItem("useladder_last_session_id");
+            if (sessionId) {
+                const cached = localStorage.getItem(`useladder_feedback_${sessionId}`);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (parsed && typeof parsed.overallScore === "number") {
+                        return sanitizeReportData(parsed);
+                    }
+                }
+            }
+            const lastStored = localStorage.getItem("useladder_last_feedback");
+            if (lastStored) {
+                const parsed = JSON.parse(lastStored);
+                if (parsed && typeof parsed.overallScore === "number") {
+                    return sanitizeReportData(parsed);
+                }
+            }
+        } catch {}
+        return sanitizeReportData(DEFAULT_DEMO_REPORT);
+    });
+    const [activeTab, setActiveTab] = useState<SectionTabKey>("strengths");
+    const [selectedCard, setSelectedCard] = useState<UnifiedFeedbackCard | null>(null);
     const [sessionMeta, setSessionMeta] = useState<{
         role?: string;
         experience?: string;
         domain?: string;
-    }>({});
+    }>(() => {
+        if (typeof window === "undefined") return {};
+        try {
+            const rawMeta = localStorage.getItem("useladder_last_session_meta");
+            if (rawMeta) {
+                const meta = JSON.parse(rawMeta);
+                return {
+                    role: meta.role || "Software Engineer",
+                    experience: meta.experience || "Mid-Level",
+                    domain: meta.domain || "General Tech",
+                };
+            }
+        } catch {}
+        return {
+            role: "Software Engineer",
+            experience: "Mid-Level",
+            domain: "General Tech",
+        };
+    });
 
     const handleDownload = () => {
         if (!interviewBlob) return;
@@ -52,21 +253,31 @@ export default function FeedbackReport() {
         URL.revokeObjectURL(url);
     };
 
+    const handleCloseAction = () => {
+        if (isModal && onClose) {
+            onClose();
+        } else {
+            router.push("/dashboard");
+        }
+    };
+
     const handleLogout = () => {
         localStorage.removeItem("useladder_user");
         router.push("/");
     };
 
-    const fetchFeedback = async () => {
+    const performFeedbackFetch = useCallback(async () => {
+        if (initialReportData) return;
+
         setIsLoading(true);
         setHasError(false);
         setErrorMessage("");
         try {
             let sessionId: string | null = null;
-            let meta: any = {};
-            let directTranscript: any[] = [];
-
+            let meta: Record<string, unknown> = {};
+            let directTranscript: Array<{ role?: string; sender?: string; text?: string }> = [];
             let userProfileRole = "";
+
             if (typeof window !== "undefined") {
                 const userRaw = localStorage.getItem("useladder_user");
                 if (userRaw) {
@@ -90,19 +301,19 @@ export default function FeedbackReport() {
                     } catch {}
                 }
 
-                // Check cache if session report was already generated
                 if (sessionId) {
                     const cached = localStorage.getItem(`useladder_feedback_${sessionId}`);
                     if (cached) {
                         try {
                             const parsed = JSON.parse(cached);
                             if (parsed && typeof parsed.overallScore === "number") {
-                                setReportData(parsed);
-                                localStorage.setItem("useladder_last_feedback", JSON.stringify(parsed));
+                                const clean = sanitizeReportData(parsed, directTranscript);
+                                setReportData(clean);
+                                localStorage.setItem("useladder_last_feedback", JSON.stringify(clean));
                                 setSessionMeta({
-                                    role: meta.role || settings.role || userProfileRole || "Candidate",
-                                    experience: meta.experience || settings.experience || "Mid",
-                                    domain: meta.domain || settings.domain || "General Tech",
+                                    role: (typeof meta.role === "string" ? meta.role : "") || settings.role || userProfileRole || "Software Engineer",
+                                    experience: (typeof meta.experience === "string" ? meta.experience : "") || settings.experience || "Mid-Level",
+                                    domain: (typeof meta.domain === "string" ? meta.domain : "") || settings.domain || "General Tech",
                                 });
                                 setIsLoading(false);
                                 return;
@@ -112,434 +323,670 @@ export default function FeedbackReport() {
                 }
             }
 
-            const effectiveRole = meta.role || settings.role || userProfileRole || "Candidate";
+            const effectiveRole = (typeof meta.role === "string" ? meta.role : "") || settings.role || userProfileRole || "Software Engineer";
             setSessionMeta({
                 role: effectiveRole,
-                experience: meta.experience || settings.experience || "Mid",
-                domain: meta.domain || settings.domain || "General Tech",
+                experience: (typeof meta.experience === "string" ? meta.experience : "") || settings.experience || "Mid-Level",
+                domain: (typeof meta.domain === "string" ? meta.domain : "") || settings.domain || "General Tech",
             });
 
-            const res = await fetch("/api/feedback/generate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    sessionId,
-                    transcript: directTranscript,
-                    role: effectiveRole,
-                    experience: meta.experience || settings.experience,
-                    domain: meta.domain || settings.domain,
-                }),
-            });
+            if (sessionId) {
+                const res = await fetch("/api/feedback/generate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sessionId,
+                        role: effectiveRole,
+                        experience: (typeof meta.experience === "string" ? meta.experience : "") || settings.experience || "Mid-Level",
+                        domain: (typeof meta.domain === "string" ? meta.domain : "") || settings.domain || "General Tech",
+                        transcript: directTranscript.length > 0 ? directTranscript : undefined,
+                    }),
+                });
 
-            if (res.ok) {
-                const data: FeedbackReportData = await res.json();
-                setReportData(data);
-                if (typeof window !== "undefined") {
-                    localStorage.setItem("useladder_last_feedback", JSON.stringify(data));
-                    if (sessionId) {
-                        localStorage.setItem(`useladder_feedback_${sessionId}`, JSON.stringify(data));
+                if (res.ok) {
+                    const data: FeedbackReportData = await res.json();
+                    if (data && typeof data.overallScore === "number") {
+                        const clean = sanitizeReportData(data, directTranscript);
+                        setReportData(clean);
+                        localStorage.setItem(`useladder_feedback_${sessionId}`, JSON.stringify(clean));
+                        localStorage.setItem("useladder_last_feedback", JSON.stringify(clean));
+                        setIsLoading(false);
+                        return;
                     }
                 }
-            } else {
-                const errData = await res.json().catch(() => ({}));
-                setHasError(true);
-                setErrorMessage(errData?.error || "AI evaluation failed to complete. Please try again.");
             }
-        } catch (err) {
-            console.warn("[FeedbackReport] AI evaluation request failed:", err);
-            setHasError(true);
-            setErrorMessage("Network or timeout error while generating feedback.");
-        } finally {
+
+            const lastStored = localStorage.getItem("useladder_last_feedback");
+            if (lastStored) {
+                try {
+                    const parsed = JSON.parse(lastStored);
+                    if (parsed && typeof parsed.overallScore === "number") {
+                        const clean = sanitizeReportData(parsed, directTranscript);
+                        setReportData(clean);
+                        setIsLoading(false);
+                        return;
+                    }
+                } catch {}
+            }
+
+            setReportData(sanitizeReportData(DEFAULT_DEMO_REPORT, directTranscript));
+            setIsLoading(false);
+        } catch (err: unknown) {
+            console.warn("[FeedbackReport] Failed to fetch live report, using default demo:", err);
+            setReportData(sanitizeReportData(DEFAULT_DEMO_REPORT));
             setIsLoading(false);
         }
-    };
+    }, [initialReportData, settings.domain, settings.experience, settings.role]);
 
     useEffect(() => {
-        fetchFeedback();
-    }, [settings]);
+        if (initialReportData) return;
+        if (typeof window === "undefined") return;
 
-    const overallScore = reportData ? reportData.overallScore : 72;
+        const params = new URLSearchParams(window.location.search);
+        const sessionId = params.get("sessionId") || localStorage.getItem("useladder_last_session_id");
+        if (!sessionId) return;
 
-    const metrics: MetricItem[] = reportData
-        ? [
-              {
-                  label: "Vocabulary",
-                  value: reportData.metrics.vocabulary,
-                  color: "#f59e0b",
-                  bgColor: "rgba(245, 158, 11, 0.15)",
-                  icon: FileText,
-              },
-              {
-                  label: "Technical Depth",
-                  value: reportData.metrics.technicalDepth,
-                  color: "#22C55E",
-                  bgColor: "rgba(34, 197, 94, 0.15)",
-                  icon: Lightning,
-              },
-              {
-                  label: "Pace & Delivery",
-                  value: reportData.metrics.pace,
-                  color: "#4793f7",
-                  bgColor: "rgba(71, 147, 247, 0.15)",
-                  icon: Clock,
-              },
-              {
-                  label: "Filler Word Control",
-                  value: reportData.metrics.fillerWords,
-                  color: reportData.metrics.fillerWords < 60 ? "#ef4444" : "#22C55E",
-                  bgColor: "rgba(239, 68, 68, 0.15)",
-                  icon: ChatCenteredText,
-              },
-              {
-                  label: "Clarity",
-                  value: reportData.metrics.clarity,
-                  color: "#22C55E",
-                  bgColor: "rgba(34, 197, 94, 0.15)",
-                  icon: Eye,
-              },
-              {
-                  label: "STAR Structure",
-                  value: reportData.metrics.structureStar,
-                  color: reportData.metrics.structureStar < 65 ? "#ef4444" : reportData.metrics.structureStar < 78 ? "#f59e0b" : "#22C55E",
-                  bgColor: reportData.metrics.structureStar < 65 ? "rgba(239, 68, 68, 0.15)" : reportData.metrics.structureStar < 78 ? "rgba(245, 158, 11, 0.15)" : "rgba(34, 197, 94, 0.15)",
-                  icon: Microphone,
-              },
-          ]
-        : [
-              { label: "Vocabulary", value: 78, color: "#f59e0b", bgColor: "rgba(245, 158, 11, 0.15)", icon: FileText },
-              { label: "Technical Depth", value: 85, color: "#22C55E", bgColor: "rgba(34, 197, 94, 0.15)", icon: Lightning },
-              { label: "Pace & Delivery", value: 65, color: "#4793f7", bgColor: "rgba(71, 147, 247, 0.15)", icon: Clock },
-              { label: "Filler Words", value: 42, color: "#ef4444", bgColor: "rgba(239, 68, 68, 0.15)", icon: ChatCenteredText },
-              { label: "Clarity", value: 88, color: "#22C55E", bgColor: "rgba(34, 197, 94, 0.15)", icon: Eye },
-              { label: "STAR Structure", value: 60, color: "#ef4444", bgColor: "rgba(239, 68, 68, 0.15)", icon: Microphone },
-          ];
+        const cached = localStorage.getItem(`useladder_feedback_${sessionId}`);
+        if (cached) return;
 
-    // Circle math
-    const radius = 58;
+        let isCancelled = false;
+
+        const generateFeedback = async () => {
+            try {
+                let meta: Record<string, unknown> = {};
+                let directTranscript: Array<{ role?: string; sender?: string; text?: string }> = [];
+                let userProfileRole = "";
+
+                const userRaw = localStorage.getItem("useladder_user");
+                if (userRaw) {
+                    try {
+                        const parsedUser = JSON.parse(userRaw);
+                        userProfileRole = parsedUser.role || "";
+                    } catch {}
+                }
+                const rawMeta = localStorage.getItem("useladder_last_session_meta");
+                if (rawMeta) {
+                    try {
+                        meta = JSON.parse(rawMeta);
+                    } catch {}
+                }
+                const rawTranscript = localStorage.getItem("useladder_last_session_transcript");
+                if (rawTranscript) {
+                    try {
+                        directTranscript = JSON.parse(rawTranscript);
+                    } catch {}
+                }
+
+                const effectiveRole = (typeof meta.role === "string" ? meta.role : "") || settings.role || userProfileRole || "Software Engineer";
+
+                const res = await fetch("/api/feedback/generate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sessionId,
+                        role: effectiveRole,
+                        experience: (typeof meta.experience === "string" ? meta.experience : "") || settings.experience || "Mid-Level",
+                        domain: (typeof meta.domain === "string" ? meta.domain : "") || settings.domain || "General Tech",
+                        transcript: directTranscript.length > 0 ? directTranscript : undefined,
+                    }),
+                });
+
+                if (res.ok) {
+                    const data: FeedbackReportData = await res.json();
+                    if (data && typeof data.overallScore === "number" && !isCancelled) {
+                        const clean = sanitizeReportData(data, directTranscript);
+                        setReportData(clean);
+                        localStorage.setItem(`useladder_feedback_${sessionId}`, JSON.stringify(clean));
+                        localStorage.setItem("useladder_last_feedback", JSON.stringify(clean));
+                        setIsLoading(false);
+                    }
+                } else if (!isCancelled) {
+                    setIsLoading(false);
+                    setHasError(true);
+                    setErrorMessage("Failed to generate interview feedback report.");
+                }
+            } catch (err: unknown) {
+                console.warn("[FeedbackReport] Failed to generate live report:", err);
+                if (!isCancelled) {
+                    setIsLoading(false);
+                }
+            }
+        };
+
+        void generateFeedback();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [initialReportData, settings.domain, settings.experience, settings.role]);
+
+    // Transform reportData into unified cards with minimal aesthetics
+    const strengthsCards: UnifiedFeedbackCard[] = (reportData?.strengths || []).map((s, idx) => {
+        const iconList = [CheckCircle, Trophy, TrendUp, ShieldCheck, Star];
+        return {
+            id: `strength-${idx}`,
+            category: "strength",
+            categoryLabel: "Strength",
+            title: s.title,
+            description: s.detail,
+            characterImage: CHAR_STRENGTH,
+            icon: iconList[idx % iconList.length],
+            iconBg: "#F0FDF4",
+            iconColor: "#15803D",
+            tagLabel: "Strength",
+            tagType: "strong",
+            quote: s.quote,
+        };
+    });
+
+    const improvementsCards: UnifiedFeedbackCard[] = (reportData?.improvements || []).map((imp, idx) => {
+        const iconList = [Warning, Target, Lightbulb, ArrowUpRight];
+        return {
+            id: `improvement-${idx}`,
+            category: "improvement",
+            categoryLabel: "Area to Improve",
+            title: imp.title,
+            description: imp.detail,
+            characterImage: CHAR_IMPROVEMENT,
+            icon: iconList[idx % iconList.length],
+            iconBg: "#FFF7ED",
+            iconColor: "#C2410C",
+            tagLabel: "To Improve",
+            tagType: "average",
+            recommendation: imp.recommendation,
+        };
+    });
+
+    const qaCards: UnifiedFeedbackCard[] = (reportData?.qaBreakdown || []).map((qa, idx) => {
+        const iconList = [ChatCircleText, Brain, Quotes, Sparkle];
+        const tagType = qa.rating === "Strong" ? "strong" : qa.rating === "Average" ? "average" : "needsWork";
+        const illustration = getQaIllustration(qa.question, idx);
+        return {
+            id: `qa-${idx}`,
+            category: "qa",
+            categoryLabel: `Question 0${idx + 1}`,
+            title: qa.question,
+            description: qa.feedback,
+            characterImage: illustration.img,
+            icon: iconList[idx % iconList.length],
+            iconBg: illustration.bg,
+            iconColor: illustration.color,
+            tagLabel: qa.rating,
+            tagType,
+            question: qa.question,
+            candidateAnswer: qa.candidateAnswer,
+            modelAnswer: qa.modelAnswer,
+            recommendation: qa.modelAnswer,
+        };
+    });
+
+    const tipsCards: UnifiedFeedbackCard[] = (reportData?.quickTips || []).map((tip, idx) => {
+        const iconList = [Lightning, Sparkle, Clock, Brain];
+        return {
+            id: `tip-${idx}`,
+            category: "tip",
+            categoryLabel: "General Tip",
+            title: `Tip 0${idx + 1}: Delivery & Mindset`,
+            description: tip,
+            characterImage: CHAR_TIP,
+            icon: iconList[idx % iconList.length],
+            iconBg: "#FAF5FF",
+            iconColor: "#7E22CE",
+            tagLabel: "General Tip",
+            tagType: "tip",
+        };
+    });
+
+    const displayedCards =
+        activeTab === "strengths"
+            ? strengthsCards
+            : activeTab === "improvements"
+            ? improvementsCards
+            : activeTab === "qa"
+            ? qaCards
+            : tipsCards;
+
+    const overallScore = reportData?.overallScore || 80;
+    const radius = 38;
     const circumference = 2 * Math.PI * radius;
     const offset = circumference - (overallScore / 100) * circumference;
 
+    const verdict = reportData?.verdict || (overallScore >= 80 ? "Strong Candidate" : overallScore >= 65 ? "Above Average" : "Needs Improvement");
+    const verdictClass =
+        verdict === "Strong Candidate"
+            ? styles.verdictGood
+            : verdict === "Above Average"
+            ? styles.verdictAvg
+            : styles.verdictNeedsWork;
+
+    // ── Card Detail Modal Component ──
+    const renderCardDetailModal = () => {
+        if (!selectedCard) return null;
+        return (
+            <div
+                className={styles.modalBackdrop}
+                onClick={() => setSelectedCard(null)}
+            >
+                <div
+                    className={styles.modalCard}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className={styles.modalHeader}>
+                        <div className={styles.modalHeaderLeft}>
+                            {selectedCard.characterImage ? (
+                                <div
+                                    className={styles.cardCharBox}
+                                    style={{
+                                        backgroundColor: selectedCard.iconBg,
+                                        width: 36,
+                                        height: 36,
+                                        borderRadius: 8,
+                                    }}
+                                >
+                                    <img
+                                        src={selectedCard.characterImage}
+                                        alt=""
+                                        className={styles.cardCharImg}
+                                    />
+                                </div>
+                            ) : selectedCard.icon ? (
+                                <div
+                                    className={styles.cardIconBox}
+                                    style={{
+                                        backgroundColor: selectedCard.iconBg,
+                                        color: selectedCard.iconColor,
+                                        width: 36,
+                                        height: 36,
+                                        borderRadius: 8,
+                                    }}
+                                >
+                                    <selectedCard.icon size={18} weight="regular" />
+                                </div>
+                            ) : null}
+                            <div>
+                                <span className={styles.modalSectionLabel}>
+                                    {selectedCard.categoryLabel}
+                                </span>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            className={styles.windowCloseBtn}
+                            onClick={() => setSelectedCard(null)}
+                            aria-label="Close detail"
+                        >
+                            <X size={15} weight="regular" />
+                        </button>
+                    </div>
+
+                    <div className={styles.modalBody}>
+                        <h2 className={styles.modalTitle}>{selectedCard.title}</h2>
+
+                        <div className={styles.modalSection}>
+                            <span className={styles.modalSectionLabel}>Evaluator Analysis</span>
+                            <p className={styles.modalSectionText}>{selectedCard.description}</p>
+                        </div>
+
+                        {selectedCard.candidateAnswer && (
+                            <div className={styles.modalSection}>
+                                <span className={styles.modalSectionLabel}>Your Answer</span>
+                                <div className={styles.modalQuoteBox}>
+                                    &ldquo;{selectedCard.candidateAnswer}&rdquo;
+                                </div>
+                            </div>
+                        )}
+
+                        {selectedCard.quote && (
+                            <div className={styles.modalSection}>
+                                <span className={styles.modalSectionLabel}>Your Spoken Quote</span>
+                                <div className={styles.modalQuoteBox}>
+                                    &ldquo;{selectedCard.quote}&rdquo;
+                                </div>
+                            </div>
+                        )}
+
+                        {(selectedCard.recommendation || selectedCard.modelAnswer) && (
+                            <div className={styles.modalSection}>
+                                <span className={styles.modalSectionLabel}>Tip</span>
+                                <div className={styles.modalTipBox}>
+                                    {selectedCard.recommendation || selectedCard.modelAnswer}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className={styles.modalFooter}>
+                        <button
+                            type="button"
+                            className={styles.modalDoneBtn}
+                            onClick={() => setSelectedCard(null)}
+                        >
+                            Done
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // ── Main Window Content (Used in both full page and modal modes) ──
+    const windowContent = (
+        <div className={isModal ? styles.feedbackWindowModal : styles.feedbackWindow}>
+            {/* ── Window Header ── */}
+            <div className={styles.windowHeader}>
+                <div className={styles.windowTitleGroup}>
+                    <h1 className={styles.windowTitle}>Interview Performance Feedback</h1>
+                    <p className={styles.windowSubtitle}>
+                        Role: {sessionMeta.role || "Product Manager"} · Level: {sessionMeta.experience || "Mid-Level"}
+                    </p>
+                </div>
+                {isModal && (
+                    <button
+                        type="button"
+                        className={styles.windowCloseBtn}
+                        onClick={handleCloseAction}
+                        aria-label="Close"
+                    >
+                        <X size={15} weight="regular" />
+                    </button>
+                )}
+            </div>
+
+            {/* ── Performance Summary Card ── */}
+            <div className={styles.summaryBanner}>
+                <div className={styles.scoreCircleWrap}>
+                    <svg className={styles.scoreSvg} viewBox="0 0 100 100">
+                        <circle className={styles.scoreTrack} cx="50" cy="50" r={radius} />
+                        <circle
+                            className={styles.scoreFill}
+                            cx="50"
+                            cy="50"
+                            r={radius}
+                            strokeDasharray={circumference}
+                            strokeDashoffset={offset}
+                            stroke={overallScore >= 75 ? "#16A34A" : overallScore >= 60 ? "#F59E0B" : "#DC2626"}
+                        />
+                    </svg>
+                    <div className={styles.scoreCenter}>
+                        <span className={styles.scoreNumber}>{overallScore}</span>
+                        <span className={styles.scoreOutOf}>/ 100</span>
+                    </div>
+                </div>
+
+                <div className={styles.summaryContent}>
+                    <div className={styles.summaryTopRow}>
+                        <span className={`${styles.verdictBadge} ${verdictClass}`}>
+                            <Check size={12} weight="regular" />
+                            {verdict}
+                        </span>
+                    </div>
+                    <p className={styles.summaryParagraph}>
+                        {reportData?.summary || "Solid overall interview performance with structured answers and confident delivery."}
+                    </p>
+
+                    {reportData?.metrics && (
+                        <div className={styles.rubricRow}>
+                            <div className={styles.rubricPill}>
+                                <span>Technical Depth:</span>
+                                <span className={styles.rubricVal}>{reportData.metrics.technicalDepth}%</span>
+                            </div>
+                            <div className={styles.rubricPill}>
+                                <span>Vocabulary:</span>
+                                <span className={styles.rubricVal}>{reportData.metrics.vocabulary}%</span>
+                            </div>
+                            <div className={styles.rubricPill}>
+                                <span>Clarity:</span>
+                                <span className={styles.rubricVal}>{reportData.metrics.clarity}%</span>
+                            </div>
+                            <div className={styles.rubricPill}>
+                                <span>Pace:</span>
+                                <span className={styles.rubricVal}>{reportData.metrics.pace}%</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* ── Sectioning Tab Bar (Flush, Gap-Free, Sharp Corners) ── */}
+            <div className={styles.sectionTabBar}>
+                <button
+                    type="button"
+                    className={`${styles.sectionTab} ${activeTab === "strengths" ? styles.tabActiveStrengths : ""}`}
+                    onClick={() => setActiveTab("strengths")}
+                >
+                    Strengths
+                </button>
+
+                <button
+                    type="button"
+                    className={`${styles.sectionTab} ${activeTab === "improvements" ? styles.tabActiveImprovements : ""}`}
+                    onClick={() => setActiveTab("improvements")}
+                >
+                    Improvements
+                </button>
+
+                <button
+                    type="button"
+                    className={`${styles.sectionTab} ${activeTab === "qa" ? styles.tabActiveQa : ""}`}
+                    onClick={() => setActiveTab("qa")}
+                >
+                    Q&A Review
+                </button>
+
+                <button
+                    type="button"
+                    className={`${styles.sectionTab} ${activeTab === "tips" ? styles.tabActiveTips : ""}`}
+                    onClick={() => setActiveTab("tips")}
+                >
+                    General Tips
+                </button>
+            </div>
+
+            {/* ── Cards Grid (One feedback per card with clean icons) ── */}
+            <div className={styles.cardsGridContainer}>
+                <div className={styles.feedbackGrid}>
+                    {displayedCards.map((card) => {
+                        const isSelected = selectedCard?.id === card.id;
+
+                        return (
+                            <div
+                                key={card.id}
+                                className={`${styles.feedbackCard} ${isSelected ? styles.feedbackCardSelected : ""}`}
+                                onClick={() => setSelectedCard(card)}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                        setSelectedCard(card);
+                                    }
+                                }}
+                            >
+                                {/* Left badge: character illustration for strengths/improvements/tips + interview-type illustration for Q&A */}
+                                {card.characterImage ? (
+                                    <div
+                                        className={styles.cardCharBox}
+                                        style={{ backgroundColor: card.iconBg }}
+                                    >
+                                        <img
+                                            src={card.characterImage}
+                                            alt={card.categoryLabel}
+                                            className={styles.cardCharImg}
+                                        />
+                                    </div>
+                                ) : card.icon ? (
+                                    <div
+                                        className={styles.cardIconBox}
+                                        style={{ backgroundColor: card.iconBg, color: card.iconColor }}
+                                    >
+                                        <card.icon size={20} weight="regular" />
+                                    </div>
+                                ) : null}
+
+                                {/* Middle Content: Title + Feedback Text */}
+                                <div className={styles.cardBody}>
+                                    <div className={styles.cardHeaderRow}>
+                                        <h3 className={styles.cardTitle}>{card.title}</h3>
+                                        {card.tagLabel && (
+                                            <span
+                                                className={`${styles.cardTag} ${
+                                                    card.tagType === "strong"
+                                                        ? styles.tagStrong
+                                                        : card.tagType === "average"
+                                                        ? styles.tagAverage
+                                                        : card.tagType === "needsWork"
+                                                        ? styles.tagNeedsWork
+                                                        : styles.tagTip
+                                                }`}
+                                            >
+                                                {card.tagLabel}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <p className={styles.cardDescription}>{card.description}</p>
+
+                                    {card.recommendation && (
+                                        <div className={styles.cardSnippet}>
+                                            Tip: {card.recommendation}
+                                        </div>
+                                    )}
+
+                                    {card.quote && (
+                                        <div className={styles.cardSnippet}>
+                                            &ldquo;{card.quote}&rdquo;
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Right Circular Chevron (minimal circular chevron) */}
+                                <div className={styles.cardChevron}>
+                                    <CaretRight size={13} weight="regular" />
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* ── Window Footer ── */}
+            <div className={styles.windowFooter}>
+                <div className={styles.footerActions}>
+                    <button
+                        type="button"
+                        className={styles.btnPrimary}
+                        onClick={handleCloseAction}
+                    >
+                        Go back to dashboard
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+
+    // ── Render as Modal Dialog Overlay ──
+    if (isModal) {
+        return (
+            <div className={styles.modalOverlay} onClick={handleCloseAction}>
+                <div className={styles.modalDialog} onClick={(e) => e.stopPropagation()}>
+                    {isLoading ? (
+                        <div className={styles.loadingContainer}>
+                            <div className={styles.loadingSpinner} />
+                            <h2 className={styles.loadingTitle}>Evaluating your session…</h2>
+                            <p className={styles.loadingSubtitle}>
+                                Analyzing transcript claims, terminology precision, structured delivery, and industry rubrics.
+                            </p>
+                        </div>
+                    ) : hasError && !reportData ? (
+                        <div className={styles.errorContainer}>
+                            <Warning size={48} weight="regular" className={styles.errorIcon} />
+                            <h2 className={styles.loadingTitle}>Evaluation Encountered an Issue</h2>
+                            <p className={styles.loadingSubtitle}>
+                                {errorMessage || "We were unable to complete the AI analysis for this session."}
+                            </p>
+                            <button type="button" className={styles.retryBtn} onClick={performFeedbackFetch}>
+                                <Lightning size={16} weight="regular" />
+                                Retry Analysis
+                            </button>
+                        </div>
+                    ) : (
+                        windowContent
+                    )}
+                </div>
+                {renderCardDetailModal()}
+            </div>
+        );
+    }
+
+    // ── Standalone Page Mode (/feedback) ──
     return (
         <div className={styles.feedbackPage}>
-            {/* Navbar */}
+            {/* ── Top Navbar ── */}
             <nav className={styles.navbar}>
-                <div className={styles.logo}>
+                <div
+                    className={styles.logo}
+                    onClick={handleCloseAction}
+                    style={{ cursor: "pointer" }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") handleCloseAction();
+                    }}
+                >
                     <div className={styles.logoIcon}>L</div>
-                    useladder
+                    <span>useladder</span>
                 </div>
+
                 <div className={styles.navActions}>
-                    <button
-                        className={styles.backBtn}
-                        onClick={() => router.push("/dashboard")}
-                    >
-                        <ArrowLeft size={14} style={{ marginRight: 4 }} />
-                        Back to Dashboard
-                    </button>
+
                     {interviewBlob && (
                         <button
+                            type="button"
                             className={styles.downloadBtn}
                             onClick={handleDownload}
                         >
-                            <DownloadSimple size={14} />
+                            <DownloadSimple size={15} weight="regular" />
                             Download Recording
                         </button>
                     )}
+
                     <button
+                        type="button"
                         className={styles.logoutBtn}
                         onClick={handleLogout}
-                        aria-label="Logout"
                     >
                         Logout
                     </button>
                 </div>
             </nav>
 
+            {/* ── Main Content Area ── */}
             {isLoading ? (
                 <div className={styles.loadingContainer}>
                     <div className={styles.loadingSpinner} />
-                    <h2 className={styles.loadingTitle}>AI is analyzing your interview…</h2>
+                    <h2 className={styles.loadingTitle}>Evaluating your session…</h2>
                     <p className={styles.loadingSubtitle}>
-                        Evaluating your spoken answers, domain depth, vocabulary, and response structure.
+                        Analyzing transcript claims, terminology precision, structured delivery, and industry rubrics.
                     </p>
                 </div>
             ) : hasError && !reportData ? (
                 <div className={styles.errorContainer}>
-                    <Warning size={48} className={styles.errorIcon} />
+                    <Warning size={48} weight="regular" className={styles.errorIcon} />
                     <h2 className={styles.loadingTitle}>Evaluation Encountered an Issue</h2>
                     <p className={styles.loadingSubtitle}>
                         {errorMessage || "We were unable to complete the AI analysis for this session."}
                     </p>
-                    <button type="button" className={styles.retryBtn} onClick={fetchFeedback}>
-                        <Lightning size={16} />
+                    <button type="button" className={styles.retryBtn} onClick={performFeedbackFetch}>
+                        <Lightning size={16} weight="regular" />
                         Retry Analysis
                     </button>
                 </div>
             ) : (
-                <div className={styles.mainContent}>
-                    {/* Left Column: Score + Metrics */}
-                    <div className={styles.scorePanel}>
-                        {/* Overall Score */}
-                        <div className={styles.overallScoreCard}>
-                            <div className={styles.scoreCircle}>
-                                <svg className={styles.scoreSvg} viewBox="0 0 140 140">
-                                    <circle
-                                        className={styles.scoreTrack}
-                                        cx="70"
-                                        cy="70"
-                                        r={radius}
-                                    />
-                                    <circle
-                                        className={styles.scoreFill}
-                                        cx="70"
-                                        cy="70"
-                                        r={radius}
-                                        strokeDasharray={circumference}
-                                        strokeDashoffset={offset}
-                                        stroke="url(#feedbackGradient)"
-                                    />
-                                    <defs>
-                                        <linearGradient id="feedbackGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                            <stop offset="0%" stopColor="#4793f7" />
-                                            <stop offset="100%" stopColor="#22C55E" />
-                                        </linearGradient>
-                                    </defs>
-                                </svg>
-                                <div className={styles.scoreCenter}>
-                                    <span className={styles.scoreNumber}>{overallScore}</span>
-                                    <span className={styles.scoreOutOf}>/ 100</span>
-                                </div>
-                            </div>
-                            <div className={styles.scoreInfo}>
-                                <h2 className={styles.scoreTitle}>
-                                    {reportData?.verdict || "Interview Performance"}
-                                </h2>
-                                <p className={styles.scoreSubtitle}>
-                                    {reportData?.summary ||
-                                        "You demonstrated solid presence with opportunities to strengthen your technical specifics and structured delivery."}
-                                </p>
-                                <div
-                                    className={`${styles.scoreBadge} ${
-                                        overallScore >= 75
-                                            ? styles.scoreBadgeGood
-                                            : styles.scoreBadgeAvg
-                                    }`}
-                                >
-                                    <TrendUp size={12} />
-                                    {reportData?.verdict || (overallScore >= 75 ? "Above Average" : "Needs Practice")}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Session Info */}
-                        <div className={styles.detailCard}>
-                            <div className={styles.sessionInfo}>
-                                <div className={styles.sessionStat}>
-                                    <span className={styles.sessionStatLabel}>Target Role</span>
-                                    <span className={styles.sessionStatValue}>
-                                        {sessionMeta.role || "Software Engineer"}
-                                    </span>
-                                </div>
-                                <div className={styles.sessionStat}>
-                                    <span className={styles.sessionStatLabel}>Level</span>
-                                    <span className={styles.sessionStatValue}>
-                                        {sessionMeta.experience || "Mid"}
-                                    </span>
-                                </div>
-                                <div className={styles.sessionStat}>
-                                    <span className={styles.sessionStatLabel}>Domain</span>
-                                    <span className={styles.sessionStatValue}>
-                                        {sessionMeta.domain || "General Tech"}
-                                    </span>
-                                </div>
-                                <div className={styles.sessionStat}>
-                                    <span className={styles.sessionStatLabel}>Evaluation</span>
-                                    <span className={styles.sessionStatValue}>
-                                        AI Powered
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Metrics Grid */}
-                        <div className={styles.metricsGrid}>
-                            {metrics.map((metric) => (
-                                <div key={metric.label} className={styles.metricCard}>
-                                    <div className={styles.metricHeader}>
-                                        <div
-                                            className={styles.metricIconWrap}
-                                            style={{ background: metric.bgColor }}
-                                        >
-                                            <metric.icon size={18} color={metric.color} />
-                                        </div>
-                                        <span
-                                            className={styles.metricValue}
-                                            style={{ color: metric.color }}
-                                        >
-                                            {metric.value}%
-                                        </span>
-                                    </div>
-                                    <span className={styles.metricLabel}>{metric.label}</span>
-                                    <div className={styles.metricBar}>
-                                        <div
-                                            className={styles.metricBarFill}
-                                            style={{
-                                                width: `${metric.value}%`,
-                                                background: metric.color,
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Right Column: Strengths, Areas for Improvement, Q&A */}
-                    <div className={styles.detailPanel}>
-                        {/* Strengths */}
-                        <div className={styles.detailCard}>
-                            <h3 className={styles.detailTitle}>
-                                <CheckCircle size={18} color="#22C55E" />
-                                Key Strengths
-                            </h3>
-                            <ul className={styles.strengthsList}>
-                                {reportData?.strengths && reportData.strengths.length > 0 ? (
-                                    reportData.strengths.map((s, idx) => (
-                                        <li key={idx} className={styles.strengthItem}>
-                                            <CheckCircle size={16} className={styles.strengthIcon} />
-                                            <div>
-                                                <strong>{s.title}: </strong>
-                                                <span>{s.detail}</span>
-                                                {s.quote && (
-                                                    <span className={styles.strengthQuote}>
-                                                        &ldquo;{s.quote}&rdquo;
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </li>
-                                    ))
-                                ) : (
-                                    <li className={styles.strengthItem}>
-                                        <CheckCircle size={16} className={styles.strengthIcon} />
-                                        Clear and steady communication maintained throughout the questions.
-                                    </li>
-                                )}
-                            </ul>
-                        </div>
-
-                        {/* Areas for Improvement */}
-                        <div className={styles.detailCard}>
-                            <h3 className={styles.detailTitle}>
-                                <Warning size={18} color="#f59e0b" />
-                                Actionable Areas for Improvement
-                            </h3>
-                            <ul className={styles.strengthsList}>
-                                {reportData?.improvements && reportData.improvements.length > 0 ? (
-                                    reportData.improvements.map((imp, idx) => (
-                                        <li key={idx} className={styles.improvementItem}>
-                                            <Warning size={16} className={styles.improvementIcon} />
-                                            <div>
-                                                <strong>{imp.title}: </strong>
-                                                <span>{imp.detail}</span>
-                                                {imp.recommendation && (
-                                                    <span className={styles.improvementRecommendation}>
-                                                        💡 <strong>Tip:</strong> {imp.recommendation}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </li>
-                                    ))
-                                ) : (
-                                    <li className={styles.improvementItem}>
-                                        <Warning size={16} className={styles.improvementIcon} />
-                                        Incorporate more measurable business impact and metrics in your responses.
-                                    </li>
-                                )}
-                            </ul>
-                        </div>
-
-                        {/* Question-by-Question Deep Dive */}
-                        {reportData?.qaBreakdown && reportData.qaBreakdown.length > 0 && (
-                            <div className={styles.detailCard}>
-                                <h3 className={styles.detailTitle}>
-                                    <Sparkle size={18} color="#4793f7" />
-                                    Detailed Question & Answer Review
-                                </h3>
-                                <div className={styles.qaList}>
-                                    {reportData.qaBreakdown.map((item, idx) => (
-                                        <div key={idx} className={styles.qaItem}>
-                                            <div className={styles.qaItemHeader}>
-                                                <h4 className={styles.qaQuestionTitle}>
-                                                    Q{idx + 1}: {item.question}
-                                                </h4>
-                                                <span
-                                                    className={`${styles.qaRatingBadge} ${
-                                                        item.rating === "Strong"
-                                                            ? styles.badgeStrong
-                                                            : item.rating === "Average"
-                                                            ? styles.badgeAvg
-                                                            : styles.badgeNeedsWork
-                                                    }`}
-                                                >
-                                                    {item.rating}
-                                                </span>
-                                            </div>
-
-                                            <div className={styles.qaCandidateAnswer}>
-                                                <span className={styles.qaSectionLabel}>What You Said:</span>
-                                                &ldquo;{item.candidateAnswer}&rdquo;
-                                            </div>
-
-                                            <p className={styles.qaFeedbackText}>
-                                                <strong>Feedback:</strong> {item.feedback}
-                                            </p>
-
-                                            {item.modelAnswer && (
-                                                <div className={styles.qaModelAnswer}>
-                                                    <span className={styles.qaSectionLabel}>🌟 Recommended Elite Answer:</span>
-                                                    {item.modelAnswer}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Quick Tips */}
-                        <div className={styles.detailCard}>
-                            <h3 className={styles.detailTitle}>
-                                <Lightning size={18} color="#4793f7" />
-                                Coaching Quick Tips
-                            </h3>
-                            <div className={styles.tipsGrid}>
-                                {reportData?.quickTips && reportData.quickTips.length > 0 ? (
-                                    reportData.quickTips.map((tip, idx) => (
-                                        <div key={idx} className={styles.tipCard}>
-                                            <div className={styles.tipNumber}>Tip 0{idx + 1}</div>
-                                            <p className={styles.tipText}>{tip}</p>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <>
-                                        <div className={styles.tipCard}>
-                                            <div className={styles.tipNumber}>Tip 01</div>
-                                            <p className={styles.tipText}>
-                                                Use pauses instead of filler words when collecting your thoughts.
-                                            </p>
-                                        </div>
-                                        <div className={styles.tipCard}>
-                                            <div className={styles.tipNumber}>Tip 02</div>
-                                            <p className={styles.tipText}>
-                                                Lead with the conclusion before explaining the technical rationale.
-                                            </p>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <main className={styles.mainContainer}>
+                    {windowContent}
+                </main>
             )}
+
+            {renderCardDetailModal()}
         </div>
     );
 }

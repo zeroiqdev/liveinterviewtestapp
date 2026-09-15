@@ -2,17 +2,13 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
     SignOut,
     Bell,
     ArrowRight,
     House,
-    User,
     Lightning,
-    Briefcase,
-    GraduationCap,
-    UsersFour,
+    FileText,
 } from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
 import styles from "./dashboard.module.css";
@@ -20,12 +16,14 @@ const PaymentModal = dynamic(() => import("./PaymentModal"));
 import { db, type UserStats } from "../services/database";
 import { detectUserLocation, UserLocation, scoreJobForLocation, isJobRoleMatch, normalizeUserRoleFamily } from "@/utils/locationDetector";
 import type { JobItem } from "@/app/api/jobs/route";
-import { moduleCards, RECRUITER_AVATAR, COACH_AVATAR } from "./dashboard/constants";
+import { getInterviewRoundsForRole, RECRUITER_AVATAR, COACH_AVATAR } from "./dashboard/constants";
 import { ModuleCardItem } from "./dashboard/ModuleCardItem";
 import { ChatsPanel } from "./dashboard/ChatsPanel";
 import { TopJobsPanel } from "./dashboard/TopJobsPanel";
 import { JobDescModal } from "./dashboard/JobDescModal";
 import { TinderCardDeck } from "./dashboard/TinderCardDeck";
+import { SettingsModal } from "./dashboard/SettingsModal";
+import { useInterview } from "../context/InterviewContext";
 
 interface UserProfile {
     id?: string;
@@ -70,6 +68,8 @@ export default function Dashboard() {
     const [jobs, setJobs] = useState<JobItem[]>([]);
     const [selectedJobDesc, setSelectedJobDesc] = useState<JobItem | null>(null);
     const [activeMobileTab, setActiveMobileTab] = useState<"home" | "recruiter" | "coach">("home");
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const { updateSettings } = useInterview();
 
     useEffect(() => {
         const init = async () => {
@@ -136,6 +136,35 @@ export default function Dashboard() {
     const handleClosePayment = useCallback(() => setIsPaymentModalOpen(false), []);
     const handleOpenJobDesc = useCallback((job: JobItem) => setSelectedJobDesc(job), []);
     const handleCloseJobDesc = useCallback(() => setSelectedJobDesc(null), []);
+
+    const handleRoleChange = useCallback((newRole: string, newDomain: string) => {
+        const family = normalizeUserRoleFamily(newRole);
+        setUser((prev) => {
+            if (!prev) return prev;
+            const updated: UserProfile = {
+                ...prev,
+                role: newRole,
+                domain: newDomain,
+                roleFamily: family,
+                specialization: newRole,
+            };
+            try {
+                localStorage.setItem("useladder_user", JSON.stringify(updated));
+            } catch {
+                // Ignore storage errors
+            }
+            return updated;
+        });
+        updateSettings({
+            role: newRole,
+            domain: newDomain,
+        });
+    }, [updateSettings]);
+
+    // Compute tailored hero module cards for current role
+    const dynamicModuleCards = useMemo(() => {
+        return getInterviewRoundsForRole(user?.role, user?.roleFamily);
+    }, [user?.role, user?.roleFamily]);
 
     // Compute up to 4 matched jobs strictly locked to user's specialization and region
     const displayedJobs = useMemo(() => {
@@ -207,6 +236,14 @@ export default function Dashboard() {
                         {(stats?.averageScore || 0) * 10} Points
                     </div>
                     <button
+                        className={styles.settingsNavBtn}
+                        onClick={() => setIsSettingsOpen(true)}
+                        aria-label="Update Credentials"
+                        title="Update Credentials"
+                    >
+                        <FileText size={18} weight="bold" />
+                    </button>
+                    <button
                         className={styles.logoutBtn}
                         onClick={handleLogout}
                         aria-label="Logout"
@@ -243,7 +280,7 @@ export default function Dashboard() {
                         </div>
 
                         <div className={styles.moduleCardsScroll}>
-                            {moduleCards.map((card) => (
+                            {dynamicModuleCards.map((card) => (
                                 <ModuleCardItem
                                     key={card.number}
                                     card={card}
@@ -283,7 +320,11 @@ export default function Dashboard() {
                                 <span className={styles.mobileHomeGreeting}>Welcome back, {userName}</span>
                                 <h1 className={styles.mobileHomeHeading}>Ready to ace your next interview?</h1>
                             </div>
-                            <TinderCardDeck onPractice={handleOpenPayment} />
+                            <TinderCardDeck
+                                onPractice={handleOpenPayment}
+                                userRole={user?.role}
+                                userRoleFamily={user?.roleFamily}
+                            />
                         </div>
                     )}
 
@@ -376,6 +417,15 @@ export default function Dashboard() {
                     }}
                 />
             )}
+
+            <SettingsModal
+                isOpen={isSettingsOpen}
+                onClose={() => setIsSettingsOpen(false)}
+                currentRole={user?.role}
+                currentDomain={user?.domain}
+                userEmail={user?.email}
+                onRoleChange={handleRoleChange}
+            />
         </div>
     );
 }

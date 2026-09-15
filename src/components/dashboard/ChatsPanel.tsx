@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { X } from "@phosphor-icons/react";
 import styles from "../dashboard.module.css";
 import { buildCharactersForUser } from "./constants";
 import { DmRow } from "./DmRow";
+import FeedbackReport from "../FeedbackReport";
 import type { FeedbackReportData } from "@/app/api/feedback/generate/route";
 import type { JobItem } from "@/app/api/jobs/route";
 
@@ -12,6 +13,7 @@ interface ChatsPanelProps {
     displayedJobs?: JobItem[];
     onPractice?: () => void;
     onOpenJob?: (job: JobItem) => void;
+    onOpenFeedback?: () => void;
 }
 
 export function ChatsPanel({
@@ -20,22 +22,18 @@ export function ChatsPanel({
     displayedJobs = [],
     onPractice,
     onOpenJob,
+    onOpenFeedback,
 }: ChatsPanelProps) {
-    const [selectedCharacterId, setSelectedCharacterId] = useState("coach");
-    const [openedDmId, setOpenedDmId] = useState<string | null>(null);
+    const [openedDmId, setOpenedDmId] = useState<string | null>("coach-interview-feedback");
     const [showRoleBubble, setShowRoleBubble] = useState(true);
-    const [lastFeedback, setLastFeedback] = useState<FeedbackReportData | null>(null);
-
-    // Read last session's actual feedback report from localStorage
-    useEffect(() => {
-        if (typeof window === "undefined") return;
+    const [lastFeedback] = useState<FeedbackReportData | null>(() => {
+        if (typeof window === "undefined") return null;
         try {
             const raw = localStorage.getItem("useladder_last_feedback");
             if (raw) {
                 const parsed = JSON.parse(raw);
                 if (parsed && typeof parsed.overallScore === "number") {
-                    setLastFeedback(parsed);
-                    return;
+                    return parsed;
                 }
             }
             const lastSessionId = localStorage.getItem("useladder_last_session_id");
@@ -44,14 +42,23 @@ export function ChatsPanel({
                 if (cached) {
                     const parsed = JSON.parse(cached);
                     if (parsed && typeof parsed.overallScore === "number") {
-                        setLastFeedback(parsed);
+                        return parsed;
                     }
                 }
             }
         } catch {
             // Ignore parse errors
         }
-    }, []);
+        return null;
+    });
+    const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+
+    const handleOpenFeedback = useCallback(() => {
+        setIsFeedbackModalOpen(true);
+        if (onOpenFeedback) {
+            onOpenFeedback();
+        }
+    }, [onOpenFeedback]);
 
     const coachProfile = useMemo(() => {
         const characters = buildCharactersForUser({
@@ -61,9 +68,10 @@ export function ChatsPanel({
             lastFeedback,
             onPractice,
             onOpenJob,
+            onOpenFeedback: handleOpenFeedback,
         });
         return characters.find((c) => c.id === "coach") || characters[0];
-    }, [userRole, userRoleFamily, displayedJobs, lastFeedback, onPractice, onOpenJob]);
+    }, [userRole, userRoleFamily, displayedJobs, lastFeedback, onPractice, onOpenJob, handleOpenFeedback]);
 
     const handleToggleDm = useCallback((id: string) => {
         setOpenedDmId((prev) => (prev === id ? null : id));
@@ -113,7 +121,7 @@ export function ChatsPanel({
                                 aria-label="Close"
                                 title="Close"
                             >
-                                <X size={10} weight="bold" />
+                                <X size={10} weight="regular" />
                             </button>
                         </div>
                     )}
@@ -132,6 +140,15 @@ export function ChatsPanel({
                     />
                 ))}
             </div>
+
+            {/* ── Feedback Report Modal (Opened via Coach Message CTA) ── */}
+            {isFeedbackModalOpen && (
+                <FeedbackReport
+                    isModal
+                    onClose={() => setIsFeedbackModalOpen(false)}
+                    initialReportData={lastFeedback}
+                />
+            )}
         </div>
     );
 }

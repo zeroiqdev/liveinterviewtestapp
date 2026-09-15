@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Kumbh+Sans:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Kumbh+Sans:wght@300;400;500;600;700;800;900&display=swap');
 
 @font-face {
   font-family: 'Parabole';
@@ -45,6 +45,45 @@ body {
   font-family: 'Inter', sans-serif;
   margin: 0;
   padding: 0;
+}
+
+/* App-wide input fields matching onboarding flow design style */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="tel"],
+input[type="url"],
+textarea,
+select {
+  font-family: 'Kumbh Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  color: #0F172A;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 4px;
+  padding: 10px 14px;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="search"]:focus,
+input[type="tel"]:focus,
+input[type="url"]:focus,
+textarea:focus,
+select:focus {
+  background: #FFFFFF;
+  border-color: #4782F6;
+  box-shadow: 0 0 0 3px rgba(71, 130, 246, 0.15);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #94A3B8;
 }
 
 /* Utilities */

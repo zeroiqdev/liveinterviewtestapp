@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowRight, Play } from "@phosphor-icons/react";
+import { ArrowDown, ArrowRight, ArrowUpRight, Play } from "@phosphor-icons/react";
 import type { FeedbackReportData } from "@/app/api/feedback/generate/route";
 import type { JobItem } from "@/app/api/jobs/route";
 import { normalizeUserRoleFamily } from "@/utils/locationDetector";
@@ -33,34 +33,211 @@ export interface CharacterProfile {
     items: ChatDmItem[];
 }
 
-// Module data for the hero cards
-export const moduleCards = [
-    {
-        number: "01",
-        title: "Technical\nInterview",
-        icon: "code",
-        image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786680377/0c08bf7e241268702484002634c7ee15-removebg-preview_2_zmpv2l.png"
-    },
-    {
-        number: "02",
-        title: "Behavioral\nInterview",
-        icon: "chat",
-        image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786682354/f37d1ccf89f44a94d6effda08b05c8e2_laveh3.jpg",
-        isTall: true
-    },
-    {
-        number: "03",
-        title: "System\nDesign",
-        icon: "design",
-        image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786679257/0c08bf7e241268702484002634c7ee15-removebg-preview_zfigrw.png"
-    },
-    {
-        number: "04",
-        title: "Skills\nAssessment",
-        icon: "play",
-        image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786680091/0c08bf7e241268702484002634c7ee15-removebg-preview_1_jyel0f.png"
-    },
-];
+export interface InterviewRoundCard {
+    id: string;
+    number: string;
+    title: string;
+    tagline: string;
+    image: string;
+    icon: string;
+    isTall?: boolean;
+}
+
+export function getInterviewRoundsForRole(userRole?: string, userRoleFamily?: string): InterviewRoundCard[] {
+    const family = userRoleFamily || (userRole ? normalizeUserRoleFamily(userRole) : "engineering");
+
+    if (family === "product_manager" || family === "product") {
+        return [
+            {
+                id: "product-sense",
+                number: "01",
+                title: "Product Sense &\nStrategy",
+                tagline: "Vision, Roadmap & Prioritization",
+                icon: "design",
+                image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786679257/0c08bf7e241268702484002634c7ee15-removebg-preview_zfigrw.png",
+            },
+            {
+                id: "behavioral",
+                number: "02",
+                title: "Behavioral &\nLeadership",
+                tagline: "Influence & Conflict Resolution",
+                icon: "chat",
+                image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786682354/f37d1ccf89f44a94d6effda08b05c8e2_laveh3.jpg",
+                isTall: true,
+            },
+            {
+                id: "execution-metrics",
+                number: "03",
+                title: "Execution &\nMetrics",
+                tagline: "A/B Testing, Launch & KPI Analysis",
+                icon: "play",
+                image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786680091/0c08bf7e241268702484002634c7ee15-removebg-preview_1_jyel0f.png",
+            },
+            {
+                id: "user-experience",
+                number: "04",
+                title: "User Journey &\nDiscovery",
+                tagline: "Customer Empathy & Wireframing",
+                icon: "code",
+                image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786680377/0c08bf7e241268702484002634c7ee15-removebg-preview_2_zmpv2l.png",
+            },
+        ];
+    }
+
+    if (family === "product_designer" || family === "design") {
+        return [
+            {
+                id: "portfolio-critique",
+                number: "01",
+                title: "Portfolio Deep\nDive & Critique",
+                tagline: "Case Studies & Problem Framing",
+                icon: "design",
+                image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786679257/0c08bf7e241268702484002634c7ee15-removebg-preview_zfigrw.png",
+            },
+            {
+                id: "behavioral",
+                number: "02",
+                title: "Design Leadership\n& Collaboration",
+                tagline: "Stakeholder Alignment & Feedback",
+                icon: "chat",
+                image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786682354/f37d1ccf89f44a94d6effda08b05c8e2_laveh3.jpg",
+                isTall: true,
+            },
+            {
+                id: "design-systems",
+                number: "03",
+                title: "Design Systems &\nInteraction",
+                tagline: "UI Patterns, Tokens & Responsive",
+                icon: "play",
+                image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786680091/0c08bf7e241268702484002634c7ee15-removebg-preview_1_jyel0f.png",
+            },
+            {
+                id: "user-research",
+                number: "04",
+                title: "User Research &\nTesting",
+                tagline: "Usability Testing & Synthesis",
+                icon: "code",
+                image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786680377/0c08bf7e241268702484002634c7ee15-removebg-preview_2_zmpv2l.png",
+            },
+        ];
+    }
+
+    if (family === "data_analyst" || family === "data_science" || family === "data") {
+        return [
+            {
+                id: "sql-analytics",
+                number: "01",
+                title: "SQL & Analytics\nTechnical Drill",
+                tagline: "Complex Queries, Joins & Windows",
+                icon: "code",
+                image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786680377/0c08bf7e241268702484002634c7ee15-removebg-preview_2_zmpv2l.png",
+            },
+            {
+                id: "behavioral",
+                number: "02",
+                title: "Behavioral &\nBusiness Impact",
+                tagline: "Influencing with Data Insights",
+                icon: "chat",
+                image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786682354/f37d1ccf89f44a94d6effda08b05c8e2_laveh3.jpg",
+                isTall: true,
+            },
+            {
+                id: "statistics-modeling",
+                number: "03",
+                title: "Statistical\nModeling & Case",
+                tagline: "Experimentation & Causal Inference",
+                icon: "design",
+                image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786679257/0c08bf7e241268702484002634c7ee15-removebg-preview_zfigrw.png",
+            },
+            {
+                id: "data-storytelling",
+                number: "04",
+                title: "Data Storytelling\n& Dashboards",
+                tagline: "Executive Metric Presentation",
+                icon: "play",
+                image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786680091/0c08bf7e241268702484002634c7ee15-removebg-preview_1_jyel0f.png",
+            },
+        ];
+    }
+
+    if (family === "operations" || family === "business" || family === "customer_service") {
+        return [
+            {
+                id: "operational-strategy",
+                number: "01",
+                title: "Operational Strategy\n& Case Study",
+                tagline: "Process Scaling & Optimization",
+                icon: "design",
+                image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786679257/0c08bf7e241268702484002634c7ee15-removebg-preview_zfigrw.png",
+            },
+            {
+                id: "behavioral",
+                number: "02",
+                title: "Behavioral &\nStakeholder Mgmt",
+                tagline: "Crisis Escalation & Resolution",
+                icon: "chat",
+                image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786682354/f37d1ccf89f44a94d6effda08b05c8e2_laveh3.jpg",
+                isTall: true,
+            },
+            {
+                id: "commercial-acumen",
+                number: "03",
+                title: "Commercial Acumen\n& Metrics",
+                tagline: "Cost Efficiency & Resource Planning",
+                icon: "play",
+                image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786680091/0c08bf7e241268702484002634c7ee15-removebg-preview_1_jyel0f.png",
+            },
+            {
+                id: "execution-drills",
+                number: "04",
+                title: "Execution Drills\n& Root Cause",
+                tagline: "Bottleneck Elimination & SLA Mgmt",
+                icon: "code",
+                image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786680377/0c08bf7e241268702484002634c7ee15-removebg-preview_2_zmpv2l.png",
+            },
+        ];
+    }
+
+    // Default: Engineering (Frontend, Backend, Full Stack, SRE, Mobile, etc.)
+    return [
+        {
+            id: "technical",
+            number: "01",
+            title: "Technical\nInterview",
+            tagline: "Live Coding & Problem Solving",
+            icon: "code",
+            image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786680377/0c08bf7e241268702484002634c7ee15-removebg-preview_2_zmpv2l.png",
+        },
+        {
+            id: "behavioral",
+            number: "02",
+            title: "Behavioral\nInterview",
+            tagline: "STAR Method & Leadership",
+            icon: "chat",
+            image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786682354/f37d1ccf89f44a94d6effda08b05c8e2_laveh3.jpg",
+            isTall: true,
+        },
+        {
+            id: "system-design",
+            number: "03",
+            title: "System\nDesign",
+            tagline: "Architecture & Scale",
+            icon: "design",
+            image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786679257/0c08bf7e241268702484002634c7ee15-removebg-preview_zfigrw.png",
+        },
+        {
+            id: "skills-assessment",
+            number: "04",
+            title: "Skills\nAssessment",
+            tagline: "Core Engineering Drills",
+            icon: "play",
+            image: "https://res.cloudinary.com/dyg7neetr/image/upload/v1786680091/0c08bf7e241268702484002634c7ee15-removebg-preview_1_jyel0f.png",
+        },
+    ];
+}
+
+// Module data for the hero cards (default fallback)
+export const moduleCards = getInterviewRoundsForRole("Software Engineer", "engineering");
 
 export const COACH_AVATAR = "https://res.cloudinary.com/dyg7neetr/image/upload/v1785485051/Screenshot_2026-07-31_at_7.49.46_AM_u6gpoz.png";
 export const RECRUITER_AVATAR = "https://res.cloudinary.com/dyg7neetr/image/upload/v1785485049/Screenshot_2026-07-31_at_7.49.19_AM_qujtzo.png";
@@ -72,6 +249,7 @@ export interface BuildCharactersOptions {
     lastFeedback?: FeedbackReportData | null;
     onPractice?: () => void;
     onOpenJob?: (job: JobItem) => void;
+    onOpenFeedback?: () => void;
 }
 
 export function buildCharactersForUser(opts: BuildCharactersOptions = {}): CharacterProfile[] {
@@ -82,6 +260,7 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
         lastFeedback,
         onPractice,
         onOpenJob,
+        onOpenFeedback,
     } = opts;
 
     const family = userRoleFamily || (userRole ? normalizeUserRoleFamily(userRole) : "general");
@@ -302,45 +481,37 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
         };
     }
 
-    // Item 3: Session Report Actionable Insight or Role Execution Tip
-    let feedbackItem: ChatDmItem;
-    if (lastFeedback) {
-        feedbackItem = {
-            id: "coach-feedback",
-            sender: "Interview Coach",
-            avatar: COACH_AVATAR,
-            time: "Yesterday",
-            isOnline: true,
-            badgeLabel: lastFeedback.verdict || "Session Evaluation",
-            messages: [
-                `Overall Assessment (${lastFeedback.verdict} · ${lastFeedback.overallScore}/100): ${lastFeedback.summary}`,
-                lastFeedback.improvements?.[0]
-                    ? `Priority Focus: ${lastFeedback.improvements[0].title} — ${lastFeedback.improvements[0].recommendation}`
-                    : (lastFeedback.quickTips?.[0] || "Practice another mock session to build muscle memory.")
-            ],
-            insight: lastFeedback.quickTips?.[1] ? `Coach Tip: ${lastFeedback.quickTips[1]}` : undefined,
-            actions: [
-                { label: "Practice Next Drill", primary: true, icon: Play, onClick: onPractice },
-            ]
-        };
-    } else {
-        feedbackItem = {
-            id: "coach-feedback",
-            sender: "Interview Coach",
-            avatar: COACH_AVATAR,
-            time: "Yesterday",
-            isOnline: true,
-            badgeLabel: family === "product_manager" ? "Execution & Prioritization" : "Interview Execution",
-            messages: [
-                family === "product_manager"
-                    ? "In ambiguous PM scenario questions, clarify the business goal upfront (acquisition vs retention vs monetization) before proposing product features."
-                    : "Practice answering under timed conditions and proactively state your assumptions before formulating a complete solution."
-            ],
-            actions: [
-                { label: "Practice Live Mock", primary: true, icon: Play, onClick: onPractice },
-            ]
-        };
-    }
+    // Item 3: Session Feedback Message with CTA opening the Feedback Modal
+    const feedbackItem: ChatDmItem = {
+        id: "coach-interview-feedback",
+        sender: "Interview Coach",
+        avatar: COACH_AVATAR,
+        time: lastFeedback ? "Just now" : "15m ago",
+        isOnline: true,
+        badgeLabel: lastFeedback
+            ? `Evaluation Complete · ${lastFeedback.overallScore}/100`
+            : "Latest Interview Evaluation · 84/100",
+        messages: [
+            lastFeedback
+                ? `I've finished evaluating your latest interview session (${lastFeedback.verdict || "Strong Candidate"} · ${lastFeedback.overallScore}/100). ${lastFeedback.summary}`
+                : `I've finished evaluating your latest interview session (Strong Candidate · 84/100). You articulated product trade-offs with structured thinking and maintained steady pacing throughout.`,
+            "Your complete performance evaluation is ready with a detailed breakdown of your recognized strengths, areas to improve, your spoken quotes, and model answers.",
+        ],
+        insight: "Coach Insight: Reviewing your interview feedback within 24 hours improves offer conversion by 45%.",
+        actions: [
+            {
+                label: "View Feedback Report",
+                primary: true,
+                icon: ArrowUpRight,
+                onClick: onOpenFeedback,
+            },
+            {
+                label: "Practice Next Round",
+                icon: Play,
+                onClick: onPractice,
+            },
+        ],
+    };
 
     const coachProfile: CharacterProfile = {
         id: "coach",
@@ -349,7 +520,7 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
         roleExplanation: coachExplanation,
         avatar: COACH_AVATAR,
         unreadCount: lastFeedback ? 3 : 2,
-        items: [starItem, domainItem, feedbackItem],
+        items: [feedbackItem, starItem, domainItem],
     };
 
     // ─────────────────────────────────────────────────────────────

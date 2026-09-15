@@ -36,7 +36,7 @@ export function TopJobsPanel({
     onPractice,
 }: TopJobsPanelProps) {
     const [showDropdown, setShowDropdown] = useState(false);
-    const [showBubble, setShowBubble] = useState(false);
+    const [showBubble, setShowBubble] = useState(true);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
