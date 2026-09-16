@@ -6,11 +6,12 @@ import type { ChatDmItem } from "./constants";
 interface DmRowProps {
     dm: ChatDmItem;
     isOpen: boolean;
+    isUnread?: boolean;
     onToggle: (id: string) => void;
     onPractice?: () => void;
 }
 
-function DmRowComponent({ dm, isOpen, onToggle, onPractice }: DmRowProps) {
+function DmRowComponent({ dm, isOpen, isUnread, onToggle, onPractice }: DmRowProps) {
     return (
         <div
             className={`${styles.conversationBox} ${isOpen ? styles.conversationBoxOpen : styles.conversationBoxClosed}`}
@@ -44,9 +45,9 @@ function DmRowComponent({ dm, isOpen, onToggle, onPractice }: DmRowProps) {
                     )}
                 </div>
                 <div className={styles.dmHeaderRight}>
-                    <span className={styles.conversationTime}>
-                        {dm.time}
-                    </span>
+                    {isUnread && (
+                        <span className={styles.dmUnreadDot} title="Unread" />
+                    )}
                     <div className={styles.dmChevron}>
                         {isOpen ? (
                             <CaretUp size={14} weight="bold" />

@@ -8,7 +8,6 @@ import {
     Check,
     ArrowLeft,
     UploadSimple,
-    FileText,
 } from "@phosphor-icons/react";
 import { useInterview, type InterviewRole } from "../context/InterviewContext";
 import { normalizeUserRoleFamily } from "@/utils/locationDetector";
@@ -28,29 +27,31 @@ const TEAM = {
     },
 } as const;
 
-/* ── Role data ── */
-const DOMAINS = [
-    "Software & Engineering",
-    "Product & Design",
-    "Business & Operations",
-    "Data & Analytics",
-] as const;
-
 export type Domain = string;
 
 const FALLBACK_ROLES = [
-    { title: "Product Designer", domain: "Product & Design" },
     { title: "Product Manager", domain: "Product & Design" },
+    { title: "Product Designer", domain: "Product & Design" },
     { title: "Product Marketer", domain: "Product & Design" },
-    { title: "Product Engineer", domain: "Product & Design" },
+    { title: "Software Engineer", domain: "Software & Engineering" },
     { title: "Frontend Developer", domain: "Software & Engineering" },
     { title: "Backend Engineer", domain: "Software & Engineering" },
     { title: "Full Stack Developer", domain: "Software & Engineering" },
-    { title: "Data Analyst", domain: "Data & Analytics" },
-    { title: "Data Scientist", domain: "Data & Analytics" },
-    { title: "Business Analyst", domain: "Business & Operations" },
-    { title: "UX Researcher", domain: "Product & Design" },
     { title: "DevOps / SRE", domain: "Software & Engineering" },
+    { title: "Cloud Solutions Architect", domain: "Software & Engineering" },
+    { title: "Data Scientist", domain: "Data & Analytics" },
+    { title: "Data Analyst", domain: "Data & Analytics" },
+    { title: "Business Analyst", domain: "Business & Operations" },
+    { title: "Banking & Finance", domain: "Banking & Finance" },
+    { title: "Investment Banker", domain: "Banking & Finance" },
+    { title: "Financial Analyst", domain: "Banking & Finance" },
+    { title: "Sales & Business Development", domain: "Sales & Commercial" },
+    { title: "Account Executive", domain: "Sales & Commercial" },
+    { title: "Customer Service Representative", domain: "Customer Service & Support" },
+    { title: "Virtual Assistant", domain: "Administrative & Support" },
+    { title: "Executive Assistant", domain: "Administrative & Support" },
+    { title: "Engineering — Oil & Gas", domain: "Engineering & Energy" },
+    { title: "HSE / Safety Officer", domain: "Engineering & Energy" },
 ];
 
 const EXPERIENCE_OPTIONS = [
@@ -174,7 +175,7 @@ export default function OnboardingPage() {
         const domainVal = selectedRole?.domain || "Software & Engineering";
         const roleVal = selectedRole?.role || "Software Engineer";
 
-        let existing: { resumes?: { id: string; name: string; data: string }[] } = {};
+        let existing: { id?: string; resumes?: { id: string; name: string; data: string }[] } = {};
         try {
             existing = JSON.parse(localStorage.getItem("useladder_user") || "{}");
         } catch { /* ignore */ }
@@ -188,7 +189,7 @@ export default function OnboardingPage() {
 
         const roleFamily = normalizeUserRoleFamily(roleVal);
         const userProfile = {
-            id: (existing as any).id || `usr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            id: existing.id || `usr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
             email: email.trim(),
             name: fullName.trim(),
             domain: domainVal,

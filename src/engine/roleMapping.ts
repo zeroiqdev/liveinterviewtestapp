@@ -39,6 +39,7 @@ const ROLE_TO_BLUEPRINT: Record<string, string> = {
     // Sales & Bizdev
     "Business Development": "sales_bizdev",
     "Sales / BizDev": "sales_bizdev",
+    "Sales & Business Development": "sales_bizdev",
     "Sales Representative": "sales_bizdev",
     "Account Executive": "sales_bizdev",
 
@@ -51,12 +52,19 @@ const ROLE_TO_BLUEPRINT: Record<string, string> = {
     // Customer Service
     "Customer Service": "customer_service",
     "Customer Support": "customer_service",
+    "Customer Service Representative": "customer_service",
     "Customer Service / Call Centre": "customer_service",
     "Call Centre": "customer_service",
 
     // Virtual Assistant
     "Virtual Assistant": "virtual_assistant",
     "Executive Assistant": "virtual_assistant",
+
+    // Oil & Gas
+    "Engineering — Oil & Gas": "oil_gas_experienced",
+    "Oil & Gas Engineer": "oil_gas_experienced",
+    "HSE / Safety Officer": "oil_gas_safety_officer",
+    "Safety Officer": "oil_gas_safety_officer",
 };
 
 export function blueprintForRole(

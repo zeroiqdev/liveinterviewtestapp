@@ -24,7 +24,7 @@ interface TopJobsPanelProps {
     userRoleFamily?: string;
     onSwitchLocation: (preset: { country: string; countryCode: string; city?: string; continent: string; isAfrica: boolean; isNigeria: boolean }) => void;
     onOpenJob: (job: JobItem) => void;
-    onPractice: () => void;
+    onPractice: (job?: JobItem) => void;
 }
 
 export function TopJobsPanel({
@@ -147,7 +147,7 @@ export function TopJobsPanel({
                         key={job.id || `${job.company}-${job.title}`}
                         job={job}
                         onOpen={onOpenJob}
-                        onPractice={onPractice}
+                        onPractice={() => onPractice(job)}
                     />
                 ))}
                 {jobs.length === 0 && (

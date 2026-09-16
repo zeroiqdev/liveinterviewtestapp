@@ -73,9 +73,30 @@ export function ChatsPanel({
         return characters.find((c) => c.id === "coach") || characters[0];
     }, [userRole, userRoleFamily, displayedJobs, lastFeedback, onPractice, onOpenJob, handleOpenFeedback]);
 
+    const [readDmIds, setReadDmIds] = useState<Set<string>>(() => {
+        if (typeof window === "undefined") return new Set<string>();
+        try {
+            const raw = localStorage.getItem("useladder_read_dms");
+            return raw ? new Set(JSON.parse(raw)) : new Set<string>();
+        } catch {
+            return new Set<string>();
+        }
+    });
+
     const handleToggleDm = useCallback((id: string) => {
         setOpenedDmId((prev) => (prev === id ? null : id));
+        setReadDmIds((prev) => {
+            if (prev.has(id)) return prev;
+            const updated = new Set(prev);
+            updated.add(id);
+            try {
+                localStorage.setItem("useladder_read_dms", JSON.stringify(Array.from(updated)));
+            } catch {}
+            return updated;
+        });
     }, []);
+
+    const dynamicUnreadCount = coachProfile.items.filter((item) => !readDmIds.has(item.id)).length;
 
     return (
         <div className={styles.scheduledPanel}>
@@ -95,9 +116,9 @@ export function ChatsPanel({
                             alt={coachProfile.name}
                             className={styles.headerCharAvatarCircle}
                         />
-                        {coachProfile.unreadCount > 0 && (
+                        {dynamicUnreadCount > 0 && (
                             <span className={styles.charUnreadBadge}>
-                                {coachProfile.unreadCount}
+                                {dynamicUnreadCount}
                             </span>
                         )}
                     </button>
@@ -135,6 +156,7 @@ export function ChatsPanel({
                         key={dm.id}
                         dm={dm}
                         isOpen={openedDmId === dm.id}
+                        isUnread={!readDmIds.has(dm.id) && openedDmId !== dm.id}
                         onToggle={handleToggleDm}
                         onPractice={onPractice}
                     />

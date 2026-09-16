@@ -11,18 +11,25 @@ export interface RoleItem {
 const ROLES_FILE_PATH = path.join(process.cwd(), "src", "engine", "data", "roles.json");
 
 const DEFAULT_ROLES: RoleItem[] = [
-    { id: "role_001", title: "Product Designer", domain: "Product & Design" },
-    { id: "role_002", title: "Product Manager", domain: "Product & Design" },
-    { id: "role_003", title: "Product Marketer", domain: "Product & Design" },
-    { id: "role_004", title: "Product Engineer", domain: "Product & Design" },
-    { id: "role_005", title: "Frontend Developer", domain: "Software & Engineering" },
-    { id: "role_006", title: "Backend Engineer", domain: "Software & Engineering" },
-    { id: "role_007", title: "Full Stack Developer", domain: "Software & Engineering" },
-    { id: "role_008", title: "Data Analyst", domain: "Data & Analytics" },
-    { id: "role_009", title: "Data Scientist", domain: "Data & Analytics" },
-    { id: "role_010", title: "Business Analyst", domain: "Business & Operations" },
-    { id: "role_011", title: "UX Researcher", domain: "Product & Design" },
-    { id: "role_012", title: "DevOps / SRE", domain: "Software & Engineering" },
+    { id: "role_001", title: "Software Engineer", domain: "Software & Engineering" },
+    { id: "role_002", title: "Frontend Developer", domain: "Software & Engineering" },
+    { id: "role_003", title: "Backend Engineer", domain: "Software & Engineering" },
+    { id: "role_004", title: "Full Stack Developer", domain: "Software & Engineering" },
+    { id: "role_005", title: "DevOps / SRE", domain: "Software & Engineering" },
+    { id: "role_006", title: "Cloud Solutions Architect", domain: "Software & Engineering" },
+    { id: "role_007", title: "Product Manager", domain: "Product & Strategy" },
+    { id: "role_008", title: "Data Scientist", domain: "Data & Analytics" },
+    { id: "role_009", title: "Data Analyst", domain: "Data & Analytics" },
+    { id: "role_010", title: "Banking & Finance", domain: "Banking & Finance" },
+    { id: "role_011", title: "Investment Banker", domain: "Banking & Finance" },
+    { id: "role_012", title: "Financial Analyst", domain: "Banking & Finance" },
+    { id: "role_013", title: "Sales & Business Development", domain: "Sales & Commercial" },
+    { id: "role_014", title: "Account Executive", domain: "Sales & Commercial" },
+    { id: "role_015", title: "Customer Service Representative", domain: "Customer Service & Support" },
+    { id: "role_016", title: "Virtual Assistant", domain: "Administrative & Support" },
+    { id: "role_017", title: "Executive Assistant", domain: "Administrative & Support" },
+    { id: "role_018", title: "Engineering — Oil & Gas", domain: "Engineering & Energy" },
+    { id: "role_019", title: "HSE / Safety Officer", domain: "Engineering & Energy" },
 ];
 
 async function readRoles(): Promise<RoleItem[]> {

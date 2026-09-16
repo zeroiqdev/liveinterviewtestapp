@@ -21,7 +21,7 @@ interface RecruiterPanelProps {
     displayedJobs: JobItem[];
     userLocation: UserLocation | null;
     onSwitchLocation: (preset: { country: string; countryCode: string; city?: string; continent: string; isAfrica: boolean; isNigeria: boolean }) => void;
-    onPractice?: () => void;
+    onPractice?: (job?: JobItem) => void;
     onOpenJob?: (job: JobItem) => void;
 }
 
@@ -172,7 +172,7 @@ export function RecruiterPanel({
 
             <div className={styles.jobPickList}>
                 {displayedJobs.map((job) => (
-                    <JobPickRow key={job.id || `${job.company}-${job.title}`} job={job} onOpen={onOpenJob!} onPractice={onPractice!} />
+                    <JobPickRow key={job.id || `${job.company}-${job.title}`} job={job} onOpen={onOpenJob!} onPractice={() => onPractice && onPractice(job)} />
                 ))}
                 {displayedJobs.length === 0 && (
                     <div className={styles.jobEmptyMessage}>No active {userRole ? `${userRole} ` : ""}opportunities currently found in this region.</div>

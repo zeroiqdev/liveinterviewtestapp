@@ -30,6 +30,8 @@ export async function GET(req: NextRequest) {
                 roleFamily: user.roleFamily,
                 seniority: user.seniority,
                 experienceInRole: user.experienceInRole,
+                portfolioUrl: user.portfolioUrl || "",
+                linkedinUrl: user.linkedinUrl || "",
                 resumes: user.resumes,
                 provider: user.provider,
             },
@@ -47,7 +49,7 @@ export async function POST(req: NextRequest) {
     try {
         await dbConnect();
         const body = await req.json();
-        const { email, role, domain, seniority, name, avatar, resume } = body;
+        const { email, role, domain, seniority, name, avatar, resume, portfolioUrl, linkedinUrl } = body;
 
         if (!email) {
             return NextResponse.json({ error: "Email is required" }, { status: 400 });
@@ -66,6 +68,8 @@ export async function POST(req: NextRequest) {
                 domain: domain || "Software & Engineering",
                 roleFamily: normalizeUserRoleFamily(roleVal),
                 seniority: seniority || "professional",
+                portfolioUrl: portfolioUrl || "",
+                linkedinUrl: linkedinUrl || "",
                 resumes: resume ? [resume] : [],
             });
         } else {
@@ -77,6 +81,8 @@ export async function POST(req: NextRequest) {
             if (seniority) user.seniority = seniority;
             if (name) user.name = name;
             if (avatar) user.avatar = avatar;
+            if (portfolioUrl !== undefined) user.portfolioUrl = portfolioUrl;
+            if (linkedinUrl !== undefined) user.linkedinUrl = linkedinUrl;
 
             if (resume) {
                 // If resume with same id exists, update it, otherwise push
@@ -102,6 +108,8 @@ export async function POST(req: NextRequest) {
                 domain: user.domain,
                 roleFamily: user.roleFamily,
                 seniority: user.seniority,
+                portfolioUrl: user.portfolioUrl || "",
+                linkedinUrl: user.linkedinUrl || "",
                 resumes: user.resumes,
             },
         });

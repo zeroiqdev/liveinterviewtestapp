@@ -1267,11 +1267,11 @@
 
 .conversationBoxOpen {
     background: #ffffff;
-    border-top: 1px solid #4782F6;
-    border-bottom: 1px solid #4782F6;
+    border-top: 1px solid #E8EAF0;
+    border-bottom: 1px solid #E8EAF0;
     border-left: none;
     border-right: none;
-    box-shadow: 0 4px 16px rgba(71, 130, 246, 0.12);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
     position: relative;
     z-index: 2;
 }
@@ -1370,6 +1370,15 @@
 .conversationTime {
     font-size: 0.72rem;
     color: #94A3B8;
+}
+
+.dmUnreadDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #2563EB;
+    flex-shrink: 0;
+    display: inline-block;
 }
 
 .dmChevron {
@@ -3576,8 +3585,8 @@
 }
 
 .cvTopStatusCardUploaded {
-    background: #F0FDF4;
-    border-color: #BBF7D0;
+    background: #F8FAFC;
+    border-color: #E2E8F0;
 }
 
 .cvTopStatusInfo {
@@ -3618,10 +3627,10 @@
 }
 
 .cvTopStatusBadgeSuccess {
-    background: #DCFCE7;
-    color: #15803D;
+    background: #F1F5F9;
+    color: #475569;
     font-size: 0.72rem;
-    font-weight: 600;
+    font-weight: 500;
     padding: 2px 8px;
     border-radius: 9999px;
     display: inline-flex;
@@ -3886,3 +3895,897 @@
     font-weight: 600;
     margin-top: 6px;
 }
+
+/* ── Settings Sub Navigation (Profile & CV vs Career Narrative Studio) ── */
+.settingsSubNav {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1.5rem 0;
+    background: #FFFFFF;
+    border-bottom: 1px solid #E2E8F0;
+}
+
+.settingsSubNavTab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 0.95rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #64748B;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border-radius: 4px 4px 0 0;
+}
+
+.settingsSubNavTab:hover {
+    color: #1E293B;
+    background: #F8FAFC;
+}
+
+.settingsSubNavTabActive {
+    color: #2563EB;
+    border-bottom-color: #2563EB;
+    background: #EFF6FF;
+}
+
+/* ── Portfolio Link Field ── */
+.portfolioFieldWrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-top: 0.25rem;
+}
+
+.portfolioLabelRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.portfolioLabel {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #334155;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.portfolioInputRow {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.portfolioInput {
+    flex: 1;
+    border: 1px solid #CBD5E1;
+    border-radius: 8px;
+    padding: 0.55rem 0.85rem;
+    font-size: 0.82rem;
+    color: #1E293B;
+    outline: none;
+    background: #FFFFFF;
+    transition: border-color 0.15s ease;
+}
+
+.portfolioInput:focus {
+    border-color: #2563EB;
+}
+
+.portfolioLinkOpenBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.55rem 0.85rem;
+    background: #F1F5F9;
+    color: #334155;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.portfolioLinkOpenBtn:hover {
+    background: #E2E8F0;
+    color: #0F172A;
+}
+
+.portfolioHelperText {
+    font-size: 0.72rem;
+    color: #94A3B8;
+}
+
+/* ── Career Narrative Studio ── */
+.narrativeStudioContainer {
+    padding: 1.25rem 1.5rem 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    max-height: calc(85vh - 130px);
+    overflow-y: auto;
+}
+
+.narrativeHeaderBanner {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    background: linear-gradient(135deg, #EFF6FF 0%, #F8FAFC 100%);
+    border: 1px solid #DBEAFE;
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+}
+
+.narrativeTitleRow {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.narrativeIconBadge {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #DBEAFE;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.narrativeMainTitle {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0F172A;
+    margin: 0;
+}
+
+.narrativeSubtitle {
+    font-size: 0.78rem;
+    color: #475569;
+    margin: 0.2rem 0 0;
+    line-height: 1.4;
+}
+
+.narrativeActiveCvChip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.65rem;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    color: #64748B;
+    white-space: nowrap;
+}
+
+.narrativeTemplatesWrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.narrativeSectionHeadingRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.narrativeSectionHeading {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #1E293B;
+}
+
+.narrativeSectionHeadingSub {
+    font-size: 0.74rem;
+    color: #64748B;
+}
+
+.narrativeTemplatesGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.65rem;
+}
+
+.templateCard {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 0.75rem 0.85rem;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.templateCard:hover {
+    border-color: #93C5FD;
+    background: #F8FAFC;
+    transform: translateY(-1px);
+}
+
+.templateCardActive {
+    border-color: #2563EB;
+    background: #EFF6FF;
+    box-shadow: 0 0 0 1px #2563EB;
+}
+
+.templateCardTop {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+}
+
+.templateCategory {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.templateBadge {
+    font-size: 0.66rem;
+    font-weight: 600;
+    background: #E2E8F0;
+    color: #334155;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+}
+
+.templateCardActive .templateBadge {
+    background: #DBEAFE;
+    color: #1D4ED8;
+}
+
+.templateTitle {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #0F172A;
+    margin: 0;
+}
+
+.templateDesc {
+    font-size: 0.72rem;
+    color: #64748B;
+    line-height: 1.35;
+    margin: 0;
+}
+
+.narrativeLoadingState {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 3rem 1.5rem;
+    background: #F8FAFC;
+    border: 1px dashed #CBD5E1;
+    border-radius: 12px;
+}
+
+.narrativeLoadingText {
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #475569;
+}
+
+.narrativeContentBody {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+/* Recruiter Lens Card */
+.recruiterLensCard {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 1.15rem 1.25rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.recruiterLensHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.recruiterLensTitle {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #0F172A;
+    margin: 0;
+}
+
+.seniorityBadge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.2rem 0.6rem;
+    background: #F1F5F9;
+    color: #334155;
+    border-radius: 12px;
+    border: 1px solid #E2E8F0;
+}
+
+.recruiterPerceptionSummary {
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: #334155;
+    background: #F8FAFC;
+    border-left: 3px solid #2563EB;
+    padding: 0.65rem 0.85rem;
+    border-radius: 0 6px 6px 0;
+    margin: 0 0 1rem;
+}
+
+.recruiterPointsGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.pointsColHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+}
+
+.pointsList {
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: 0.76rem;
+    color: #475569;
+    line-height: 1.45;
+}
+
+.pointsList li {
+    margin-bottom: 0.3rem;
+}
+
+.strategicPivotBanner {
+    margin-top: 1rem;
+    padding: 0.65rem 0.85rem;
+    background: #FFFBEB;
+    border: 1px solid #FDE68A;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.pivotLabel {
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #92400E;
+}
+
+.pivotText {
+    font-size: 0.78rem;
+    color: #78350F;
+    line-height: 1.4;
+}
+
+/* Section by section tailoring */
+.sectionsAccordionWrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.copyAllNarrativeBtn,
+.saveNarrativeBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.76rem;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.copyAllNarrativeBtn {
+    background: #F8FAFC;
+    color: #334155;
+    border: 1px solid #CBD5E1;
+}
+
+.copyAllNarrativeBtn:hover {
+    background: #E2E8F0;
+}
+
+.saveNarrativeBtn {
+    background: #2563EB;
+    color: #FFFFFF;
+    border: none;
+}
+
+.saveNarrativeBtn:hover {
+    background: #1D4ED8;
+}
+
+.narrativeSaveSuccessAlert {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: #F0FDF4;
+    border: 1px solid #BBF7D0;
+    color: #166534;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+}
+
+.sectionsAccordionList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.sectionAccordionItem {
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    background: #FFFFFF;
+    overflow: hidden;
+}
+
+.sectionAccordionHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: #FFFFFF;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.sectionAccordionHeader:hover {
+    background: #F8FAFC;
+}
+
+.sectionHeaderLeft {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.sectionIndexBadge {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #EFF6FF;
+    color: #2563EB;
+    font-size: 0.72rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sectionItemTitle {
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: #1E293B;
+}
+
+.sectionRewrittenTag {
+    font-size: 0.68rem;
+    font-weight: 600;
+    background: #DCFCE7;
+    color: #15803D;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+}
+
+.sectionHeaderRight {
+    color: #64748B;
+}
+
+.sectionAccordionBody {
+    padding: 0.85rem 1rem 1rem;
+    border-top: 1px solid #F1F5F9;
+    background: #FAFAFA;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.recruiterRationaleNotice {
+    font-size: 0.76rem;
+    color: #1E40AF;
+    background: #EFF6FF;
+    border: 1px solid #DBEAFE;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    line-height: 1.4;
+}
+
+.sectionEditorRow {
+    display: grid;
+    grid-template-columns: 1fr 1.25fr;
+    gap: 0.85rem;
+}
+
+.originalCol,
+.tailoredCol {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.colLabel {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.originalContentBox {
+    background: #F1F5F9;
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    padding: 0.65rem 0.75rem;
+    font-size: 0.78rem;
+    color: #475569;
+    line-height: 1.45;
+    min-height: 75px;
+    white-space: pre-line;
+}
+
+.tailoredColTop {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.copySectionBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #2563EB;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+
+.copySectionBtn:hover {
+    text-decoration: underline;
+}
+
+.tailoredTextarea {
+    width: 100%;
+    border: 1px solid #93C5FD;
+    border-radius: 6px;
+    padding: 0.65rem 0.75rem;
+    font-family: inherit;
+    font-size: 0.78rem;
+    color: #0F172A;
+    background: #FFFFFF;
+    line-height: 1.45;
+    resize: vertical;
+    outline: none;
+}
+
+.tailoredTextarea:focus {
+    border-color: #2563EB;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.sectionSuggestionsRow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.suggestionTagLabel {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #475569;
+}
+
+.suggestionItemChip {
+    font-size: 0.7rem;
+    color: #334155;
+    background: #E2E8F0;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+}
+
+@media (max-width: 640px) {
+    .recruiterPointsGrid {
+        grid-template-columns: 1fr;
+    }
+    .sectionEditorRow {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ── Interview Launch Setup Modal (Settings / Docs Design System) ── */
+.setupContextCard {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+/* ── Preparation For Section (Clean, Unbolded) ── */
+.setupPreparationBox {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.75rem 1rem;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+}
+
+.setupPreparationLabel {
+    font-size: 0.72rem;
+    font-weight: 400;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.setupPreparationValue {
+    font-size: 0.95rem;
+    font-weight: 400;
+    color: #0F172A;
+}
+
+/* ── Unboxed Mode Tabs with Divider & Underline Selected State ── */
+.modeTabsRow {
+    display: flex;
+    align-items: stretch;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    padding: 0.25rem 0;
+}
+
+.modeTabCol {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    padding: 0.25rem 0.35rem;
+    transition: all 0.15s ease;
+}
+
+.modeTabHeaderWrap {
+    display: flex;
+    margin-bottom: 0.45rem;
+}
+
+.modeTabHeader {
+    font-size: 0.88rem;
+    font-weight: 400;
+    color: #64748B;
+    padding-bottom: 0.35rem;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s ease;
+}
+
+.modeTabColActive .modeTabHeader {
+    color: #2563EB;
+    border-bottom: 2px solid #2563EB;
+}
+
+.modeTabDesc {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: #64748B;
+    line-height: 1.45;
+    margin: 0;
+}
+
+.modeTabColActive .modeTabDesc {
+    color: #334155;
+}
+
+.modeTabDivider {
+    width: 1px;
+    background: #E2E8F0;
+    align-self: stretch;
+    margin: 0 0.5rem;
+}
+
+/* Modal Unbolded Enforcement */
+.unboldedModal,
+.unboldedModal * {
+    font-weight: 400 !important;
+}
+
+.coachExplainerBubble {
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: #1E293B;
+    background: #F8FAFC;
+    border-left: 3px solid #2563EB;
+    padding: 0.65rem 0.85rem;
+    border-radius: 0 8px 8px 0;
+}
+
+/* ── Resume Picker Styles ── */
+.resumePickerList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    margin-top: 0.75rem;
+}
+
+.resumeOptionCard {
+    background: #FFFFFF;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.resumeOptionCard:hover {
+    border-color: #93C5FD;
+    background: #F8FAFC;
+}
+
+.resumeOptionCardActive {
+    border-color: #2563EB;
+    background: #EFF6FF;
+    box-shadow: 0 0 0 1px #2563EB;
+}
+
+.resumeOptionLeft {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-width: 0;
+}
+
+.resumeOptionIconWrap {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: #F1F5F9;
+    color: #2563EB;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.resumeOptionCardActive .resumeOptionIconWrap {
+    background: #DBEAFE;
+    color: #1D4ED8;
+}
+
+.resumeOptionTextGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+}
+
+.resumeOptionName {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #0F172A;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    max-width: 340px;
+}
+
+.resumeOptionSub {
+    font-size: 0.7rem;
+    color: #64748B;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.resumeActivePill {
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    background: #DCFCE7;
+    color: #15803D;
+    text-transform: uppercase;
+}
+
+.resumeOptionCheck {
+    color: #2563EB;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.uploadNewCvTriggerBtn {
+    margin-top: 0.45rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    width: 100%;
+    padding: 0.55rem 0.85rem;
+    background: #FFFFFF;
+    border: 1px dashed #CBD5E1;
+    border-radius: 8px;
+    color: #2563EB;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.uploadNewCvTriggerBtn:hover {
+    border-color: #2563EB;
+    background: #EFF6FF;
+}
+
+.resumePickerHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+
+.resumePickerTitle {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.resumePickerCount {
+    font-size: 0.72rem;
+    color: #64748B;
+    font-weight: 500;
+}
+
+@media (max-width: 640px) {
+    .modeSelectGrid {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+

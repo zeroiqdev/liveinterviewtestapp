@@ -10,6 +10,16 @@ export interface FeedbackMetric {
     feedback: string;
 }
 
+export interface ResponsibilityAlignment {
+    targetCompany?: string;
+    keyResponsibilitiesEvaluated: string[];
+    alignmentScore: number;
+    summary: string;
+    demonstratedCompetencies: string[];
+    underrepresentedAreas: string[];
+    recommendationsForRole: string[];
+}
+
 export interface FeedbackReportData {
     overallScore: number;
     summary: string;
@@ -40,6 +50,7 @@ export interface FeedbackReportData {
         feedback: string;
         modelAnswer: string;
     }>;
+    responsibilityAlignment?: ResponsibilityAlignment;
 }
 import { sanitizeReportData, sanitizeToSecondPerson } from "@/lib/feedbackSanitizer";
 export { sanitizeToSecondPerson };
@@ -110,7 +121,26 @@ Evaluate and return a JSON object with this exact structure:
       "feedback": "<Specific feedback on this particular answer relative to role expectations, addressed to you>",
       "modelAnswer": "<A concise, high-impact example of how an elite candidate would answer this question>"
     }
-  ]
+  ],
+  "responsibilityAlignment": {
+    "targetCompany": "<Target Company Name or 'Industry Benchmark'>",
+    "keyResponsibilitiesEvaluated": [
+      "<Core responsibility 1>",
+      "<Core responsibility 2>",
+      "<Core responsibility 3>"
+    ],
+    "alignmentScore": <number 0-100 measuring how well your answers aligned with these specific duties>,
+    "summary": "<2-3 sentences evaluating how directly your answers addressed the target responsibilities and company context, addressed to you in second person>",
+    "demonstratedCompetencies": [
+      "<Key duty or skill you demonstrated strongly>"
+    ],
+    "underrepresentedAreas": [
+      "<Area or responsibility where your answers lacked depth or concrete evidence>"
+    ],
+    "recommendationsForRole": [
+      "<Actionable advice on how to align future answers with these specific responsibilities>"
+    ]
+  }
 }
 
 If the answers were short or low-effort, score realistically (e.g. 30-55) and provide clear constructive advice on how to expand.
@@ -119,7 +149,15 @@ If the answers were articulate and structured with metrics and depth, score appr
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { sessionId, transcript: directTranscript, role, experience, domain } = body;
+        const {
+            sessionId,
+            transcript: directTranscript,
+            role,
+            experience,
+            domain,
+            companyName,
+            responsibilities,
+        } = body;
 
         // 1. In-memory session doc
         let sessionBlueprintId: string | null = null;
@@ -190,6 +228,19 @@ Core Role Competencies:
 ${blueprint.competencies.map((c) => `- ${c.label}: ${c.id}`).join("\n")}`
             : "";
 
+        const effectiveCompany = companyName || "Target Company / Industry Benchmark";
+        const respText = Array.isArray(responsibilities) && responsibilities.length > 0
+            ? responsibilities.join("\n• ")
+            : typeof responsibilities === "string" && responsibilities.trim()
+                ? responsibilities.trim()
+                : `Core execution, cross-functional alignment, and domain problem solving for ${role || "Software Engineer"}`;
+
+        const companyContextBlock = `\n\nTARGET COMPANY & CORE RESPONSIBILITIES EVALUATION:
+Target Company: ${effectiveCompany}
+Key Job Responsibilities:
+• ${respText}
+Carefully evaluate how directly the candidate's answers demonstrated readiness to fulfill these responsibilities, and populate the 'responsibilityAlignment' section.`;
+
         // Format conversation transcript into a readable dialog
         let conversationText = "";
         if (transcriptTurns.length > 0) {
@@ -210,7 +261,7 @@ ${blueprint.competencies.map((c) => `- ${c.label}: ${c.id}`).join("\n")}`
                   .join("\n\n")
             : "";
 
-        const userContext = `Role: ${role || blueprint?.role || "Software Engineer"}\nExperience Level: ${experience || "Mid-Level"}\nDomain: ${domain || "General Tech"}${rubricBlock}\n\nTRANSCRIPT:\n${conversationText}${questionsPromptBlock}`;
+        const userContext = `Role: ${role || blueprint?.role || "Software Engineer"}\nExperience Level: ${experience || "Mid-Level"}\nDomain: ${domain || "General Tech"}${rubricBlock}${companyContextBlock}\n\nTRANSCRIPT:\n${conversationText}${questionsPromptBlock}`;
 
         const report = await callJSON<FeedbackReportData>({
             system: SYSTEM_PROMPT,

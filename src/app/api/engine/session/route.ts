@@ -6,7 +6,7 @@ import { getProfile } from "@/engine/sessionStore";
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { candidateId, blueprintId } = body || {};
+        const { candidateId, blueprintId, interviewType } = body || {};
 
         if (!candidateId || !blueprintId) {
             return NextResponse.json(
@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
             candidateId,
             blueprintId,
             profile,
+            interviewType,
         });
 
         return NextResponse.json({

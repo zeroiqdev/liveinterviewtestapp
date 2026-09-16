@@ -28,11 +28,11 @@ import {
     Check,
 } from "@phosphor-icons/react";
 
-type SectionTabKey = "strengths" | "improvements" | "qa" | "tips";
+type SectionTabKey = "strengths" | "improvements" | "responsibilities" | "qa" | "tips";
 
 interface UnifiedFeedbackCard {
     id: string;
-    category: "strength" | "improvement" | "qa" | "tip";
+    category: "strength" | "improvement" | "qa" | "tip" | "responsibility";
     categoryLabel: string;
     title: string;
     description: string;
@@ -160,6 +160,27 @@ const DEFAULT_DEMO_REPORT: FeedbackReportData = {
             modelAnswer: "Evaluate team topology, domain boundary maturity, and deployment velocity requirements. Favor a modular monolith initially to keep operational complexity low until independent scaling and organizational decoupling strictly justify service boundaries.",
         },
     ],
+    responsibilityAlignment: {
+        targetCompany: "Stripe",
+        keyResponsibilitiesEvaluated: [
+            "Technical architecture trade-offs & API scale",
+            "Cross-functional roadmap prioritization under constraints",
+            "Incident management, post-mortems & zero-downtime operations",
+        ],
+        alignmentScore: 88,
+        summary: "Your responses demonstrated exceptional alignment with Stripe's core expectations around developer empathy, empirical trade-off evaluations, and rigorous operational reliability.",
+        demonstratedCompetencies: [
+            "Systematic trade-off analysis between monolithic and distributed topologies",
+            "Objective prioritization using RICE and business impact frameworks",
+            "Incident mitigation and proactive post-mortem hygiene",
+        ],
+        underrepresentedAreas: [
+            "Deep dive into cost vs. latency trade-offs on AWS/GCP cloud budgets",
+        ],
+        recommendationsForRole: [
+            "Quantify p99 latency guarantees and operational cost figures directly when discussing architecture",
+        ],
+    },
 };
 
 export interface FeedbackReportProps {
@@ -223,6 +244,8 @@ export default function FeedbackReport({
         role?: string;
         experience?: string;
         domain?: string;
+        companyName?: string;
+        responsibilities?: string[];
     }>(() => {
         if (typeof window === "undefined") return {};
         try {
@@ -233,6 +256,8 @@ export default function FeedbackReport({
                     role: meta.role || "Software Engineer",
                     experience: meta.experience || "Mid-Level",
                     domain: meta.domain || "General Tech",
+                    companyName: meta.companyName || "Target Company",
+                    responsibilities: Array.isArray(meta.responsibilities) ? meta.responsibilities : [],
                 };
             }
         } catch {}
@@ -240,6 +265,8 @@ export default function FeedbackReport({
             role: "Software Engineer",
             experience: "Mid-Level",
             domain: "General Tech",
+            companyName: "Target Company",
+            responsibilities: [],
         };
     });
 
@@ -339,6 +366,8 @@ export default function FeedbackReport({
                         role: effectiveRole,
                         experience: (typeof meta.experience === "string" ? meta.experience : "") || settings.experience || "Mid-Level",
                         domain: (typeof meta.domain === "string" ? meta.domain : "") || settings.domain || "General Tech",
+                        companyName: typeof meta.companyName === "string" ? meta.companyName : undefined,
+                        responsibilities: Array.isArray(meta.responsibilities) ? meta.responsibilities : undefined,
                         transcript: directTranscript.length > 0 ? directTranscript : undefined,
                     }),
                 });
@@ -427,6 +456,8 @@ export default function FeedbackReport({
                         role: effectiveRole,
                         experience: (typeof meta.experience === "string" ? meta.experience : "") || settings.experience || "Mid-Level",
                         domain: (typeof meta.domain === "string" ? meta.domain : "") || settings.domain || "General Tech",
+                        companyName: typeof meta.companyName === "string" ? meta.companyName : undefined,
+                        responsibilities: Array.isArray(meta.responsibilities) ? meta.responsibilities : undefined,
                         transcript: directTranscript.length > 0 ? directTranscript : undefined,
                     }),
                 });
@@ -537,11 +568,67 @@ export default function FeedbackReport({
         };
     });
 
+    const responsibilityAlignment = reportData?.responsibilityAlignment;
+    const responsibilityCards: UnifiedFeedbackCard[] = [];
+
+    if (responsibilityAlignment) {
+        // Overall summary card
+        responsibilityCards.push({
+            id: "resp-overall",
+            category: "responsibility",
+            categoryLabel: "Company & Role Fit",
+            title: `Role Readiness: ${responsibilityAlignment.targetCompany || sessionMeta.companyName || "Target Role"}`,
+            description: responsibilityAlignment.summary,
+            characterImage: CHAR_STRENGTH,
+            iconBg: "#EFF6FF",
+            iconColor: "#2563EB",
+            tagLabel: `${responsibilityAlignment.alignmentScore}% Match`,
+            tagType: "strong",
+        });
+
+        // Demonstrated competencies
+        responsibilityAlignment.demonstratedCompetencies?.forEach((comp, idx) => {
+            responsibilityCards.push({
+                id: `resp-demonstrated-${idx}`,
+                category: "responsibility",
+                categoryLabel: "Demonstrated Responsibility",
+                title: `Demonstrated: ${comp.length > 46 ? comp.slice(0, 44) + "…" : comp}`,
+                description: comp,
+                characterImage: CHAR_STRENGTH,
+                iconBg: "#F0FDF4",
+                iconColor: "#15803D",
+                tagLabel: "Demonstrated",
+                tagType: "strong",
+                recommendation: "Your responses convincingly proved competence in this area. Continue referencing this project depth.",
+            });
+        });
+
+        // Underrepresented areas
+        responsibilityAlignment.underrepresentedAreas?.forEach((area, idx) => {
+            const rec = responsibilityAlignment.recommendationsForRole?.[idx] || "Provide explicit metrics and tradeoff rationales demonstrating this duty.";
+            responsibilityCards.push({
+                id: `resp-under-${idx}`,
+                category: "responsibility",
+                categoryLabel: "Responsibility Gap",
+                title: `Underrepresented: ${area.length > 46 ? area.slice(0, 44) + "…" : area}`,
+                description: area,
+                characterImage: CHAR_IMPROVEMENT,
+                iconBg: "#FFF7ED",
+                iconColor: "#C2410C",
+                tagLabel: "Needs Depth",
+                tagType: "needsWork",
+                recommendation: rec,
+            });
+        });
+    }
+
     const displayedCards =
         activeTab === "strengths"
             ? strengthsCards
             : activeTab === "improvements"
             ? improvementsCards
+            : activeTab === "responsibilities"
+            ? (responsibilityCards.length > 0 ? responsibilityCards : strengthsCards)
             : activeTab === "qa"
             ? qaCards
             : tipsCards;
@@ -742,6 +829,21 @@ export default function FeedbackReport({
                                 <span>Pace:</span>
                                 <span className={styles.rubricVal}>{reportData.metrics.pace}%</span>
                             </div>
+                            {reportData?.responsibilityAlignment && (
+                                <div
+                                    className={styles.rubricPill}
+                                    style={{
+                                        borderColor: "#93C5FD",
+                                        background: "#EFF6FF",
+                                        color: "#1D4ED8",
+                                    }}
+                                >
+                                    <span>{reportData.responsibilityAlignment.targetCompany || "Role"} Fit:</span>
+                                    <span className={styles.rubricVal} style={{ color: "#1D4ED8" }}>
+                                        {reportData.responsibilityAlignment.alignmentScore}%
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -763,6 +865,14 @@ export default function FeedbackReport({
                     onClick={() => setActiveTab("improvements")}
                 >
                     Improvements
+                </button>
+
+                <button
+                    type="button"
+                    className={`${styles.sectionTab} ${activeTab === "responsibilities" ? styles.tabActiveStrengths : ""}`}
+                    onClick={() => setActiveTab("responsibilities")}
+                >
+                    Role & Company Fit
                 </button>
 
                 <button

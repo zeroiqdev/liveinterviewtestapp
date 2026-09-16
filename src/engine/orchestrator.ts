@@ -90,12 +90,37 @@ export async function startSession(opts: {
     candidateId: string;
     blueprintId: string;
     profile: CandidateProfile | null;
+    interviewType?: string | null;
 }): Promise<{ session: SessionDoc; prompt: EnginePrompt }> {
     const blueprint = getBlueprint(opts.blueprintId);
     if (!blueprint) throw new Error(`unknown blueprintId: ${opts.blueprintId}`);
 
     const { candidateId, profile } = opts;
     const now = Date.now();
+
+    // If a specific interview type was chosen (e.g. "Execution & Metrics"), align initial section directly
+    let initialCompIndex = -1; // general behavioral first by default
+    if (opts.interviewType) {
+        const typeLower = opts.interviewType.toLowerCase();
+        if (typeLower.includes("behavioral") || typeLower.includes("leadership")) {
+            initialCompIndex = -1;
+        } else {
+            const words = typeLower
+                .replace(/interview/g, "")
+                .split(/[\s&/+,]+/)
+                .map((w) => w.trim())
+                .filter((w) => w.length > 3);
+
+            const matchIndex = blueprint.competencies.findIndex((c) => {
+                const label = c.label.toLowerCase();
+                const id = c.id.toLowerCase();
+                return words.some((w) => label.includes(w) || id.includes(w));
+            });
+            if (matchIndex >= 0) {
+                initialCompIndex = matchIndex;
+            }
+        }
+    }
 
     const session: SessionDoc = {
         sessionId: randomUUID(),
@@ -107,13 +132,13 @@ export async function startSession(opts: {
             portfolio: false,
         },
         phase: "ask_scripted",
-        currentCompetencyIndex: -1, // general behavioral first
-        topicProgress: blueprint.competencies.map((c) => ({
+        currentCompetencyIndex: initialCompIndex,
+        topicProgress: blueprint.competencies.map((c, i) => ({
             competencyId: c.id,
             askedQuestionIds: [],
             followUpsUsed: 0,
             timeSpentSeconds: 0,
-            status: "pending",
+            status: i === initialCompIndex ? "in_progress" : "pending",
         })),
         generalAsked: { questionIds: [], categories: [] },
         runningNotes: [],

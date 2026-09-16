@@ -10,10 +10,15 @@ import {
     MagnifyingGlass,
     WarningCircle,
     CheckCircle,
+    Globe,
+    ArrowSquareOut,
+    Sparkle,
+    User,
 } from "@phosphor-icons/react";
 import styles from "../dashboard.module.css";
 import { COACH_AVATAR, RECRUITER_AVATAR } from "./constants";
 import type { ResumeScanResult } from "@/app/api/resume/scan/route";
+import { CareerNarrativeStudio } from "./CareerNarrativeStudio";
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -33,16 +38,25 @@ const FALLBACK_ROLES: RoleOption[] = [
     { role: "Product Manager", domain: "Product & Design" },
     { role: "Product Designer", domain: "Product & Design" },
     { role: "Product Marketer", domain: "Product & Design" },
-    { role: "Product Engineer", domain: "Product & Design" },
     { role: "Software Engineer", domain: "Software & Engineering" },
     { role: "Frontend Developer", domain: "Software & Engineering" },
     { role: "Backend Engineer", domain: "Software & Engineering" },
     { role: "Full Stack Developer", domain: "Software & Engineering" },
     { role: "DevOps / SRE", domain: "Software & Engineering" },
-    { role: "Data Analyst", domain: "Data & Analytics" },
+    { role: "Cloud Solutions Architect", domain: "Software & Engineering" },
     { role: "Data Scientist", domain: "Data & Analytics" },
+    { role: "Data Analyst", domain: "Data & Analytics" },
     { role: "Business Analyst", domain: "Business & Operations" },
-    { role: "UX Researcher", domain: "Product & Design" },
+    { role: "Banking & Finance", domain: "Banking & Finance" },
+    { role: "Investment Banker", domain: "Banking & Finance" },
+    { role: "Financial Analyst", domain: "Banking & Finance" },
+    { role: "Sales & Business Development", domain: "Sales & Commercial" },
+    { role: "Account Executive", domain: "Sales & Commercial" },
+    { role: "Customer Service Representative", domain: "Customer Service & Support" },
+    { role: "Virtual Assistant", domain: "Administrative & Support" },
+    { role: "Executive Assistant", domain: "Administrative & Support" },
+    { role: "Engineering — Oil & Gas", domain: "Engineering & Energy" },
+    { role: "HSE / Safety Officer", domain: "Engineering & Energy" },
 ];
 
 export function SettingsModal({
@@ -73,6 +87,10 @@ export function SettingsModal({
     const [scanResult, setScanResult] = useState<ResumeScanResult | null>(null);
     const [scanError, setScanError] = useState<string | null>(null);
 
+    // Portfolio link & Navigation tab state
+    const [portfolioUrl, setPortfolioUrl] = useState<string>("");
+    const [activeTab, setActiveTab] = useState<"credentials" | "narrative">("credentials");
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     const roleDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -82,7 +100,7 @@ export function SettingsModal({
         setRoleQuery(currentRole);
     }, [currentRole, currentDomain]);
 
-    // Check CV upload status from local storage and backend
+    // Check CV upload status and portfolio from local storage and backend
     useEffect(() => {
         if (!isOpen) return;
 
@@ -91,10 +109,19 @@ export function SettingsModal({
         if (raw) {
             try {
                 const parsed = JSON.parse(raw);
+                if (parsed.portfolioUrl) {
+                    setPortfolioUrl(parsed.portfolioUrl);
+                }
                 if (parsed.resumes && Array.isArray(parsed.resumes) && parsed.resumes.length > 0) {
                     foundCv = parsed.resumes[0].name || "Uploaded_Resume.pdf";
+                    if (parsed.resumes[0].rawText || parsed.resumes[0].data) {
+                        setResumeText(parsed.resumes[0].rawText || parsed.resumes[0].data);
+                    }
                 } else if (parsed.resume) {
                     foundCv = typeof parsed.resume === "string" ? "Uploaded_Resume.pdf" : (parsed.resume.name || "Uploaded_Resume.pdf");
+                    if (parsed.resume.rawText || parsed.resume.data) {
+                        setResumeText(parsed.resume.rawText || parsed.resume.data);
+                    }
                 }
             } catch (e) {
                 console.error("Error reading useladder_user resumes:", e);
@@ -110,11 +137,18 @@ export function SettingsModal({
             fetch(`/api/auth/user?email=${encodeURIComponent(userEmail)}`)
                 .then((r) => r.json())
                 .then((data) => {
+                    if (data.user?.portfolioUrl) {
+                        setPortfolioUrl(data.user.portfolioUrl);
+                    }
                     if (data.user?.resumes && Array.isArray(data.user.resumes) && data.user.resumes.length > 0) {
-                        const name = data.user.resumes[0].name || "Uploaded_Resume.pdf";
+                        const r = data.user.resumes[0];
+                        const name = r.name || "Uploaded_Resume.pdf";
                         setHasCvUploaded(true);
                         setUploadedCvName(name);
                         setResumeName(name);
+                        if (r.rawText) {
+                            setResumeText(r.rawText);
+                        }
                         setIsUploadingNewCv(false);
                     } else {
                         setHasCvUploaded(false);
@@ -312,7 +346,7 @@ export function SettingsModal({
         onRoleChange(selectedRole, selectedDomain);
         setRoleSavedSuccess(true);
 
-        // Sync role to MongoDB
+        // Sync role and portfolio to MongoDB
         if (userEmail) {
             try {
                 await fetch("/api/auth/user", {
@@ -322,6 +356,7 @@ export function SettingsModal({
                         email: userEmail,
                         role: selectedRole,
                         domain: selectedDomain,
+                        portfolioUrl,
                     }),
                 });
             } catch (err) {
@@ -336,6 +371,7 @@ export function SettingsModal({
                 const parsed = JSON.parse(raw);
                 parsed.role = selectedRole;
                 parsed.domain = selectedDomain;
+                parsed.portfolioUrl = portfolioUrl;
                 localStorage.setItem("useladder_user", JSON.stringify(parsed));
             } catch (e) {
                 console.error(e);
@@ -364,8 +400,38 @@ export function SettingsModal({
                     </button>
                 </div>
 
-                {/* ── Section at Top: CV Upload Status & Action Button ── */}
-                <div className={`${styles.cvTopStatusCard} ${hasCvUploaded ? styles.cvTopStatusCardUploaded : ""}`}>
+                {/* ── Sub Navigation Tabs: Profile & CV vs Career Narrative Studio ── */}
+                <div className={styles.settingsSubNav}>
+                    <button
+                        type="button"
+                        className={`${styles.settingsSubNavTab} ${activeTab === "credentials" ? styles.settingsSubNavTabActive : ""}`}
+                        onClick={() => setActiveTab("credentials")}
+                    >
+                        <User size={15} weight={activeTab === "credentials" ? "fill" : "regular"} />
+                        Profile & CV
+                    </button>
+                    <button
+                        type="button"
+                        className={`${styles.settingsSubNavTab} ${activeTab === "narrative" ? styles.settingsSubNavTabActive : ""}`}
+                        onClick={() => setActiveTab("narrative")}
+                    >
+                        <Sparkle size={15} weight={activeTab === "narrative" ? "fill" : "regular"} color={activeTab === "narrative" ? "#2563EB" : undefined} />
+                        Career Narrative Studio
+                    </button>
+                </div>
+
+                {activeTab === "narrative" ? (
+                    <CareerNarrativeStudio
+                        currentRole={selectedRole}
+                        targetRole={selectedRole}
+                        resumeText={resumeText}
+                        resumeName={uploadedCvName || resumeName}
+                        userEmail={userEmail}
+                    />
+                ) : (
+                    <>
+                        {/* ── Section at Top: CV Upload Status & Action Button ── */}
+                        <div className={`${styles.cvTopStatusCard} ${hasCvUploaded ? styles.cvTopStatusCardUploaded : ""}`}>
                     <div className={styles.cvTopStatusInfo}>
                         <div className={styles.cvTopStatusIconWrap}>
                             {hasCvUploaded ? (
@@ -621,12 +687,47 @@ export function SettingsModal({
                                                 Target role updated to {selectedRole}! All dashboard jobs & interviews aligned.
                                             </div>
                                         )}
+
+                                        {/* ── Portfolio Link Field ── */}
+                                        <div className={styles.portfolioFieldWrap}>
+                                            <div className={styles.portfolioLabelRow}>
+                                                <label className={styles.portfolioLabel}>
+                                                    <Globe size={14} weight="bold" color="#2563EB" />
+                                                    Portfolio / Personal Website
+                                                </label>
+                                                {portfolioUrl && (
+                                                    <a
+                                                        href={portfolioUrl.startsWith("http") ? portfolioUrl : `https://${portfolioUrl}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className={styles.portfolioLinkOpenBtn}
+                                                    >
+                                                        <ArrowSquareOut size={12} weight="bold" />
+                                                        Visit Link
+                                                    </a>
+                                                )}
+                                            </div>
+                                            <div className={styles.portfolioInputRow}>
+                                                <input
+                                                    type="url"
+                                                    className={styles.portfolioInput}
+                                                    placeholder="e.g. https://yourportfolio.com, github.com/username, or behance.net/profile"
+                                                    value={portfolioUrl}
+                                                    onChange={(e) => setPortfolioUrl(e.target.value)}
+                                                />
+                                            </div>
+                                            <span className={styles.portfolioHelperText}>
+                                                Showcase your real work, live apps, GitHub repositories, or design case studies.
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+                </>
+                )}
 
                 {/* ── Modal Footer with Save Button ── */}
                 <div className={styles.settingsModalFooter}>

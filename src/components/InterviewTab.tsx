@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useInterview } from "../context/InterviewContext";
 import { useMediaRecorder } from "../hooks/useMediaRecorder";
 import styles from "./interview.module.css";
@@ -24,7 +24,15 @@ import {
     CheckCircle,
     Briefcase,
     User as UserIcon,
+    Lightbulb,
+    ShieldWarning,
+    Sparkle,
+    ArrowRight,
 } from "@phosphor-icons/react";
+import { CamcorderRegular, AlertRegular, CloseRegular } from "@mingcute/react/core-regular";
+import { RECRUITER_AVATAR } from "./dashboard/constants";
+import type { PreInterviewBriefing } from "@/app/api/interview/briefing/route";
+import type { InstantQuestionFeedback } from "@/app/api/interview/instant-feedback/route";
 
 interface ResumeEntry {
     id: string;
@@ -80,6 +88,13 @@ function readableText(raw: string): string {
 
 export default function InterviewTab() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const queryMode = searchParams.get("mode") as "live_coaching" | "post_interview" | null;
+    const queryRole = searchParams.get("role");
+    const queryCompany = searchParams.get("company");
+    const queryCategory = searchParams.get("category");
+    const queryInterviewType = searchParams.get("interviewType");
+
     const { setStatus } = useInterview();
     const videoRef = useRef<HTMLVideoElement>(null);
     const {
@@ -99,6 +114,12 @@ export default function InterviewTab() {
     const [user, setUser] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
 
+    // ── Interview Mode & Live Coaching State ──
+    const [interviewMode, setInterviewMode] = useState<"live_coaching" | "post_interview">("live_coaching");
+    const [instantFeedback, setInstantFeedback] = useState<InstantQuestionFeedback | null>(null);
+    const [isGeneratingInstantFeedback, setIsGeneratingInstantFeedback] = useState(false);
+    const [interviewType, setInterviewType] = useState<string>("");
+
     // ── Engine state ──
     const [blueprints, setBlueprints] = useState<BlueprintOption[]>([]);
     const [selectedBlueprint, setSelectedBlueprint] = useState<string>("");
@@ -107,6 +128,14 @@ export default function InterviewTab() {
     const [resumeText, setResumeText] = useState("");
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [engineState, setEngineState] = useState<PublicSessionState | null>(null);
+
+    const headerInterviewTitle = useMemo(() => {
+        const title = interviewType || engineState?.role || queryRole || user?.role || "";
+        if (!title) return "Interview";
+        return title.trim().toLowerCase().endsWith("interview")
+            ? title.trim()
+            : `${title.trim()} Interview`;
+    }, [interviewType, engineState?.role, queryRole, user?.role]);
     const [currentPrompt, setCurrentPrompt] = useState<EnginePrompt | null>(null);
     const [isEngineBusy, setIsEngineBusy] = useState(false);
 
@@ -122,6 +151,72 @@ export default function InterviewTab() {
     const [localTranscript, setLocalTranscript] = useState<
         Array<{ role: "interviewer" | "candidate"; text: string }>
     >([]);
+
+    // ── Pre-interview briefing state ──
+    const [targetCompany, setTargetCompany] = useState<string>("Stripe");
+    const [briefing, setBriefing] = useState<PreInterviewBriefing | null>(null);
+    const [briefingLoading, setBriefingLoading] = useState<boolean>(false);
+
+    useEffect(() => {
+        if (queryMode) {
+            setInterviewMode(queryMode === "post_interview" ? "post_interview" : "live_coaching");
+        }
+        if (queryCompany) {
+            setTargetCompany(queryCompany);
+        } else {
+            try {
+                const rawMeta = localStorage.getItem("useladder_last_session_meta");
+                if (rawMeta) {
+                    const parsed = JSON.parse(rawMeta);
+                    if (parsed.companyName && parsed.companyName !== "General" && parsed.companyName !== "General Industry Benchmark") {
+                        setTargetCompany(parsed.companyName);
+                    }
+                }
+            } catch {}
+        }
+        if (queryInterviewType) {
+            setInterviewType(queryInterviewType);
+        } else {
+            try {
+                const rawMeta = localStorage.getItem("useladder_last_session_meta");
+                if (rawMeta) {
+                    const parsed = JSON.parse(rawMeta);
+                    if (parsed.preparationTitle) {
+                        setInterviewType(parsed.preparationTitle);
+                    }
+                }
+            } catch {}
+        }
+    }, [queryMode, queryCompany, queryInterviewType]);
+
+    // Fetch pre-interview strategy briefing based on role and target company
+    useEffect(() => {
+        if (!user?.role) return;
+        let isCancelled = false;
+        setBriefingLoading(true);
+        fetch("/api/interview/briefing", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                role: interviewType || user.role,
+                seniority: user.seniority || "Mid-Level",
+                companyName: targetCompany,
+            }),
+        })
+            .then((r) => r.json())
+            .then((data) => {
+                if (!isCancelled && data.briefing) {
+                    setBriefing(data.briefing);
+                }
+            })
+            .catch((e) => console.warn("Failed loading interview briefing:", e))
+            .finally(() => {
+                if (!isCancelled) setBriefingLoading(false);
+            });
+        return () => {
+            isCancelled = true;
+        };
+    }, [user?.role, user?.seniority, targetCompany]);
 
     // Auth check
     useEffect(() => {
@@ -273,7 +368,11 @@ export default function InterviewTab() {
         const res = await fetch("/api/engine/session", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ candidateId, blueprintId }),
+            body: JSON.stringify({
+                candidateId,
+                blueprintId,
+                interviewType: interviewType || queryInterviewType || undefined,
+            }),
         });
         if (!res.ok) return null;
         return res.json();
@@ -328,12 +427,9 @@ export default function InterviewTab() {
         }, 1000);
     };
 
-    // Candidate finished their answer — hand it to the orchestrator
-    const handleNext = async () => {
-        if (!sessionId || isEngineBusy) return;
-
-        const candidateText = currentAnswer.trim();
-        setIsListening(false);
+    // Hand answer to orchestrator engine
+    const submitTurnToEngine = async (candidateText: string) => {
+        if (!sessionId) return;
         setIsEngineBusy(true);
 
         try {
@@ -377,6 +473,53 @@ export default function InterviewTab() {
         }
     };
 
+    // Candidate finished their answer — hand it to orchestrator or trigger instant coaching
+    const handleNext = async () => {
+        if (!sessionId || isEngineBusy) return;
+
+        const candidateText = currentAnswer.trim();
+        setIsListening(false);
+
+        // If in live coaching mode, request instant feedback and pause for coaching review
+        if (interviewMode === "live_coaching" && !instantFeedback) {
+            setIsGeneratingInstantFeedback(true);
+            try {
+                const res = await fetch("/api/interview/instant-feedback", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        question: currentPrompt?.text || "Interview question",
+                        answer: candidateText,
+                        role: user?.role || "Software Engineer",
+                        companyName: targetCompany || "Top Tech",
+                        category: queryCategory || "General Interview",
+                    }),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.feedback) {
+                        setInstantFeedback(data.feedback);
+                        setIsGeneratingInstantFeedback(false);
+                        return; // Keep modal open for candidate review
+                    }
+                }
+            } catch (e) {
+                console.warn("Instant feedback error:", e);
+            }
+            setIsGeneratingInstantFeedback(false);
+        }
+
+        await submitTurnToEngine(candidateText);
+    };
+
+    // Candidate reviewed coaching feedback and clicked "Next Question →"
+    const handleContinueAfterCoaching = async () => {
+        const candidateText = currentAnswer.trim();
+        setInstantFeedback(null);
+        await submitTurnToEngine(candidateText);
+    };
+
+
     const handleEndClick = () => {
         if (isRecording && engineState && !engineState.complete) {
             stopAudio();
@@ -415,6 +558,8 @@ export default function InterviewTab() {
                 role: user?.role || "Software Engineer",
                 experience: user?.seniority || "Mid",
                 domain: user?.domain || "General Tech",
+                companyName: targetCompany || "Top Tech",
+                responsibilities: briefing?.decodedResponsibilities?.map((r) => r.responsibility) || [],
             })
         );
 
@@ -426,11 +571,35 @@ export default function InterviewTab() {
         setIsListening(true);
     };
 
+    const questionNumber = useMemo(() => {
+        const interviewerTurns = localTranscript.filter((t) => t.role === "interviewer").length;
+        if (interviewerTurns > 0) return interviewerTurns;
+        if (sessionStarted && currentPrompt?.text) return 1;
+        return 0;
+    }, [localTranscript, sessionStarted, currentPrompt]);
+
     if (loading || !user) return null;
 
-    const userName =
-        user.name ||
-        (user.email ? user.email.split("@")[0] : "User");
+    const candidateDisplayName = (() => {
+        if (user.name && user.name.trim()) {
+            return user.name
+                .trim()
+                .split(/\s+/)
+                .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                .join(" ");
+        }
+        if (user.email && user.email.trim()) {
+            const namePart = user.email.split("@")[0].replace(/[._-]/g, " ");
+            return namePart
+                .trim()
+                .split(/\s+/)
+                .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                .join(" ");
+        }
+        return "Candidate";
+    })();
+
+    const userName = candidateDisplayName;
     const initials = userName.slice(0, 2).toUpperCase();
 
     const handleLogout = () => {
@@ -441,7 +610,7 @@ export default function InterviewTab() {
     /* ── Derived display values ── */
 
     const fmt = (s: number) =>
-        `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+        `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
     const sectionProgress = engineState
         ? `Section ${engineState.sectionIndex + 1} of ${engineState.sectionCount}`
@@ -498,7 +667,9 @@ export default function InterviewTab() {
                             {/* Pre-session: setup + start */}
                             {!sessionStarted && (
                                 <div className={styles.mediaError}>
-                                    <VideoCamera size={48} color="#4793f7" />
+                                    <div style={{ marginBottom: "0.5rem" }}>
+                                        <CamcorderRegular size={46} color="#94a3b8" />
+                                    </div>
                                     <h3
                                         style={{
                                             fontSize: "1.3rem",
@@ -508,47 +679,15 @@ export default function InterviewTab() {
                                             letterSpacing: "-0.01em",
                                         }}
                                     >
-                                        Ready for your mock interview?
+                                        Click start button to start interview
                                     </h3>
 
-                                    <div className={styles.candidateProfileCard}>
-                                        <div className={styles.profileBadgeGroup}>
-                                            <div className={styles.profileBadge}>
-                                                <span className={styles.badgeLabel}>Target Role</span>
-                                                <select
-                                                    className={styles.roleSelect}
-                                                    value={user?.role || "Product Manager"}
-                                                    onChange={(e) => handleRoleSelect(e.target.value)}
-                                                >
-                                                    {user?.role && !INTERVIEW_ROLES.includes(user.role) && (
-                                                        <option value={user.role}>{user.role}</option>
-                                                    )}
-                                                    {INTERVIEW_ROLES.map((r) => (
-                                                        <option key={r} value={r}>
-                                                            {r}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                            <div className={styles.profileBadge}>
-                                                <span className={styles.badgeLabel}>Experience Level</span>
-                                                <span className={styles.badgeValue}>
-                                                    {user?.seniority || "Mid-Level"}
-                                                </span>
-                                            </div>
+                                    {resumeText && (
+                                        <div className={styles.resumeStatusBadge} style={{ marginTop: "0.75rem", marginBottom: "0.5rem" }}>
+                                            <CheckCircle size={15} weight="fill" color="#10b981" />
+                                            <span>Resume loaded · Questions will personalize to your background</span>
                                         </div>
-
-                                        {resumeText ? (
-                                            <div className={styles.resumeStatusBadge}>
-                                                <CheckCircle size={15} weight="fill" color="#10b981" />
-                                                <span>Resume loaded · Questions will personalize to your background</span>
-                                            </div>
-                                        ) : (
-                                            <p style={{ fontSize: "0.72rem", color: "#94a3b8", margin: "0.2rem 0 0", lineHeight: 1.5 }}>
-                                                Questions will adapt dynamically to your live responses.
-                                            </p>
-                                        )}
-                                    </div>
+                                    )}
 
                                     <button
                                         className={styles.grantBtn}
@@ -559,7 +698,7 @@ export default function InterviewTab() {
                                             ? "Connecting Camera & Mic…"
                                             : isEngineBusy
                                               ? "Preparing your interview…"
-                                              : "Start Interview"}
+                                              : "Start"}
                                     </button>
                                     {mediaError && (
                                         <p
@@ -658,19 +797,17 @@ export default function InterviewTab() {
                         {/* Questions Card */}
                         <div className={styles.infoCard}>
                             <div className={styles.cardHeader}>
-                                <div className={styles.headerLabel}>
-                                    <Star size={14} />
-                                    <span>
-                                        {engineState?.role ? `${engineState.role}: ` : ""}
-                                        {engineState?.currentSectionLabel || "Questions"}
-                                    </span>
+                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                    <div className={styles.headerLabel}>
+                                        <span>{headerInterviewTitle}</span>
+                                    </div>
                                 </div>
-                                <div className={styles.timer} title="Interviewer schedule — you are never cut off">
-                                    {sessionStarted
-                                        ? `${fmt(elapsedTick)} / ${fmt(engineState?.totalTimeBudgetSeconds ?? 2700)}`
-                                        : `${fmt(0)} / ${fmt(2700)}`}
+                                <div className={styles.timer} title="Time elapsed in interview">
+                                    <span className={styles.timerBlinkDot} />
+                                    <span>{fmt(sessionStarted ? elapsedTick : 0)}</span>
                                 </div>
                             </div>
+
 
                             {sessionStarted && currentPrompt?.kind === "follow_up" && (
                                 <div className={styles.followUpBadge}>
@@ -678,30 +815,37 @@ export default function InterviewTab() {
                                 </div>
                             )}
 
-                            {/* AI Audio / Speaking Status Badge */}
-                            {sessionStarted && (isAiSpeaking || isLoadingAudio) && (
-                                <div className={styles.aiSpeakingBadge}>
-                                    <div className={styles.speakingWave}>
-                                        <div className={styles.speakingBar} />
-                                        <div className={styles.speakingBar} />
-                                        <div className={styles.speakingBar} />
-                                        <div className={styles.speakingBar} />
+                            <div className={styles.questionSection}>
+                                <div className={styles.interviewerHeader}>
+                                    <div className={styles.questionAvatarWrap}>
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                            src={RECRUITER_AVATAR}
+                                            alt="Interviewer"
+                                            className={styles.questionAvatarImg}
+                                            draggable={false}
+                                        />
+                                        {isAiSpeaking && (
+                                            <span className={styles.questionSpeakingDot} />
+                                        )}
                                     </div>
-                                    <span>
-                                        {isLoadingAudio
-                                            ? "Preparing audio…"
-                                            : `Interviewer speaking${voiceLabel ? ` (${voiceLabel})` : ""}`}
+                                    <span className={styles.interviewerLabel}>
+                                        {sessionStarted && questionNumber > 0 ? `Question ${questionNumber}` : "Interviewer"}
                                     </span>
                                 </div>
-                            )}
-
-                            <h2 className={styles.questionText}>
-                                {sessionStarted
-                                    ? isEngineBusy
-                                        ? "…"
-                                        : (currentPrompt?.text ?? "")
-                                    : "Ready to begin your session?"}
-                            </h2>
+                                <h2 className={styles.questionText}>
+                                    {sessionStarted
+                                        ? isEngineBusy
+                                            ? "…"
+                                            : (currentPrompt?.text ?? "")
+                                        : `Welcome ${candidateDisplayName}, your interview will begin shortly`}
+                                </h2>
+                                {sessionStarted && questionNumber > 0 && (
+                                    <div className={styles.questionMetaBelow}>
+                                        Question {questionNumber}{engineState?.sectionCount ? ` · ${sectionProgress}` : ""}
+                                    </div>
+                                )}
+                            </div>
 
                             {sessionStarted && currentPrompt?.text && !isAiSpeaking && !isLoadingAudio && (
                                 <div style={{ marginBottom: "0.85rem" }}>
@@ -714,59 +858,6 @@ export default function InterviewTab() {
                                         <SpeakerHigh size={14} weight="bold" />
                                         <span>Replay Audio</span>
                                     </button>
-                                </div>
-                            )}
-
-                            {/* Live Candidate Speech Box */}
-                            {sessionStarted && !engineState?.complete && isRecording && (
-                                <div className={`${styles.liveSpeechBox} ${isListening && !isAiSpeaking ? styles.liveSpeechActive : ""}`}>
-                                    <div className={styles.liveSpeechHeader}>
-                                        <div
-                                            className={styles.speechPulseDot}
-                                            style={{
-                                                background: isAiSpeaking ? "#94a3b8" : isListening ? "#22c55e" : "#eab308",
-                                            }}
-                                        />
-                                        <span>
-                                            {isAiSpeaking
-                                                ? "Interviewer is speaking — listen closely…"
-                                                : isListening
-                                                ? "AI is listening to you… speak your response"
-                                                : "Paused"}
-                                        </span>
-                                        {currentAnswer && (
-                                            <span className={styles.wordCountBadge}>
-                                                {currentAnswer.trim().split(/\s+/).filter(Boolean).length} words
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className={styles.liveSpeechContent}>
-                                        {isEditingAnswer ? (
-                                            <textarea
-                                                className={styles.liveSpeechEditArea}
-                                                value={currentAnswer}
-                                                onChange={(e) => setCurrentAnswer(e.target.value)}
-                                                placeholder="Type or refine your response here…"
-                                            />
-                                        ) : currentAnswer ? (
-                                            <p className={styles.liveSpeechText}>{currentAnswer}</p>
-                                        ) : (
-                                            <p className={styles.liveSpeechPlaceholder}>
-                                                {isAiSpeaking
-                                                    ? "Prepare your thoughts while the interviewer finishes speaking."
-                                                    : "Start speaking your answer clearly. Your spoken words are transcribed here in real-time."}
-                                            </p>
-                                        )}
-                                    </div>
-                                    {currentAnswer && (
-                                        <button
-                                            type="button"
-                                            className={styles.liveSpeechEditToggle}
-                                            onClick={() => setIsEditingAnswer(!isEditingAnswer)}
-                                        >
-                                            {isEditingAnswer ? "Done editing" : "Edit / refine transcription"}
-                                        </button>
-                                    )}
                                 </div>
                             )}
 
@@ -791,12 +882,112 @@ export default function InterviewTab() {
                 </div>
             </main>
 
-            {/* End Interview Warning Modal */}
+            {/* Live Coaching Instant Feedback Modal */}
+            {(isGeneratingInstantFeedback || instantFeedback) && (
+                <div className={styles.instantFeedbackOverlay}>
+                    <div className={styles.instantFeedbackModal}>
+                        {isGeneratingInstantFeedback ? (
+                            <div className={styles.instantGeneratingCard}>
+                                <div className={styles.instantGeneratingSpinner} />
+                                <h4 style={{ color: "#f8fafc", margin: 0, fontSize: "1rem" }}>
+                                    Analyzing your response…
+                                </h4>
+                                <p style={{ color: "#94a3b8", fontSize: "0.825rem", margin: 0, maxWidth: 360 }}>
+                                    Your AI coach is evaluating delivery, technical depth, and alignment with {targetCompany} benchmarks.
+                                </p>
+                            </div>
+                        ) : instantFeedback ? (
+                            <>
+                                <div className={styles.instantFeedbackHeader}>
+                                    <div className={styles.instantCoachProfile}>
+                                        <div className={styles.instantCoachAvatar}>
+                                            <Sparkle size={20} weight="fill" />
+                                        </div>
+                                        <div>
+                                            <h3 className={styles.instantCoachTitle}>Live Coach Feedback</h3>
+                                            <p className={styles.instantCoachSubtitle}>Instant Per-Question Critique</p>
+                                        </div>
+                                    </div>
+                                    <div className={styles.instantScoreBadgeRow}>
+                                        <span
+                                            className={`${styles.instantRatingPill} ${
+                                                instantFeedback.rating === "Strong"
+                                                    ? styles.ratingStrong
+                                                    : instantFeedback.rating === "Average"
+                                                    ? styles.ratingAverage
+                                                    : styles.ratingNeedsWork
+                                            }`}
+                                        >
+                                            {instantFeedback.rating}
+                                        </span>
+                                        <span className={styles.instantScorePill}>
+                                            {instantFeedback.score}/100
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className={styles.instantFeedbackBody}>
+                                    <div className={styles.instantHeadlineCard}>
+                                        "{instantFeedback.headline}"
+                                    </div>
+
+                                    <div>
+                                        <div className={styles.instantSectionTitle}>
+                                            <CheckCircle size={15} weight="fill" color="#10b981" />
+                                            <span>What Worked Well</span>
+                                        </div>
+                                        <ul className={styles.instantStrengthsList}>
+                                            {instantFeedback.strengths?.map((str, idx) => (
+                                                <li key={idx} className={styles.instantStrengthsItem}>
+                                                    <CheckCircle size={14} weight="fill" />
+                                                    <span>{str}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+
+                                    <div className={styles.instantCoachingTipCard}>
+                                        <div className={styles.instantSectionTitle} style={{ color: "#fbbf24" }}>
+                                            <Lightbulb size={15} weight="fill" color="#fbbf24" />
+                                            <span>Coach Polish Tip</span>
+                                        </div>
+                                        <p>{instantFeedback.coachingTip}</p>
+                                    </div>
+
+                                    <div className={styles.instantModelAnswerCard}>
+                                        <div className={styles.instantSectionTitle} style={{ color: "#94a3b8" }}>
+                                            <Star size={14} weight="fill" color="#f59e0b" />
+                                            <span>Top 1% Model Answer Benchmark</span>
+                                        </div>
+                                        <p>"{instantFeedback.modelAnswer}"</p>
+                                    </div>
+                                </div>
+
+                                <div className={styles.instantFeedbackFooter}>
+                                    <button
+                                        type="button"
+                                        className={styles.instantContinueBtn}
+                                        onClick={handleContinueAfterCoaching}
+                                    >
+                                        <span>Next Question</span>
+                                        <ArrowRight size={16} weight="bold" />
+                                    </button>
+                                </div>
+                            </>
+                        ) : null}
+                    </div>
+                </div>
+            )}
+
+            {/* End Interview Warning Modal — modern design */}
             {showEndModal && (
-                <div className={styles.modalOverlay}>
-                    <div className={styles.endModal}>
+                <div className={styles.modalOverlay} onClick={handleCancelEnd}>
+                    <div className={styles.endModal} onClick={(e) => e.stopPropagation()}>
+                        <button className={styles.endModalCloseBtn} onClick={handleCancelEnd} aria-label="Close">
+                            <CloseRegular size={16} />
+                        </button>
                         <div className={styles.endModalIcon}>
-                            <Warning size={32} color="#f59e0b" />
+                            <AlertRegular size={30} color="#f59e0b" />
                         </div>
                         <h3 className={styles.endModalTitle}>End Interview Early?</h3>
                         <p className={styles.endModalText}>

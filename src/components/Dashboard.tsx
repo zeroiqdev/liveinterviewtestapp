@@ -23,6 +23,7 @@ import { TopJobsPanel } from "./dashboard/TopJobsPanel";
 import { JobDescModal } from "./dashboard/JobDescModal";
 import { TinderCardDeck } from "./dashboard/TinderCardDeck";
 import { SettingsModal } from "./dashboard/SettingsModal";
+import { InterviewSetupModal } from "./dashboard/InterviewSetupModal";
 import { useInterview } from "../context/InterviewContext";
 
 interface UserProfile {
@@ -132,10 +133,69 @@ export default function Dashboard() {
         });
     }, []);
 
+    const [isInterviewSetupOpen, setIsInterviewSetupOpen] = useState(false);
+    const [setupModalContext, setSetupModalContext] = useState<{
+        role?: string;
+        company?: string;
+        isSpecificJob?: boolean;
+        jobTitle?: string;
+        interviewTypeTitle?: string;
+        jobResponsibilities?: string[];
+    }>({});
+
     const handleOpenPayment = useCallback(() => setIsPaymentModalOpen(true), []);
     const handleClosePayment = useCallback(() => setIsPaymentModalOpen(false), []);
     const handleOpenJobDesc = useCallback((job: JobItem) => setSelectedJobDesc(job), []);
     const handleCloseJobDesc = useCallback(() => setSelectedJobDesc(null), []);
+
+    const handleOpenInterviewSetup = useCallback(
+        (context?: {
+            company?: string;
+            title?: string;
+            responsibilities?: string[];
+            roundTitle?: string;
+            interviewTypeTitle?: string;
+        }) => {
+            if (context) {
+                if (context.company) {
+                    setSetupModalContext({
+                        role: context.title || user?.role || "Software Engineer",
+                        company: context.company,
+                        isSpecificJob: true,
+                        jobTitle: context.title,
+                        interviewTypeTitle: `${context.company} ${context.title || user?.role || "Interview"}`,
+                        jobResponsibilities: context.responsibilities || [],
+                    });
+                } else if (context.roundTitle || context.interviewTypeTitle) {
+                    const raw = (context.roundTitle || context.interviewTypeTitle || "").replace(/\n/g, " ").trim();
+                    const clean = raw.toLowerCase().endsWith("interview") ? raw : `${raw} Interview`;
+                    setSetupModalContext({
+                        role: user?.role || "Product Manager",
+                        company: "",
+                        isSpecificJob: false,
+                        jobTitle: clean,
+                        interviewTypeTitle: clean,
+                    });
+                } else {
+                    setSetupModalContext({
+                        role: user?.role || "Product Manager",
+                        company: "",
+                        isSpecificJob: false,
+                        interviewTypeTitle: context.title ? `${context.title} Interview` : "Product Sense Interview",
+                    });
+                }
+            } else {
+                setSetupModalContext({
+                    role: user?.role || "Product Manager",
+                    company: "",
+                    isSpecificJob: false,
+                    interviewTypeTitle: "Product Sense Interview",
+                });
+            }
+            setIsInterviewSetupOpen(true);
+        },
+        [user?.role]
+    );
 
     const handleRoleChange = useCallback((newRole: string, newDomain: string) => {
         const family = normalizeUserRoleFamily(newRole);
@@ -273,7 +333,7 @@ export default function Dashboard() {
                             <h1 className={styles.heroHeading}>Ready to ace your next<br />interview?</h1>
                             <button
                                 className={styles.heroProgressBtn}
-                                onClick={handleOpenPayment}
+                                onClick={() => handleOpenInterviewSetup()}
                             >
                                 Start Interview <ArrowRight size={16} weight="bold" className={styles.heroProgressArrow} />
                             </button>
@@ -284,7 +344,7 @@ export default function Dashboard() {
                                 <ModuleCardItem
                                     key={card.number}
                                     card={card}
-                                    onSelect={handleOpenPayment}
+                                    onSelect={() => handleOpenInterviewSetup({ roundTitle: card.title })}
                                 />
                             ))}
                         </div>
@@ -298,14 +358,14 @@ export default function Dashboard() {
                             userRoleFamily={user?.roleFamily}
                             onSwitchLocation={handleSwitchLocation}
                             onOpenJob={handleOpenJobDesc}
-                            onPractice={handleOpenPayment}
+                            onPractice={handleOpenInterviewSetup}
                         />
 
                         <ChatsPanel
                             userRole={user?.role}
                             userRoleFamily={user?.roleFamily}
                             displayedJobs={displayedJobs}
-                            onPractice={handleOpenPayment}
+                            onPractice={() => handleOpenInterviewSetup()}
                             onOpenJob={handleOpenJobDesc}
                         />
                     </div>
@@ -321,7 +381,7 @@ export default function Dashboard() {
                                 <h1 className={styles.mobileHomeHeading}>Ready to ace your next interview?</h1>
                             </div>
                             <TinderCardDeck
-                                onPractice={handleOpenPayment}
+                                onPractice={(round) => handleOpenInterviewSetup(round)}
                                 userRole={user?.role}
                                 userRoleFamily={user?.roleFamily}
                             />
@@ -337,7 +397,7 @@ export default function Dashboard() {
                             userRoleFamily={user?.roleFamily}
                             onSwitchLocation={handleSwitchLocation}
                             onOpenJob={handleOpenJobDesc}
-                            onPractice={handleOpenPayment}
+                            onPractice={handleOpenInterviewSetup}
                         />
                     )}
 
@@ -347,7 +407,7 @@ export default function Dashboard() {
                             userRole={user?.role}
                             userRoleFamily={user?.roleFamily}
                             displayedJobs={displayedJobs}
-                            onPractice={handleOpenPayment}
+                            onPractice={() => handleOpenInterviewSetup()}
                             onOpenJob={handleOpenJobDesc}
                         />
                     )}
@@ -412,11 +472,24 @@ export default function Dashboard() {
                     job={selectedJobDesc}
                     onClose={handleCloseJobDesc}
                     onPractice={() => {
+                        const job = selectedJobDesc;
                         setSelectedJobDesc(null);
-                        setIsPaymentModalOpen(true);
+                        handleOpenInterviewSetup(job);
                     }}
                 />
             )}
+
+            {/* ── Interview Launch Setup Modal (Settings Design System) ── */}
+            <InterviewSetupModal
+                isOpen={isInterviewSetupOpen}
+                onClose={() => setIsInterviewSetupOpen(false)}
+                initialRole={setupModalContext.role || user?.role}
+                initialCompany={setupModalContext.company}
+                isSpecificJob={setupModalContext.isSpecificJob}
+                jobTitle={setupModalContext.jobTitle}
+                interviewTypeTitle={setupModalContext.interviewTypeTitle}
+                jobResponsibilities={setupModalContext.jobResponsibilities}
+            />
 
             <SettingsModal
                 isOpen={isSettingsOpen}

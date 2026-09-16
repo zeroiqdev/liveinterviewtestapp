@@ -119,6 +119,17 @@ export function sanitizeReportData(
             feedback: sanitizeToSecondPerson(qa.feedback),
             modelAnswer: sanitizeToSecondPerson(qa.modelAnswer),
         })),
+        responsibilityAlignment: report.responsibilityAlignment
+            ? {
+                  targetCompany: report.responsibilityAlignment.targetCompany,
+                  keyResponsibilitiesEvaluated: report.responsibilityAlignment.keyResponsibilitiesEvaluated || [],
+                  alignmentScore: report.responsibilityAlignment.alignmentScore ?? 80,
+                  summary: sanitizeToSecondPerson(report.responsibilityAlignment.summary || ""),
+                  demonstratedCompetencies: (report.responsibilityAlignment.demonstratedCompetencies || []).map(sanitizeToSecondPerson),
+                  underrepresentedAreas: (report.responsibilityAlignment.underrepresentedAreas || []).map(sanitizeToSecondPerson),
+                  recommendationsForRole: (report.responsibilityAlignment.recommendationsForRole || []).map(sanitizeToSecondPerson),
+              }
+            : undefined,
     };
 
     // Recover any questions asked by interviewer from rawTranscript if omitted from qaBreakdown

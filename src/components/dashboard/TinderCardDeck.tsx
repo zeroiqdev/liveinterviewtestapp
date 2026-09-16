@@ -6,7 +6,7 @@ import styles from "../dashboard.module.css";
 import { getInterviewRoundsForRole } from "./constants";
 
 interface TinderCardDeckProps {
-    onPractice: () => void;
+    onPractice: (round?: { roundTitle: string }) => void;
     userRole?: string;
     userRoleFamily?: string;
 }
@@ -77,7 +77,7 @@ export function TinderCardDeck({ onPractice, userRole, userRoleFamily }: TinderC
             // Swiped Right -> Practice
             setSwipeDirection("right");
             setTimeout(() => {
-                onPractice();
+                onPractice({ roundTitle: currentCard?.title ? currentCard.title.replace(/\n/g, " ") : "Interview" });
                 handleNext();
                 setDragOffset({ x: 0, y: 0 });
                 setSwipeDirection(null);
@@ -93,12 +93,13 @@ export function TinderCardDeck({ onPractice, userRole, userRoleFamily }: TinderC
         } else {
             // Check if it was a simple tap without drag -> Open practice
             if (Math.abs(dragOffset.x) < 5 && Math.abs(dragOffset.y) < 5) {
-                onPractice();
+                onPractice({ roundTitle: currentCard?.title ? currentCard.title.replace(/\n/g, " ") : "Interview" });
             }
             setDragOffset({ x: 0, y: 0 });
             setSwipeDirection(null);
         }
-    }, [isDragging, dragOffset.x, dragOffset.y, onPractice, handleNext]);
+    }, [isDragging, dragOffset.x, dragOffset.y, onPractice, handleNext, currentCard?.title]);
+
 
     return (
         <div className={styles.deckSectionContainer}>
