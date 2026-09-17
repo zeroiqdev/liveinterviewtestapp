@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { callJSON } from "@/engine/llm";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
+import { extractDocumentText } from "@/lib/documentParser";
 
 export interface ResumeEnhanceResult {
     improvedDoc: string;
@@ -34,17 +35,28 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const {
-            resumeText,
+            resumeText = "",
             role = "Software Engineer",
             domain = "Software & Engineering",
             userNotes = "",
             email,
             resumeId,
+            fileData = "",
+            resumeName = "Resume.pdf",
         } = body;
 
-        if (!resumeText || typeof resumeText !== "string" || resumeText.trim().length < 40) {
+        const inputToExtract = fileData || resumeText;
+        let parsedText = await extractDocumentText(inputToExtract, resumeName);
+
+        if (!parsedText || parsedText.length < 30) {
+            if (typeof resumeText === "string" && resumeText.trim().length >= 30 && !resumeText.startsWith("PK") && !resumeText.startsWith("%PDF")) {
+                parsedText = resumeText.trim();
+            }
+        }
+
+        if (!parsedText || parsedText.length < 30) {
             return NextResponse.json(
-                { error: "Resume text must be at least 40 characters long." },
+                { error: "Resume text must be at least 30 characters long and contain readable plain text." },
                 { status: 400 }
             );
         }
@@ -54,7 +66,7 @@ DOMAIN: ${domain}
 USER CUSTOM NOTES / EDITS: ${userNotes || "Enhance for maximum impact and ATS score."}
 
 ORIGINAL RESUME:
-${resumeText.slice(0, 10000)}`;
+${parsedText.slice(0, 10000)}`;
 
         const result = await callJSON<ResumeEnhanceResult>({
             system: ENHANCE_SYSTEM_PROMPT,

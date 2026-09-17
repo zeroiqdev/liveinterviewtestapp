@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { callJSON } from "@/engine/llm";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
+import { extractDocumentText } from "@/lib/documentParser";
+
+export interface BulletReview {
+    originalText: string;
+    score: number; // 1-10
+    isCompanyDescription: boolean;
+    category?: "Impact & Metrics" | "Role Alignment & Keywords" | "Structure & Clarity" | "Action Verbs & Brevity";
+    feedback?: string;
+    recommendation?: string;
+    rewritten?: string; // only if score < 7 and not company description
+}
 
 export interface ResumeScanResult {
     score: number;
@@ -11,59 +22,188 @@ export interface ResumeScanResult {
         category: "Impact & Metrics" | "Role Alignment & Keywords" | "Structure & Clarity" | "Action Verbs & Brevity";
         feedback: string;
         recommendation: string;
+        targetSnippet?: string;
+        proposedText?: string;
     }>;
     missingKeywords: string[];
+    bulletReviews?: BulletReview[];
 }
 
-const SCAN_SYSTEM_PROMPT = `You are a top-tier executive talent scout and technical resume reviewer at top tech companies.
-Your job is to objectively analyze a candidate's resume/CV text against their targeted job role.
+const SCAN_SYSTEM_PROMPT = `You are a top-tier executive talent scout and technical resume reviewer at FAANG / top fintechs.
+Your job is to objectively analyze a candidate's resume/CV text against their targeted job role with BULLET-LEVEL precision.
 
-Evaluate the resume across these key dimensions:
-1. Impact & Quantifiable Results (metrics, numbers, ROI, outcomes vs passive job descriptions).
-2. Role Alignment & ATS Keyword Density (specific tools, methodologies, competencies expected for the role).
-3. Brevity & Action Verb Strength (starting bullets with strong verbs, avoiding passive phrasing).
-4. Clarity & Modern Formatting.
+CRITICAL RULES — you MUST follow these exactly:
 
-Return a JSON object with this exact structure:
+1. DISTINGUISH COMPANY DESCRIPTIONS FROM ACHIEVEMENT BULLETS:
+   - Lines like "Moniepoint is on a mission to power..." or "Norebase helps companies start..." or "Fidia offered freelancers..." are COMPANY DESCRIPTIONS — they describe the employer, not the candidate's achievements. Mark isCompanyDescription=true, give NO feedback and NO rewrite for these. Do NOT suggest improving them.
+   - Only score and critique lines that describe the candidate's own actions, ownership, and impact (achievement bullets).
+
+2. SCORING THRESHOLD — BE SELECTIVE:
+   - Score EVERY achievement bullet 1-10 on: strong action verb, quantifiable business impact (numbers/%, Naira/$, users, tx volume), specificity of how it was done, and brevity.
+   - If a bullet is ALREADY strong (7/10 or higher) — e.g. "Led the revamp of the Monnify Channels team onboarding flow to evade over 250 billion Naira in fines" or "Established the first growth task force ... 20% to 40% by Q1, 2025. Currently at 25%" or any bullet with clear ownership + hard metric + business risk — then mark it 7-10, leave feedback/recommendation/rewritten EMPTY, and DO NOT create a suggestion for it. Strong bullets need no rewrite.
+   - ONLY for bullets scoring <7 (weak: vague verbs like "Responsible for", "Worked with", "Participated", "Helped", missing metrics, passive phrasing, or generic claims) provide feedback + recommendation + a GROUNDED rewrite.
+
+ 3. GROUNDED REWRITES — NO FABRICATION:
+    - Rewrites MUST reuse numbers/metrics already in the original bullet (e.g. keep "250 billion Naira", "30%", "99.99%", "100M transactions", "80% volume", "92.23% reduction"). Do NOT invent generic metrics like "35% velocity" or "95+ Lighthouse" unless they replace a vague claim and you signal they're illustrative.
+    - Use Google X-Y-Z where helpful: "Accomplished [X] as measured by [Y] by doing [Z]" but keep it faithful to the original story.
+    - Keep the candidate's voice and technology domain; don't switch product-manager context to frontend components.
+
+ 5. AVOID REPETITIVE TEMPLATES:
+    - Do NOT start any feedback with "The description starts with" / "The bullet starts with" / "The text starts with" / "This bullet starts with". Never use that template.
+    - Start directly with the weakness: e.g. "Vague build claim — no audience size, adoption, or business metric" / "Passive verb + missing scale — 'Built' understates ownership and impact" / "No measurable outcome — add users, revenue, or latency delta".
+    - Each bullet's feedback must be distinct and specific to that bullet's verb/metric gap. Do NOT repeat the same opening clause across bullets.
+
+4. RETURN FORMAT — you MUST return valid JSON with this exact structure:
 {
-  "score": <number 0-100 representing readiness and ATS strength for the target role>,
-  "summary": "<2-3 sentence executive critique of the resume's positioning, impact, and main opportunity>",
-  "strengths": [
-    "<Highlight 1 citing specific experience or technical skill demonstrated effectively>",
-    "<Highlight 2>",
-    "<Highlight 3>"
-  ],
+  "score": <number 0-100 overall ATS + role readiness>,
+  "summary": "<2-3 sentence executive critique>",
+  "strengths": ["<cite specific strong bullets or skills>", "...", "..."],
   "suggestions": [
     {
-      "category": "<'Impact & Metrics' | 'Role Alignment & Keywords' | 'Structure & Clarity' | 'Action Verbs & Brevity'>",
-      "feedback": "<Specific observation of what is lacking in their bullet points or summary>",
-      "recommendation": "<Concrete, actionable revision advice on how to rewrite or improve that section>"
+      "category": "<Impact & Metrics | Role Alignment & Keywords | Structure & Clarity | Action Verbs & Brevity>",
+      "feedback": "<why this bullet is weak>",
+      "recommendation": "<how to fix>",
+      "targetSnippet": "<exact original bullet text>",
+      "proposedText": "<faithful rewrite with preserved metrics>"
     }
   ],
-  "missingKeywords": [
-    "<Keyword 1 missing for this role>",
-    "<Keyword 2>",
-    "<Keyword 3>",
-    "<Keyword 4>"
+  "missingKeywords": ["<4-5 ATS keywords missing for role>"],
+  "bulletReviews": [
+    {
+      "originalText": "<exact bullet text as in resume>",
+      "score": <1-10>,
+      "isCompanyDescription": <true|false>,
+      "category": "<only if score <7>",
+      "feedback": "<only if score <7>",
+      "recommendation": "<only if score <7>",
+      "rewritten": "<only if score <7, grounded rewrite>"
+    }
   ]
 }
 
-Provide 3 to 5 high-impact suggestions that will genuinely boost interview callbacks.
-Be constructive, specific, and directly relevant to the target role.`;
+- bulletReviews MUST cover every achievement bullet AND company-description line you identify (so frontend can map them 1:1 and skip 7+).
+- suggestions array MUST be exactly the subset of bulletReviews where score <7 and isCompanyDescription=false (0 to 4 items — if all bullets are 7+, return empty suggestions array, that is correct).
+- strengths MUST call out the strong bullets you scored 7+.
+- Be precise and concise; do not generate generic template suggestions like "Engineered modular component design system" unless the original bullet was actually about frontend components.`;
 
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { resumeText, role = "Software Engineer", domain = "Software & Engineering", email, resumeName = "My_Resume.pdf" } = body;
+        const {
+            resumeText = "",
+            role = "Software Engineer",
+            domain = "Software & Engineering",
+            email,
+            resumeName = "My_Resume.pdf",
+            fileData = "",
+            doc: docFromClient,
+            anchorMap: anchorMapFromClient,
+        } = body as any;
 
-        if (!resumeText || typeof resumeText !== "string" || resumeText.trim().length < 40) {
+        // If caller already has a canonical ResumeDoc (new architecture), use the structured pipeline
+        if (docFromClient) {
+            try {
+                const { ResumeDocSchema } = await import("@/lib/resume/types");
+                const parsedDoc = ResumeDocSchema.parse(docFromClient);
+                const { suggestForDoc } = await import("@/lib/resume/ai/chunk");
+                const { valid, dropped } = await suggestForDoc(parsedDoc);
+                // Map RawSuggestion -> legacy ResumeScanResult shape for backward compat
+                const { richTextToPlain } = await import("@/lib/resume/types");
+                // Build legacy bulletReviews and suggestions from valid
+                const flat = (await import("@/lib/resume/ai/flatten")).flattenDoc(parsedDoc);
+                const nodesById = new Map(flat.map((n: any) => [n.id, n]));
+                const bulletReviews: BulletReview[] = [];
+                const suggestions: ResumeScanResult["suggestions"] = [];
+                for (const s of valid) {
+                    const node = nodesById.get(s.targetId);
+                    const afterText = (s as any).after as string;
+                    const catMap: Record<string, BulletReview["category"]> = {
+                        impact: "Impact & Metrics",
+                        clarity: "Action Verbs & Brevity",
+                        keyword: "Role Alignment & Keywords",
+                        grammar: "Structure & Clarity",
+                        length: "Structure & Clarity",
+                    };
+                    const br: BulletReview = {
+                        originalText: node?.text || "",
+                        score: (s as any).severity === "high" ? 5 : (s as any).severity === "medium" ? 6 : 6,
+                        isCompanyDescription: false,
+                        category: catMap[(s as any).category] || "Impact & Metrics",
+                        feedback: (s as any).rationale || "",
+                        recommendation: `Apply: ${afterText.slice(0, 80)}`,
+                        rewritten: afterText,
+                    };
+                    bulletReviews.push(br);
+                    suggestions.push({
+                        category: br.category!,
+                        feedback: br.feedback!,
+                        recommendation: br.recommendation!,
+                        targetSnippet: br.originalText,
+                        proposedText: afterText,
+                    });
+                }
+                // Also include non-suggested nodes as 8/10 to satisfy UI's 7+ skip
+                for (const n of flat) {
+                    if (n.kind === "bullet" && !valid.some((v) => v.targetId === n.id)) {
+                        bulletReviews.push({ originalText: n.text, score: 8, isCompanyDescription: false });
+                    }
+                }
+                const score = Math.max(48, Math.min(92, 62 + valid.length * 3 + (parsedDoc.source.confidence > 0.7 ? 12 : 0)));
+                const result: ResumeScanResult = {
+                    score,
+                    summary: `Reviewed ${flat.filter((n) => n.kind === "bullet").length} bullets via canonical model (confidence ${(parsedDoc.source.confidence * 100).toFixed(0)}%). ${valid.length ? `${valid.length} focused improvements proposed.` : "No changes needed — strong bullets."}`,
+                    strengths: valid.length ? [] : ["Strong, well-quantified bullets."],
+                    suggestions,
+                    missingKeywords: [],
+                    bulletReviews,
+                };
+                // Persist if email
+                if (email) {
+                    try {
+                        await dbConnect();
+                        const user = await User.findOne({ email: email.toLowerCase().trim() });
+                        if (user) {
+                            const resumeId = `cv_${Date.now()}`;
+                            user.resumes.push({
+                                id: resumeId,
+                                name: resumeName,
+                                rawText: flat.map((n) => n.text).join("\n"),
+                                score: result.score,
+                                summary: result.summary,
+                                strengths: result.strengths,
+                                suggestions: result.suggestions,
+                                missingKeywords: result.missingKeywords,
+                                improvedDoc: "",
+                                createdAt: new Date(),
+                                updatedAt: new Date(),
+                            } as any);
+                            await user.save();
+                        }
+                    } catch {}
+                }
+                return NextResponse.json({ success: true, result, extractedText: flat.map((n) => n.text).join("\n"), usedNewPipeline: true, dropped });
+            } catch (e) {
+                console.warn("[api/resume/scan] new pipeline fallback to legacy:", (e as Error).message);
+            }
+        }
+
+        const inputToExtract = fileData || resumeText;
+        let parsedText = await extractDocumentText(inputToExtract, resumeName);
+
+        if (!parsedText || parsedText.length < 30) {
+            if (typeof resumeText === "string" && resumeText.trim().length >= 30 && !resumeText.startsWith("PK") && !resumeText.startsWith("%PDF")) {
+                parsedText = resumeText.trim();
+            }
+        }
+
+        if (!parsedText || parsedText.length < 30) {
             return NextResponse.json(
-                { error: "Resume text must be at least 40 characters long." },
+                { error: "Could not extract readable text from the uploaded file. Please ensure the file contains selectable text or upload a plain text / Markdown resume." },
                 { status: 400 }
             );
         }
 
-        const userPrompt = `TARGET ROLE: ${role}\nDOMAIN: ${domain}\n\nRESUME CONTENT:\n${resumeText.slice(0, 10000)}`;
+        const userPrompt = `TARGET ROLE: ${role}\nDOMAIN: ${domain}\n\nRESUME CONTENT:\n${parsedText.slice(0, 10000)}`;
 
         const result = await callJSON<ResumeScanResult>({
             system: SCAN_SYSTEM_PROMPT,
@@ -82,7 +222,7 @@ export async function POST(req: NextRequest) {
                     user.resumes.push({
                         id: resumeId,
                         name: resumeName,
-                        rawText: resumeText,
+                        rawText: parsedText,
                         score: result.score,
                         summary: result.summary,
                         strengths: result.strengths,
@@ -102,6 +242,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             success: true,
             result,
+            extractedText: parsedText,
         });
     } catch (err) {
         console.error("[api/resume/scan] Error:", err);

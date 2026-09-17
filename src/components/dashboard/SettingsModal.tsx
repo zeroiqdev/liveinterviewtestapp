@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
     X,
     UploadSimple,
@@ -12,6 +13,7 @@ import {
     CheckCircle,
     Globe,
     ArrowSquareOut,
+    ArrowUpRight,
     Sparkle,
     User,
 } from "@phosphor-icons/react";
@@ -19,6 +21,16 @@ import styles from "../dashboard.module.css";
 import { COACH_AVATAR, RECRUITER_AVATAR } from "./constants";
 import type { ResumeScanResult } from "@/app/api/resume/scan/route";
 import { CareerNarrativeStudio } from "./CareerNarrativeStudio";
+
+export interface StoredResumeItem {
+    id: string;
+    name: string;
+    data?: string;
+    rawText?: string;
+    updatedAt?: string;
+    source?: "uploaded" | "narrative_studio";
+    score?: number;
+}
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -67,6 +79,8 @@ export function SettingsModal({
     userEmail,
     onRoleChange,
 }: SettingsModalProps) {
+    const router = useRouter();
+
     // Role state
     const [selectedRole, setSelectedRole] = useState(currentRole);
     const [selectedDomain, setSelectedDomain] = useState(currentDomain);
@@ -75,16 +89,15 @@ export function SettingsModal({
     const [roleSavedSuccess, setRoleSavedSuccess] = useState(false);
     const [fetchedRoles, setFetchedRoles] = useState<RoleOption[]>([]);
 
-    // CV Upload Status state
-    const [hasCvUploaded, setHasCvUploaded] = useState<boolean>(false);
-    const [uploadedCvName, setUploadedCvName] = useState<string>("");
-    const [isUploadingNewCv, setIsUploadingNewCv] = useState<boolean>(false);
+    // Saved Resumes list state (consistent with InterviewSetupModal)
+    const [savedResumes, setSavedResumes] = useState<StoredResumeItem[]>([]);
+    const [selectedResumeId, setSelectedResumeId] = useState<string>("");
+    const [isUploadingNew, setIsUploadingNew] = useState<boolean>(false);
 
     // Resume Scan / Submission state
     const [resumeName, setResumeName] = useState<string>("");
     const [resumeText, setResumeText] = useState<string>("");
     const [isScanning, setIsScanning] = useState(false);
-    const [scanResult, setScanResult] = useState<ResumeScanResult | null>(null);
     const [scanError, setScanError] = useState<string | null>(null);
 
     // Portfolio link & Navigation tab state
@@ -100,11 +113,11 @@ export function SettingsModal({
         setRoleQuery(currentRole);
     }, [currentRole, currentDomain]);
 
-    // Check CV upload status and portfolio from local storage and backend
+    // Check saved resumes and portfolio from local storage and backend
     useEffect(() => {
         if (!isOpen) return;
 
-        let foundCv = "";
+        let loadedList: StoredResumeItem[] = [];
         const raw = typeof window !== "undefined" ? localStorage.getItem("useladder_user") : null;
         if (raw) {
             try {
@@ -113,27 +126,48 @@ export function SettingsModal({
                     setPortfolioUrl(parsed.portfolioUrl);
                 }
                 if (parsed.resumes && Array.isArray(parsed.resumes) && parsed.resumes.length > 0) {
-                    foundCv = parsed.resumes[0].name || "Uploaded_Resume.pdf";
-                    if (parsed.resumes[0].rawText || parsed.resumes[0].data) {
-                        setResumeText(parsed.resumes[0].rawText || parsed.resumes[0].data);
-                    }
+                    loadedList = parsed.resumes.map((r: any, idx: number) => ({
+                        id: r.id || `resume_${idx}`,
+                        name: r.name || `Resume_${idx + 1}.pdf`,
+                        data: r.data || "",
+                        rawText: r.rawText || r.data || "",
+                        updatedAt: r.updatedAt ? new Date(r.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "",
+                        source: r.source || "uploaded",
+                        score: r.score,
+                    }));
                 } else if (parsed.resume) {
-                    foundCv = typeof parsed.resume === "string" ? "Uploaded_Resume.pdf" : (parsed.resume.name || "Uploaded_Resume.pdf");
-                    if (parsed.resume.rawText || parsed.resume.data) {
-                        setResumeText(parsed.resume.rawText || parsed.resume.data);
-                    }
+                    loadedList = [
+                        {
+                            id: typeof parsed.resume === "object" && parsed.resume.id ? parsed.resume.id : "res_primary",
+                            name: typeof parsed.resume === "object" && parsed.resume.name ? parsed.resume.name : "Active_Resume.pdf",
+                            data: typeof parsed.resume === "object" ? parsed.resume.data || "" : "",
+                            rawText: typeof parsed.resume === "object" ? parsed.resume.rawText || parsed.resume.data || "" : "",
+                            updatedAt: typeof parsed.resume === "object" && parsed.resume.updatedAt ? new Date(parsed.resume.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "",
+                            source: "uploaded",
+                            score: typeof parsed.resume === "object" ? parsed.resume.score : undefined,
+                        },
+                    ];
+                }
+
+                setSavedResumes(loadedList);
+
+                if (loadedList.length > 0) {
+                    const targetId = parsed.selectedResumeId || loadedList[0].id;
+                    const found = loadedList.find((r) => r.id === targetId) || loadedList[0];
+                    setSelectedResumeId(found.id);
+                    setResumeName(found.name);
+                    setResumeText(found.rawText || found.data || "");
+                    setIsUploadingNew(false);
+                } else {
+                    setIsUploadingNew(true);
                 }
             } catch (e) {
                 console.error("Error reading useladder_user resumes:", e);
+                setIsUploadingNew(true);
             }
         }
 
-        if (foundCv) {
-            setHasCvUploaded(true);
-            setUploadedCvName(foundCv);
-            setResumeName(foundCv);
-            setIsUploadingNewCv(false);
-        } else if (userEmail) {
+        if (userEmail) {
             fetch(`/api/auth/user?email=${encodeURIComponent(userEmail)}`)
                 .then((r) => r.json())
                 .then((data) => {
@@ -141,27 +175,25 @@ export function SettingsModal({
                         setPortfolioUrl(data.user.portfolioUrl);
                     }
                     if (data.user?.resumes && Array.isArray(data.user.resumes) && data.user.resumes.length > 0) {
-                        const r = data.user.resumes[0];
-                        const name = r.name || "Uploaded_Resume.pdf";
-                        setHasCvUploaded(true);
-                        setUploadedCvName(name);
-                        setResumeName(name);
-                        if (r.rawText) {
-                            setResumeText(r.rawText);
+                        const fetchedList: StoredResumeItem[] = data.user.resumes.map((r: any, idx: number) => ({
+                            id: r.id || `resume_${idx}`,
+                            name: r.name || `Resume_${idx + 1}.pdf`,
+                            data: r.rawText || "",
+                            rawText: r.rawText || "",
+                            updatedAt: r.updatedAt ? new Date(r.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "",
+                            source: "uploaded",
+                            score: r.score,
+                        }));
+                        setSavedResumes(fetchedList);
+                        if (fetchedList.length > 0) {
+                            setSelectedResumeId(fetchedList[0].id);
+                            setResumeName(fetchedList[0].name);
+                            setResumeText(fetchedList[0].rawText || "");
+                            setIsUploadingNew(false);
                         }
-                        setIsUploadingNewCv(false);
-                    } else {
-                        setHasCvUploaded(false);
-                        setIsUploadingNewCv(true);
                     }
                 })
-                .catch(() => {
-                    setHasCvUploaded(false);
-                    setIsUploadingNewCv(true);
-                });
-        } else {
-            setHasCvUploaded(false);
-            setIsUploadingNewCv(true);
+                .catch(() => {});
         }
     }, [isOpen, userEmail]);
 
@@ -236,50 +268,268 @@ export function SettingsModal({
         }
     };
 
+    const handleSelectResume = async (item: StoredResumeItem) => {
+        setSelectedResumeId(item.id);
+        setResumeName(item.name);
+        setScanError(null);
+
+        let cleanText = item.rawText || "";
+        if (!cleanText && item.data) {
+            if (item.data.startsWith("data:") || item.name.endsWith(".pdf") || item.name.endsWith(".docx")) {
+                try {
+                    const parseRes = await fetch("/api/resume/parse", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            fileData: item.data,
+                            resumeName: item.name,
+                        }),
+                    });
+                    const parseData = await parseRes.json();
+                    if (parseData.success && parseData.text) {
+                        cleanText = parseData.text;
+                        item.rawText = cleanText;
+                    }
+                } catch {}
+            } else if (!item.data.startsWith("data:")) {
+                cleanText = item.data;
+            }
+        }
+
+        setResumeText(cleanText);
+        setIsUploadingNew(false);
+
+        const raw = typeof window !== "undefined" ? localStorage.getItem("useladder_user") : null;
+        if (raw) {
+            try {
+                const parsed = JSON.parse(raw);
+                parsed.selectedResumeId = item.id;
+                parsed.resume = { ...item, rawText: cleanText || item.rawText };
+                localStorage.setItem("useladder_user", JSON.stringify(parsed));
+            } catch (e) {
+                console.error("Error updating selected resume in storage:", e);
+            }
+        }
+
+        // Immediately seed or update last resume feedback with real text
+        if (cleanText) {
+            try {
+                const lastFbRaw = localStorage.getItem("useladder_last_resume_feedback");
+                const lastFb = lastFbRaw ? JSON.parse(lastFbRaw) : {};
+                lastFb.id = item.id;
+                lastFb.resumeName = item.name;
+                lastFb.resumeText = cleanText;
+                lastFb.role = selectedRole;
+                lastFb.domain = selectedDomain;
+                localStorage.setItem("useladder_last_resume_feedback", JSON.stringify(lastFb));
+                window.dispatchEvent(new Event("useladder_resume_scanned"));
+            } catch {}
+        }
+    };
+
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         setResumeName(file.name);
         setScanError(null);
-        setScanResult(null);
+        setIsScanning(true);
 
         const reader = new FileReader();
-        reader.onload = () => {
+        reader.onload = async () => {
             const content = typeof reader.result === "string" ? reader.result : "";
-            if (content.startsWith("data:")) {
-                try {
-                    const base64 = content.split(",")[1];
-                    const decoded = atob(base64);
-                    const cleaned = decoded.replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s{2,}/g, " ");
-                    setResumeText(cleaned.trim() || `Resume document: ${file.name}`);
-                } catch {
-                    setResumeText(`Resume document: ${file.name}`);
+            const currentResumeId = `cv_${Date.now()}`;
+
+            // 1. Fast immediate text extraction so clean text is ready in under 100ms
+            let extractedCleanText = "";
+            try {
+                const parseRes = await fetch("/api/resume/parse", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        fileData: content,
+                        resumeText: file.type.startsWith("text/") ? content : "",
+                        resumeName: file.name,
+                    }),
+                });
+                const parseData = await parseRes.json();
+                if (parseData.success && parseData.text && parseData.text.length > 25) {
+                    extractedCleanText = parseData.text;
                 }
-            } else {
-                setResumeText(content.trim() || `Resume document: ${file.name}`);
+            } catch (err) {
+                console.warn("[SettingsModal] Immediate parse note:", err);
+            }
+
+            if (!extractedCleanText && file.type.startsWith("text/")) {
+                extractedCleanText = content;
+            }
+            if (!extractedCleanText) {
+                extractedCleanText = `Resume document: ${file.name}`;
+            }
+
+            setResumeText(extractedCleanText);
+
+            const newResumeItem: StoredResumeItem = {
+                id: currentResumeId,
+                name: file.name,
+                data: content,
+                rawText: extractedCleanText,
+                score: null as unknown as number,
+                updatedAt: new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+                source: "uploaded",
+            };
+
+            const updatedList = [newResumeItem, ...savedResumes];
+            setSavedResumes(updatedList);
+            setSelectedResumeId(newResumeItem.id);
+            setIsUploadingNew(false);
+
+            // Sync with local storage user profile immediately
+            const raw = typeof window !== "undefined" ? localStorage.getItem("useladder_user") : null;
+            if (raw) {
+                try {
+                    const parsed = JSON.parse(raw);
+                    parsed.resumes = updatedList;
+                    parsed.selectedResumeId = newResumeItem.id;
+                    parsed.resume = newResumeItem;
+                    localStorage.setItem("useladder_user", JSON.stringify(parsed));
+                } catch (err) {
+                    console.error("Error saving uploaded resume:", err);
+                }
+            }
+
+            // Immediately seed useladder_last_resume_feedback so landing on /resume-feedback displays real parsed CV right away — score stays null until LLM returns
+            const initialFeedbackPayload: any = {
+                id: currentResumeId,
+                resumeName: file.name,
+                role: selectedRole,
+                domain: selectedDomain,
+                resumeText: extractedCleanText,
+                score: null,
+                summary: "Analyzing your resume — scoring and tailored suggestions will appear as soon as the review is complete.",
+                strengths: [],
+                suggestions: [],
+                missingKeywords: [],
+                updatedAt: new Date().toISOString(),
+            };
+
+            if (typeof window !== "undefined") {
+                localStorage.setItem("useladder_last_resume_feedback", JSON.stringify(initialFeedbackPayload));
+                try {
+                    const allRaw = localStorage.getItem("useladder_all_resume_feedbacks");
+                    const all = allRaw ? JSON.parse(allRaw) : [];
+                    const filtered = Array.isArray(all) ? all.filter((f: any) => f.id !== initialFeedbackPayload.id) : [];
+                    filtered.unshift(initialFeedbackPayload);
+                    localStorage.setItem("useladder_all_resume_feedbacks", JSON.stringify(filtered.slice(0, 20)));
+                } catch {}
+                localStorage.setItem("useladder_has_new_resume_dm", "true");
+                window.dispatchEvent(new Event("useladder_resume_scanned"));
+            }
+
+            // 2. Perform deep AI scan in background/parallel to enrich with suggestions & score
+            try {
+                const res = await fetch("/api/resume/scan", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        fileData: content,
+                        resumeText: extractedCleanText,
+                        resumeName: file.name,
+                        role: selectedRole,
+                        domain: selectedDomain,
+                        email: userEmail,
+                    }),
+                });
+
+                const data = await res.json();
+                if (res.ok && !data.error && data.result) {
+                    const finalCleanText = data.extractedText || extractedCleanText;
+                    const finalScore = data.result?.score || 82;
+
+                    setResumeText(finalCleanText);
+
+                    // Update saved resume list
+                    setSavedResumes((prev) =>
+                        prev.map((r) =>
+                            r.id === currentResumeId
+                                ? { ...r, score: finalScore, rawText: finalCleanText }
+                                : r
+                        )
+                    );
+
+                    // Update local user storage
+                    const rawUser = typeof window !== "undefined" ? localStorage.getItem("useladder_user") : null;
+                    if (rawUser) {
+                        try {
+                            const pUser = JSON.parse(rawUser);
+                            if (pUser.resume?.id === currentResumeId) {
+                                pUser.resume.score = finalScore;
+                                pUser.resume.rawText = finalCleanText;
+                            }
+                            localStorage.setItem("useladder_user", JSON.stringify(pUser));
+                        } catch {}
+                    }
+
+                    const enrichedFeedback = {
+                        id: currentResumeId,
+                        resumeName: file.name,
+                        role: selectedRole,
+                        domain: selectedDomain,
+                        resumeText: finalCleanText,
+                        score: finalScore,
+                        summary: data.result.summary || initialFeedbackPayload.summary,
+                        strengths: data.result.strengths || [],
+                        suggestions: data.result.suggestions || [],
+                        missingKeywords: data.result.missingKeywords || [],
+                        updatedAt: new Date().toISOString(),
+                    };
+
+                    localStorage.setItem("useladder_last_resume_feedback", JSON.stringify(enrichedFeedback));
+                    try {
+                        const allRaw2 = localStorage.getItem("useladder_all_resume_feedbacks");
+                        const all2 = allRaw2 ? JSON.parse(allRaw2) : [];
+                        const filtered2 = Array.isArray(all2) ? all2.filter((f: any) => f.id !== enrichedFeedback.id) : [];
+                        filtered2.unshift(enrichedFeedback);
+                        localStorage.setItem("useladder_all_resume_feedbacks", JSON.stringify(filtered2.slice(0, 20)));
+                    } catch {}
+                    window.dispatchEvent(new Event("useladder_resume_scanned"));
+                }
+            } catch (err: any) {
+                console.warn("Background AI scan note:", err);
+            } finally {
+                setIsScanning(false);
+                onClose();
             }
         };
-        reader.readAsText(file);
+
+        if (file.type.startsWith("text/") || file.name.endsWith(".txt") || file.name.endsWith(".md")) {
+            reader.readAsText(file);
+        } else {
+            reader.readAsDataURL(file);
+        }
     };
 
     const handleRunScan = async () => {
         if (!resumeName && !resumeText.trim()) {
-            setScanError("Please select a resume file to upload.");
+            setScanError("Please select or upload a resume file to analyze.");
             return;
         }
 
         setIsScanning(true);
         setScanError(null);
 
-        const textPayload = resumeText.trim() || `Resume profile uploaded: ${resumeName}. Experience aligned with ${selectedRole}.`;
-        const finalResumeName = resumeName || "Uploaded_Resume.pdf";
+        const currentResumeId = selectedResumeId || `cv_${Date.now()}`;
+        const selectedItem = savedResumes.find((r) => r.id === currentResumeId);
+        const textPayload = resumeText.trim() || selectedItem?.rawText || `Resume profile uploaded: ${resumeName}. Experience aligned with ${selectedRole}.`;
+        const finalResumeName = resumeName || selectedItem?.name || "Uploaded_Resume.pdf";
+        const fileDataPayload = selectedItem?.data && selectedItem.data.startsWith("data:") ? selectedItem.data : "";
 
         try {
             const res = await fetch("/api/resume/scan", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
+                    fileData: fileDataPayload,
                     resumeText: textPayload,
                     resumeName: finalResumeName,
                     role: selectedRole,
@@ -293,25 +543,62 @@ export function SettingsModal({
                 throw new Error(data.error || "Failed to submit resume");
             }
 
-            setScanResult(data.result);
-            setHasCvUploaded(true);
-            setUploadedCvName(finalResumeName);
-            setIsUploadingNewCv(false);
+            const cleanText = data.extractedText || textPayload;
+            setResumeText(cleanText);
 
-            // Sync with local storage
+            // Update resume score in savedResumes
+            setSavedResumes((prev) =>
+                prev.map((r) =>
+                    r.id === currentResumeId
+                        ? { ...r, score: data.result.score || 80, rawText: cleanText }
+                        : r
+                )
+            );
+
+            // Store last resume feedback for Coach DM and Feedback page
+            const feedbackPayload = {
+                id: currentResumeId,
+                resumeName: finalResumeName,
+                role: selectedRole,
+                domain: selectedDomain,
+                resumeText: cleanText,
+                score: data.result.score || 82,
+                summary: data.result.summary || "",
+                strengths: data.result.strengths || [],
+                suggestions: data.result.suggestions || [],
+                missingKeywords: data.result.missingKeywords || [],
+                updatedAt: new Date().toISOString(),
+            };
+
+            if (typeof window !== "undefined") {
+                localStorage.setItem("useladder_last_resume_feedback", JSON.stringify(feedbackPayload));
+                try {
+                    const allRaw3 = localStorage.getItem("useladder_all_resume_feedbacks");
+                    const all3 = allRaw3 ? JSON.parse(allRaw3) : [];
+                    const filtered3 = Array.isArray(all3) ? all3.filter((f: any) => f.id !== feedbackPayload.id) : [];
+                    filtered3.unshift(feedbackPayload);
+                    localStorage.setItem("useladder_all_resume_feedbacks", JSON.stringify(filtered3.slice(0, 20)));
+                } catch {}
+                localStorage.setItem("useladder_has_new_resume_dm", "true");
+                window.dispatchEvent(new Event("useladder_resume_scanned"));
+            }
+
+            // Sync with local storage user profile
             const raw = typeof window !== "undefined" ? localStorage.getItem("useladder_user") : null;
             if (raw) {
                 try {
                     const parsed = JSON.parse(raw);
                     const newResumeItem = {
-                        id: `cv_${Date.now()}`,
+                        id: currentResumeId,
                         name: finalResumeName,
-                        data: textPayload,
+                        data: selectedItem?.data || cleanText,
+                        rawText: cleanText,
                         score: data.result?.score || 80,
                         updatedAt: new Date().toISOString(),
                     };
                     const existing = parsed.resumes || [];
-                    parsed.resumes = [newResumeItem, ...existing.filter((r: { name: string }) => r.name !== finalResumeName)];
+                    parsed.resumes = [newResumeItem, ...existing.filter((r: { id: string }) => r.id !== currentResumeId)];
+                    parsed.selectedResumeId = currentResumeId;
                     parsed.resume = newResumeItem;
                     localStorage.setItem("useladder_user", JSON.stringify(parsed));
                 } catch (e) {
@@ -327,16 +614,19 @@ export function SettingsModal({
                     body: JSON.stringify({
                         email: userEmail,
                         resume: {
-                            id: `cv_${Date.now()}`,
+                            id: currentResumeId,
                             name: finalResumeName,
-                            rawText: textPayload,
+                            rawText: cleanText,
                             score: data.result?.score || 80,
                         },
                     }),
-                }).catch((err) => console.warn("Could not sync resume to DB:", err));
+                }).catch(() => {});
             }
+
+            // Close modal so feedback is viewed via Coach DM on dashboard
+            onClose();
         } catch (err) {
-            setScanError(err instanceof Error ? err.message : "Error submitting resume");
+            setScanError(err instanceof Error ? err.message : "Network error during scan. Please try again.");
         } finally {
             setIsScanning(false);
         }
@@ -350,7 +640,7 @@ export function SettingsModal({
         if (userEmail) {
             try {
                 await fetch("/api/auth/user", {
-                    method: "POST",
+                    method: "PATCH",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         email: userEmail,
@@ -360,7 +650,7 @@ export function SettingsModal({
                     }),
                 });
             } catch (err) {
-                console.error("Failed to save credentials:", err);
+                console.error("Failed to sync role/portfolio:", err);
             }
         }
 
@@ -372,6 +662,9 @@ export function SettingsModal({
                 parsed.role = selectedRole;
                 parsed.domain = selectedDomain;
                 parsed.portfolioUrl = portfolioUrl;
+                if (selectedResumeId) {
+                    parsed.selectedResumeId = selectedResumeId;
+                }
                 localStorage.setItem("useladder_user", JSON.stringify(parsed));
             } catch (e) {
                 console.error(e);
@@ -383,9 +676,6 @@ export function SettingsModal({
             onClose();
         }, 600);
     };
-
-    // Only show upload CV section if no CV is uploaded, OR if user clicked "Upload new CV"
-    const shouldShowUploadSection = !hasCvUploaded || isUploadingNewCv;
 
     return (
         <div className={styles.settingsModalOverlay} onClick={onClose}>
@@ -425,179 +715,18 @@ export function SettingsModal({
                         currentRole={selectedRole}
                         targetRole={selectedRole}
                         resumeText={resumeText}
-                        resumeName={uploadedCvName || resumeName}
+                        resumeName={resumeName}
                         userEmail={userEmail}
                     />
                 ) : (
                     <>
-                        {/* ── Section at Top: CV Upload Status & Action Button ── */}
-                        <div className={`${styles.cvTopStatusCard} ${hasCvUploaded ? styles.cvTopStatusCardUploaded : ""}`}>
-                    <div className={styles.cvTopStatusInfo}>
-                        <div className={styles.cvTopStatusIconWrap}>
-                            {hasCvUploaded ? (
-                                <FileText size={20} color="#2563EB" weight="bold" />
-                            ) : (
-                                <WarningCircle size={20} color="#64748B" weight="bold" />
-                            )}
-                        </div>
-                        <div className={styles.cvTopStatusTextGroup}>
-                            <div className={styles.cvTopStatusTitleRow}>
-                                <span className={styles.cvTopStatusTitle}>CV Status:</span>
-                                {hasCvUploaded ? (
-                                    <span className={styles.cvTopStatusBadgeSuccess}>
-                                        <Check size={11} weight="bold" />
-                                        Uploaded
-                                    </span>
-                                ) : (
-                                    <span className={styles.cvTopStatusBadgePending}>
-                                        No CV Uploaded
-                                    </span>
-                                )}
-                            </div>
-                            <span className={styles.cvTopStatusSub}>
-                                {hasCvUploaded
-                                    ? (uploadedCvName ? `Active file: ${uploadedCvName}` : "Resume file stored on profile")
-                                    : "upload your resume to get precise opportunities"}
-                            </span>
-                        </div>
-                    </div>
-
-                    {hasCvUploaded && (
-                        <button
-                            type="button"
-                            className={isUploadingNewCv ? styles.cvUploadCancelBtn : styles.cvUploadNewBtn}
-                            onClick={() => {
-                                setIsUploadingNewCv((prev) => !prev);
-                                setScanError(null);
-                            }}
-                        >
-                            {isUploadingNewCv ? (
-                                <>Cancel</>
-                            ) : (
-                                <>
-                                    <UploadSimple size={15} weight="bold" />
-                                    Upload new CV
-                                </>
-                            )}
-                        </button>
-                    )}
-                </div>
-
                 {/* ── Timeline Body ── */}
                 <div className={styles.settingsTimelineBody}>
                     <div className={styles.timelineSectionWrap}>
                         <div className={styles.timelineItemsList}>
                             <div className={styles.timelineConnectorLine} />
 
-                            {/* ── ITEM 1: UPLOAD YOUR RESUME (Shown if no CV or when user clicks 'Upload new CV') ── */}
-                            {shouldShowUploadSection && (
-                                <div className={styles.timelineItem}>
-                                    {/* AI Coach Character Avatar Node */}
-                                    <div className={styles.timelineAvatarCircle} title="AI Interview Coach">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img
-                                            src={COACH_AVATAR}
-                                            alt="AI Coach"
-                                            className={styles.timelineAvatarImg}
-                                            draggable={false}
-                                        />
-                                    </div>
-
-                                    <div className={styles.timelineItemTopRow}>
-                                        {/* Upload your resume in conversation bubble (matching dashboard blue) */}
-                                        <div className={styles.greetingChipRow}>
-                                            <div className={styles.greetingBadge}>
-                                                Upload your resume
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Resume Form Card with Onboarding-style inputs */}
-                                    <div className={styles.resumeInnerFormCard}>
-                                        <input
-                                            type="file"
-                                            ref={fileInputRef}
-                                            onChange={handleFileUpload}
-                                            accept=".pdf,.doc,.docx,.txt,.md"
-                                            style={{ display: "none" }}
-                                        />
-                                        <div
-                                            className={styles.resumeDropzoneArea}
-                                            onClick={() => fileInputRef.current?.click()}
-                                        >
-                                            <UploadSimple size={24} color="#2563EB" />
-                                            <span className={styles.resumeDropzoneTitle}>
-                                                {resumeName ? `Selected: ${resumeName}` : "Click to upload Resume (PDF, DOCX, TXT, MD)"}
-                                            </span>
-                                            <span className={styles.resumeDropzoneSubtitle}>
-                                                Interview coach analyzes your achievements against industry expectations
-                                            </span>
-                                        </div>
-
-                                        {scanError && (
-                                            <div className={styles.errorBanner}>
-                                                <WarningCircle size={16} weight="bold" />
-                                                {scanError}
-                                            </div>
-                                        )}
-
-                                        <div className={styles.resumeActionRow}>
-                                            <button
-                                                type="button"
-                                                className={styles.resumeScanPrimaryBtn}
-                                                onClick={handleRunScan}
-                                                disabled={isScanning || (!resumeName && !resumeText.trim())}
-                                            >
-                                                {isScanning ? (
-                                                    <>
-                                                        <ArrowsClockwise size={15} className="animate-spin" />
-                                                        Submitting...
-                                                    </>
-                                                ) : (
-                                                    "Submit"
-                                                )}
-                                            </button>
-                                        </div>
-
-                                        {/* Scan Result Breakdown */}
-                                        {scanResult && (
-                                            <div className={styles.scanSuggestionsTable}>
-                                                {scanResult.suggestions?.map((s, idx) => (
-                                                    <div key={idx} className={styles.scanSuggestionRow}>
-                                                        <div className={styles.scanSuggestionHeader}>
-                                                            <span className={styles.rowTagInformation}>{s.category}</span>
-                                                            <span style={{ fontSize: "0.74rem", color: "#64748B" }}>
-                                                                Rubric Enhancement
-                                                            </span>
-                                                        </div>
-                                                        <p className={styles.scanFeedbackText}>{s.feedback}</p>
-                                                        <div className={styles.scanRecBox}>
-                                                            <strong>Coach Recommendation:</strong> {s.recommendation}
-                                                        </div>
-                                                    </div>
-                                                ))}
-
-                                                {scanResult.missingKeywords?.length > 0 && (
-                                                    <div style={{ padding: "0.85rem 1rem", background: "#F8FAFC" }}>
-                                                        <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "#334155" }}>
-                                                            Missing High-Value Keywords for {selectedRole}:
-                                                        </span>
-                                                        <div className={styles.keywordsPillList}>
-                                                            {scanResult.missingKeywords.map((kw, i) => (
-                                                                <span key={i} className={styles.keywordPillItem}>
-                                                                    + {kw}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* ── ITEM 2: RECRUITER SAYING IN TEXTBOX "TRY OUT A NEW ROLE" + DROPDOWN ── */}
+                            {/* ── ITEM 1: RECRUITER SAYING IN TEXTBOX "TRY OUT A NEW ROLE" + DROPDOWN ── */}
                             <div className={styles.timelineItem}>
                                 {/* Recruiter Character Avatar Node */}
                                 <div className={styles.timelineAvatarCircle} title="Recruiter Character">
@@ -687,40 +816,187 @@ export function SettingsModal({
                                                 Target role updated to {selectedRole}! All dashboard jobs & interviews aligned.
                                             </div>
                                         )}
+                                    </div>
+                                </div>
+                            </div>
 
-                                        {/* ── Portfolio Link Field ── */}
-                                        <div className={styles.portfolioFieldWrap}>
-                                            <div className={styles.portfolioLabelRow}>
-                                                <label className={styles.portfolioLabel}>
-                                                    <Globe size={14} weight="bold" color="#2563EB" />
-                                                    Portfolio / Personal Website
-                                                </label>
-                                                {portfolioUrl && (
-                                                    <a
-                                                        href={portfolioUrl.startsWith("http") ? portfolioUrl : `https://${portfolioUrl}`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className={styles.portfolioLinkOpenBtn}
-                                                    >
-                                                        <ArrowSquareOut size={12} weight="bold" />
-                                                        Visit Link
-                                                    </a>
-                                                )}
-                                            </div>
-                                            <div className={styles.portfolioInputRow}>
-                                                <input
-                                                    type="url"
-                                                    className={styles.portfolioInput}
-                                                    placeholder="e.g. https://yourportfolio.com, github.com/username, or behance.net/profile"
-                                                    value={portfolioUrl}
-                                                    onChange={(e) => setPortfolioUrl(e.target.value)}
-                                                />
-                                            </div>
-                                            <span className={styles.portfolioHelperText}>
-                                                Showcase your real work, live apps, GitHub repositories, or design case studies.
-                                            </span>
+                            {/* ── ITEM 2: UPLOAD YOUR RESUME & PORTFOLIO ── */}
+                            <div className={styles.timelineItem}>
+                                {/* AI Coach Character Avatar Node */}
+                                <div className={styles.timelineAvatarCircle} title="AI Interview Coach">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                        src={COACH_AVATAR}
+                                        alt="AI Coach"
+                                        className={styles.timelineAvatarImg}
+                                        draggable={false}
+                                    />
+                                </div>
+
+                                <div className={styles.timelineItemTopRow}>
+                                    {/* Upload your resume in conversation bubble (matching dashboard blue) */}
+                                    <div className={styles.greetingChipRow}>
+                                        <div className={styles.greetingBadge}>
+                                            Upload your resume
                                         </div>
                                     </div>
+                                </div>
+
+                                {/* Resume Form Card with Onboarding-style inputs */}
+                                <div className={styles.resumeInnerFormCard}>
+                                    <input
+                                        type="file"
+                                        ref={fileInputRef}
+                                        onChange={handleFileUpload}
+                                        accept=".pdf,.doc,.docx,.txt,.md"
+                                        style={{ display: "none" }}
+                                    />
+
+                                    {/* List of previously uploaded / saved resumes */}
+                                    {savedResumes.length > 0 && !isUploadingNew && (
+                                        <div>
+                                            <div className={styles.resumePickerHeader}>
+                                                <span className={styles.resumePickerTitle}>Saved Resumes</span>
+                                                <span className={styles.resumePickerCount}>
+                                                    {savedResumes.length} {savedResumes.length === 1 ? "resume" : "resumes"} available
+                                                </span>
+                                            </div>
+
+                                            <div className={styles.resumePickerList}>
+                                                {savedResumes.map((resume) => {
+                                                    const isSelected = resume.id === selectedResumeId;
+                                                    return (
+                                                        <div
+                                                            key={resume.id}
+                                                            className={`${styles.resumeOptionCard} ${isSelected ? styles.resumeOptionCardActive : ""}`}
+                                                            onClick={() => handleSelectResume(resume)}
+                                                        >
+                                                            <div className={styles.resumeOptionLeft}>
+                                                                <div className={styles.resumeOptionIconWrap}>
+                                                                    <FileText size={18} />
+                                                                </div>
+                                                                <div className={styles.resumeOptionTextGroup}>
+                                                                    <span className={styles.resumeOptionName}>{resume.name}</span>
+                                                                    <div className={styles.resumeOptionSub}>
+                                                                        {resume.source === "narrative_studio" ? (
+                                                                            <span style={{ color: "#2563EB" }}>Tailored in Studio</span>
+                                                                        ) : (
+                                                                            <span>Uploaded Resume</span>
+                                                                        )}
+                                                                        {resume.updatedAt && <span>• {resume.updatedAt}</span>}
+                                                                        {typeof resume.score === "number" && (
+                                                                            <span style={{ color: "#16A34A", fontWeight: 600 }}>• {resume.score}/100</span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className={styles.resumeOptionCheck}>
+                                                                {isSelected ? (
+                                                                    <CheckCircle size={18} weight="fill" color="#2563EB" />
+                                                                ) : (
+                                                                    <div style={{ width: 16, height: 16, borderRadius: "50%", border: "1px solid #CBD5E1" }} />
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                className={styles.uploadNewCvTriggerBtn}
+                                                onClick={() => {
+                                                    setIsUploadingNew(true);
+                                                    // Clear previous name so dropzone doesn't show old selection as "Selected:"
+                                                    setResumeName("");
+                                                    setResumeText("");
+                                                    if (fileInputRef.current) fileInputRef.current.value = "";
+                                                    fileInputRef.current?.click();
+                                                }}
+                                            >
+                                                <UploadSimple size={16} weight="bold" />
+                                                <span>Upload a New Resume</span>
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Upload Dropzone (if user chooses to upload new or no resumes saved) */}
+                                    {(savedResumes.length === 0 || isUploadingNew) && (
+                                        <div style={{ marginTop: savedResumes.length > 0 ? "0.5rem" : "0" }}>
+                                            <div
+                                                className={styles.resumeDropzoneArea}
+                                                onClick={() => fileInputRef.current?.click()}
+                                            >
+                                                <UploadSimple size={24} color="#2563EB" />
+                                                <span className={styles.resumeDropzoneTitle}>
+                                                    Click to upload Resume (PDF, DOCX, TXT, MD)
+                                                </span>
+                                                <span className={styles.resumeDropzoneSubtitle}>
+                                                    Interview coach analyzes your achievements against industry expectations
+                                                </span>
+                                            </div>
+
+                                            {savedResumes.length > 0 && (
+                                                <div style={{ textAlign: "center", marginTop: "0.5rem" }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setIsUploadingNew(false);
+                                                            const sel = savedResumes.find((r) => r.id === selectedResumeId);
+                                                            if (sel) {
+                                                                setResumeName(sel.name);
+                                                                setResumeText(sel.rawText || sel.data || "");
+                                                            }
+                                                            if (fileInputRef.current) fileInputRef.current.value = "";
+                                                        }}
+                                                        style={{ background: "none", border: "none", color: "#64748B", fontSize: "0.76rem", cursor: "pointer", textDecoration: "underline" }}
+                                                    >
+                                                        Cancel & choose from saved resumes
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* ── Portfolio Link Field (Moved to Resume Section) ── */}
+                                    <div className={styles.portfolioFieldWrap}>
+                                        <div className={styles.portfolioLabelRow}>
+                                            <label className={styles.portfolioLabel}>
+                                                <Globe size={14} weight="bold" color="#2563EB" />
+                                                Portfolio / Personal Website
+                                            </label>
+                                            {portfolioUrl && (
+                                                <a
+                                                    href={portfolioUrl.startsWith("http") ? portfolioUrl : `https://${portfolioUrl}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className={styles.portfolioLinkOpenBtn}
+                                                >
+                                                    <ArrowSquareOut size={12} weight="bold" />
+                                                    Visit Link
+                                                </a>
+                                            )}
+                                        </div>
+                                        <div className={styles.portfolioInputRow}>
+                                            <input
+                                                type="url"
+                                                className={styles.portfolioInput}
+                                                placeholder="e.g. https://yourportfolio.com, github.com/username, or behance.net/profile"
+                                                value={portfolioUrl}
+                                                onChange={(e) => setPortfolioUrl(e.target.value)}
+                                            />
+                                        </div>
+                                        <span className={styles.portfolioHelperText}>
+                                            Showcase your real work, live apps, GitHub repositories, or design case studies.
+                                        </span>
+                                    </div>
+
+                                    {scanError && (
+                                        <div className={styles.errorBanner}>
+                                            <WarningCircle size={16} weight="bold" />
+                                            {scanError}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

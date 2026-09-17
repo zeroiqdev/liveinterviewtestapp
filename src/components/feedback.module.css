@@ -975,6 +975,821 @@
     cursor: pointer;
 }
 
+/* ── Resume Feedback: Keywords Tab ── */
+.keywordsContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: 1.5rem 0;
+}
+
+.keywordsIntro {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    background: #EFF6FF;
+    border: 1px solid #DBEAFE;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    color: #1E40AF;
+    line-height: 1.45;
+}
+
+.keywordsList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.keywordPill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.4rem 0.75rem;
+    background: #FFFFFF;
+    border: 1px solid #E4E4E7;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #18181B;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.keywordPill:hover {
+    border-color: #2563EB;
+    background: #F0F9FF;
+    color: #0369A1;
+}
+
+.keywordPillCopied {
+    border-color: #16A34A !important;
+    background: #F0FDF4 !important;
+    color: #15803D !important;
+}
+
+/* ── Resume Feedback: In-Line Document Improver ── */
+.improverContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 1.5rem 0;
+}
+
+.improverFormulaBanner {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 1rem 1.25rem;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 9px;
+}
+
+.improverFormulaContent {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.improverFormulaTitle {
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #0F172A;
+}
+
+.improverFormulaText {
+    font-size: 0.8rem;
+    color: #64748B;
+    line-height: 1.45;
+    margin: 0;
+}
+
+.improverPromptBar {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+}
+
+.improverInput {
+    flex: 1;
+    min-width: 260px;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid #E4E4E7;
+    border-radius: 7px;
+    font-size: 0.82rem;
+    color: #18181B;
+    background: #FFFFFF;
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.improverInput:focus {
+    border-color: #2563EB;
+}
+
+.improverEnhanceBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.55rem 1.15rem;
+    border-radius: 7px;
+    border: none;
+    background: #2563EB;
+    color: #FFFFFF;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.improverEnhanceBtn:hover:not(:disabled) {
+    background: #1D4ED8;
+}
+
+.improverEnhanceBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.improverSplitLayout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    align-items: stretch;
+}
+
+@media (max-width: 900px) {
+    .improverSplitLayout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.improverPanel {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #E4E4E7;
+    border-radius: 10px;
+    background: #FFFFFF;
+    overflow: hidden;
+}
+
+.improverPanelHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: #FAFAFA;
+    border-bottom: 1px solid #E4E4E7;
+}
+
+.improverPanelTitle {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #18181B;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.improverPanelActions {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.improverActionSmallBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 5px;
+    border: 1px solid #E4E4E7;
+    background: #FFFFFF;
+    color: #52525B;
+    font-size: 0.74rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.improverActionSmallBtn:hover {
+    background: #F4F4F5;
+    color: #18181B;
+}
+
+.improverTextarea {
+    width: 100%;
+    height: 480px;
+    padding: 1rem;
+    border: none;
+    resize: none;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace, 'Inter', sans-serif;
+    font-size: 0.8rem;
+    line-height: 1.6;
+    color: #27272A;
+    background: #FFFFFF;
+    outline: none;
+}
+
+.improverTextarea:focus {
+    background: #FAFAFA;
+}
+
+.improverOutputBody {
+    display: flex;
+    flex-direction: column;
+    height: 480px;
+    overflow-y: auto;
+    padding: 1rem;
+    gap: 1rem;
+}
+
+.improverChangesBox {
+    padding: 0.85rem;
+    background: #F0FDF4;
+    border: 1px solid #DCFCE7;
+    border-radius: 8px;
+}
+
+.improverChangesTitle {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #166534;
+    margin-bottom: 0.45rem;
+}
+
+.improverChangesList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.improverChangeItem {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    font-size: 0.76rem;
+    color: #15803D;
+    line-height: 1.4;
+}
+
+.improverOutputPre {
+    flex: 1;
+    margin: 0;
+    padding: 0.75rem;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace, sans-serif;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: #1E293B;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-y: auto;
+}
+
+.improverEmptyState {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 0.75rem;
+    color: #94A3B8;
+    text-align: center;
+    padding: 2rem;
+}
+
+.improverEmptyText {
+    font-size: 0.82rem;
+    color: #64748B;
+    max-width: 320px;
+    line-height: 1.45;
+}
+
+/* ── Unified Single-Tab In-Line Workspace ── */
+.unifiedWorkspace {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    width: 100%;
+    margin-top: 1rem;
+}
+
+.unifiedGrid {
+    display: grid;
+    grid-template-columns: minmax(360px, 440px) 1fr;
+    gap: 0;
+    align-items: start;
+}
+
+@media (max-width: 960px) {
+    .unifiedGrid {
+        grid-template-columns: 1fr;
+    }
+    .suggestionsSidebar {
+        border-right: none;
+        max-height: none;
+        overflow-y: visible;
+    }
+    .documentContainer {
+        padding-left: 0;
+    }
+}
+
+/* ── Left Suggestions Sidebar ── */
+.suggestionsSidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    position: sticky;
+    top: 5rem;
+    max-height: calc(100vh - 6rem);
+    overflow-y: auto;
+    padding-right: 0;
+    margin-right: 0;
+    padding-left: 0;
+    border-right: 1px solid #E2E8F0;
+    scrollbar-width: thin;
+    scrollbar-color: #CBD5E1 transparent;
+    scrollbar-gutter: stable;
+}
+
+.suggestionsSidebar::-webkit-scrollbar {
+    width: 5px;
+}
+.suggestionsSidebar::-webkit-scrollbar-track {
+    background: transparent;
+    margin-left: 0;
+}
+.suggestionsSidebar::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 4px;
+}
+
+.suggestionsToolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #FAFAFA;
+    border: 1px solid #E4E4E7;
+    border-radius: 8px;
+    padding: 0.65rem 0.85rem;
+}
+
+.suggestionsCountLabel {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #18181B;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.suggestionsApplyAllBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.7rem;
+    background: linear-gradient(135deg, #4782F6 0%, #3B71E8 100%);
+    color: #FFFFFF;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.74rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: 0 4px 14px rgba(71, 130, 246, 0.22);
+}
+
+.suggestionsApplyAllBtn:hover {
+    background: linear-gradient(135deg, #3B71E8 0%, #2563EB 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(71, 130, 246, 0.28);
+}
+
+.suggestionCard {
+    border: 1px solid #E4E4E7;
+    border-radius: 10px;
+    background: #FFFFFF;
+    padding: 0.9rem 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.suggestionCard:hover {
+    border-color: #93C5FD;
+    background: #F8FAFC;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.06);
+}
+
+.suggestionCardActive {
+    border-color: #2563EB !important;
+    background: #EFF6FF !important;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15) !important;
+}
+
+.suggestionCardApplied {
+    border-color: #BBF7D0 !important;
+    background: #F0FDF4 !important;
+    opacity: 0.92;
+}
+
+.suggestionTopRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.4rem;
+}
+
+.suggestionCategoryPill {
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 0;
+    border-radius: 0;
+    letter-spacing: 0.02em;
+    background: transparent;
+    border: none;
+    color: #475569;
+}
+
+.suggestionPillImpact {
+    background: transparent;
+    color: #475569;
+    border: none;
+    padding: 0;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.suggestionPillVerbs {
+    background: transparent;
+    color: #475569;
+    border: none;
+    padding: 0;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.suggestionPillKeywords {
+    background: transparent;
+    color: #475569;
+    border: none;
+    padding: 0;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.suggestionTitle {
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #18181B;
+    margin: 0 0 0.3rem;
+    line-height: 1.35;
+}
+
+.suggestionFeedback {
+    font-size: 0.78rem;
+    color: #52525B;
+    line-height: 1.45;
+    margin: 0 0 0.55rem;
+}
+
+.suggestionTargetSnippet {
+    font-size: 0.73rem;
+    background: #F4F4F5;
+    border-left: 2px solid #CBD5E1;
+    padding: 0.3rem 0.55rem;
+    border-radius: 0 4px 4px 0;
+    color: #475569;
+    margin-bottom: 0.55rem;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.suggestionProposedBox {
+    background: #F0FDF4;
+    border: 1px solid #DCFCE7;
+    border-radius: 6px;
+    padding: 0.45rem 0.65rem;
+    font-size: 0.75rem;
+    color: #166534;
+    margin-bottom: 0.6rem;
+    line-height: 1.45;
+}
+
+.suggestionActionRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.15rem;
+}
+
+.suggestionApplyBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: linear-gradient(135deg, #4782F6 0%, #3B71E8 100%);
+    color: #FFFFFF;
+    border: none;
+    border-radius: 6px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: 0 4px 14px rgba(71, 130, 246, 0.22);
+}
+
+.suggestionApplyBtn:hover {
+    background: linear-gradient(135deg, #3B71E8 0%, #2563EB 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(71, 130, 246, 0.28);
+}
+
+.suggestionAppliedBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: #15803D;
+    font-size: 0.74rem;
+    font-weight: 600;
+    background: #DCFCE7;
+    padding: 0.22rem 0.55rem;
+    border-radius: 5px;
+}
+
+/* ── Right Document Panel ── */
+.documentContainer {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding-left: 1.5rem;
+}
+
+.documentPaperToolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.65rem 1rem;
+    background: #FAFAFA;
+    border: 1px solid #E4E4E7;
+    border-radius: 9px;
+}
+
+.docToolbarTitle {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #18181B;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.docToolbarActions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.documentPaper {
+    background: #FFFFFF;
+    border: 1px solid #E4E4E7;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    padding: 2.75rem 3rem;
+    min-height: 800px;
+    font-family: var(--font-eb-garamond), 'EB Garamond', Garamond, 'Times New Roman', serif;
+    color: #0F172A;
+    font-size: 1.05rem;
+    line-height: 1.45;
+}
+
+.docHeader {
+    border-bottom: 1.5px solid #0F172A;
+    padding-bottom: 0.85rem;
+    margin-bottom: 1.25rem;
+    text-align: center;
+}
+
+.docName {
+    font-family: var(--font-eb-garamond), 'EB Garamond', Garamond, serif;
+    font-size: 1.95rem;
+    font-weight: 700;
+    color: #0F172A;
+    margin: 0 0 0.25rem;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    text-align: center;
+}
+
+.docSubtitle {
+    font-family: var(--font-eb-garamond), 'EB Garamond', Garamond, serif;
+    font-size: 0.98rem;
+    color: #1E293B;
+    margin: 0;
+    line-height: 1.4;
+    text-align: center;
+}
+
+.docSection {
+    margin-bottom: 1.35rem;
+}
+
+.docSectionHeader {
+    font-family: var(--font-eb-garamond), 'EB Garamond', Garamond, serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #0F172A;
+    border-bottom: 1px solid #0F172A;
+    padding-bottom: 0.2rem;
+    margin-bottom: 0.65rem;
+}
+
+.docSummaryText {
+    font-family: var(--font-eb-garamond), 'EB Garamond', Garamond, serif;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #1E293B;
+    margin: 0;
+}
+
+.docJob {
+    margin-bottom: 1.15rem;
+}
+
+.docJobTop {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.25rem;
+}
+
+.docJobTitle {
+    font-family: var(--font-eb-garamond), 'EB Garamond', Garamond, serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0F172A;
+}
+
+.docJobCompany {
+    font-family: var(--font-eb-garamond), 'EB Garamond', Garamond, serif;
+    font-size: 1.02rem;
+    color: #0F172A;
+    font-weight: 400;
+}
+
+.docJobDate {
+    font-family: var(--font-eb-garamond), 'EB Garamond', Garamond, serif;
+    font-size: 0.98rem;
+    color: #1E293B;
+    font-weight: 600;
+}
+
+.docBulletsList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.docBulletWrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.docBulletItem {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: #334155;
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    cursor: pointer;
+    border: 1.5px solid transparent;
+}
+
+.docBulletItem:hover {
+    background: #F8FAFC;
+    border-color: #E2E8F0;
+}
+
+.docBulletDot {
+    color: #0F172A;
+    font-size: 0.42rem;
+    line-height: 1;
+    margin-top: 0.62rem;
+    flex-shrink: 0;
+}
+
+.docBulletHighlighted {
+    background: #EFF6FF !important;
+    border-color: #2563EB !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    transform: translateX(4px);
+}
+
+.docBulletDiffBox {
+    width: 100%;
+    background: #F8FAFC;
+    border: 1px solid #CBD5E1;
+    border-radius: 8px;
+    padding: 0.75rem 0.85rem;
+    margin-top: 0.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    animation: fadeIn 0.15s ease-out;
+}
+
+.docBulletDiffTitle {
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #2563EB;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.docBulletDiffOriginal {
+    font-size: 0.78rem;
+    color: #94A3B8;
+    text-decoration: line-through;
+    margin: 0;
+    line-height: 1.4;
+}
+
+.docBulletDiffProposed {
+    font-size: 0.82rem;
+    color: #15803D;
+    font-weight: 500;
+    margin: 0;
+    line-height: 1.45;
+}
+
+.docBulletDiffActions {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.25rem;
+}
+
+.docSkillsWrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.docSkillCategory {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-size: 0.82rem;
+    color: #334155;
+    line-height: 1.5;
+}
+
+.docSkillLabel {
+    font-weight: 600;
+    color: #0F172A;
+    min-width: 110px;
+    flex-shrink: 0;
+}
+
+.docSkillItems {
+    color: #475569;
+}
+
+
 /* ── Responsive rules ── */
 @media (max-width: 768px) {
     .navbar {
@@ -1085,3 +1900,26 @@
         padding: 0.65rem 0.2rem;
     }
 }
+
+.docSkeletonLine {
+    background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+    background-size: 200% 100%;
+    animation: skeletonShimmer 1.5s ease-in-out infinite;
+}
+
+.docSkeletonCard {
+    background: linear-gradient(90deg, #F8FAFC 25%, #F1F5F9 50%, #F8FAFC 75%);
+    background-size: 200% 100%;
+    border: 1px solid #E2E8F0;
+    animation: skeletonShimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes skeletonShimmer {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+

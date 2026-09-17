@@ -242,14 +242,47 @@ export const moduleCards = getInterviewRoundsForRole("Software Engineer", "engin
 export const COACH_AVATAR = "https://res.cloudinary.com/dyg7neetr/image/upload/v1785485051/Screenshot_2026-07-31_at_7.49.46_AM_u6gpoz.png";
 export const RECRUITER_AVATAR = "https://res.cloudinary.com/dyg7neetr/image/upload/v1785485049/Screenshot_2026-07-31_at_7.49.19_AM_qujtzo.png";
 
+export interface ResumeScanSuggestion {
+    category: string;
+    feedback: string;
+    recommendation: string;
+}
+
+export interface ResumeScanFeedbackItem {
+    id?: string;
+    resumeName?: string;
+    fileName?: string;
+    role?: string;
+    domain?: string;
+    resumeText?: string;
+    score?: number | null;
+    summary?: string;
+    executiveSummary?: string;
+    strengths?: string[];
+    suggestions?: ResumeScanSuggestion[];
+    improvements?: (string | ResumeScanSuggestion)[];
+    missingKeywords?: string[];
+    updatedAt?: string;
+    metrics?: {
+        impactScore?: number;
+        roleAlignmentScore?: number;
+        brevityScore?: number;
+        structureScore?: number;
+    };
+}
+
 export interface BuildCharactersOptions {
     userRole?: string;
     userRoleFamily?: string;
     displayedJobs?: JobItem[];
     lastFeedback?: FeedbackReportData | null;
+    lastResumeFeedback?: ResumeScanFeedbackItem | null;
+    allResumeFeedbacks?: ResumeScanFeedbackItem[] | null;
+    hasAdminTips?: boolean;
     onPractice?: () => void;
     onOpenJob?: (job: JobItem) => void;
     onOpenFeedback?: () => void;
+    onOpenResumeFeedback?: (resumeId?: string) => void;
 }
 
 export function buildCharactersForUser(opts: BuildCharactersOptions = {}): CharacterProfile[] {
@@ -258,9 +291,12 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
         userRoleFamily,
         displayedJobs = [],
         lastFeedback,
+        lastResumeFeedback,
+        allResumeFeedbacks,
         onPractice,
         onOpenJob,
         onOpenFeedback,
+        onOpenResumeFeedback,
     } = opts;
 
     const family = userRoleFamily || (userRole ? normalizeUserRoleFamily(userRole) : "general");
@@ -286,18 +322,38 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
             ? "I analyze your responses, coach you on behavioral STAR stories, and drill you on UI performance, state boundaries & accessibility."
             : "I analyze your responses, coach you on behavioral STAR stories, and drill you on system design, technical architecture & problem solving.";
 
-    // Item 1: STAR Structure (Evaluating actual feedback vs solid/poor)
-    let starItem: ChatDmItem;
-    if (lastFeedback) {
-        const starScore = typeof lastFeedback.metrics?.structureStar === "number"
-            ? lastFeedback.metrics.structureStar
-            : 60;
-        
-        // Check if there is a specific improvement noting STAR or storytelling
+    const hasInterview = !!lastFeedback;
+    const hasAdminTips = !!(opts as any).hasAdminTips || (typeof window !== "undefined" && (localStorage.getItem("useladder_admin_tips_provided") === "true" || localStorage.getItem("adminTipsEnabled") === "true"));
+
+    // Welcome item for new accounts (no interview yet)
+    let welcomeItem: ChatDmItem | null = null;
+    if (!hasInterview) {
+        welcomeItem = {
+            id: "coach-welcome",
+            sender: "Interview Coach",
+            avatar: COACH_AVATAR,
+            time: "Just now",
+            isOnline: true,
+            badgeLabel: "Welcome to UseLadder",
+            messages: [
+                `Welcome to UseLadder, ${displayRole} — I'm your Interview Coach, here to help you ace your next interview.`,
+                `Upload your resume to get an ATS audit, or start a mock interview to get personalized STAR and domain coaching. When you're ready for targeted product sense tips, your coach will share them here.`,
+            ],
+            insight: "Coach Insight: Complete your profile and run one mock session to unlock your personalized coaching plan.",
+            actions: [
+                { label: hasInterview ? "Practice Next Round" : "Start Mock Interview", primary: true, icon: Play, onClick: onPractice },
+                { label: "View STAR Guide", icon: ArrowDown, onClick: onPractice },
+            ],
+        };
+    }
+
+    // Item 1: STAR Structure — only after an interview
+    let starItem: ChatDmItem | null = null;
+    if (hasInterview && lastFeedback) {
+        const starScore = typeof lastFeedback.metrics?.structureStar === "number" ? lastFeedback.metrics.structureStar : 60;
         const starImprovement = lastFeedback.improvements?.find(imp =>
             /star|structure|situation|action|result|metric|quantif/i.test(imp.title + " " + imp.detail)
         );
-
         if (starScore < 65) {
             starItem = {
                 id: "coach-star",
@@ -308,9 +364,7 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
                 badgeLabel: "STAR Structure: Needs Work",
                 messages: [
                     `Your behavioral STAR structure in your last mock session needs improvement (scored ${starScore}/100).`,
-                    starImprovement
-                        ? `${starImprovement.detail} Next time: ${starImprovement.recommendation}`
-                        : `Your answers lacked clearly separated Actions and quantifiable Results. Structure each story: Situation (15%), Task (15%), specific personal Actions (50%), and measurable business impact (20%).`,
+                    starImprovement ? `${starImprovement.detail} Next time: ${starImprovement.recommendation}` : `Your answers lacked clearly separated Actions and quantifiable Results. Structure each story: Situation (15%), Task (15%), specific personal Actions (50%), and measurable business impact (20%).`,
                 ],
                 insight: "Coach Insight: Clear Action ownership and quantifiable Results account for over 40% of the behavioral hiring bar.",
                 actions: [
@@ -328,9 +382,7 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
                 badgeLabel: "STAR Structure: Average",
                 messages: [
                     `Your behavioral STAR structure in your last mock session was average (${starScore}/100).`,
-                    starImprovement
-                        ? `${starImprovement.detail} ${starImprovement.recommendation}`
-                        : `Your context setup was clear, but make sure each behavioral story concludes with concrete business metrics (e.g. 'improved retention by 14%' or 'reduced delivery cycle by 3 weeks').`,
+                    starImprovement ? `${starImprovement.detail} ${starImprovement.recommendation}` : `Your context setup was clear, but make sure each behavioral story concludes with concrete business metrics (e.g. 'improved retention by 14%' or 'reduced delivery cycle by 3 weeks').`,
                 ],
                 insight: "Coach Insight: Concluding with quantifiable % metrics increases candidate offer rates by 40%.",
                 actions: [
@@ -355,163 +407,204 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
                 ]
             };
         }
-    } else {
-        starItem = {
-            id: "coach-star",
+    }
+
+    // Item 2: Domain-Specific Assessment — only when admin has provided tips (per user request)
+    let domainItem: ChatDmItem | null = null;
+    if (hasAdminTips) {
+        if (family === "product_manager") {
+            domainItem = {
+                id: "coach-domain",
+                sender: "Interview Coach",
+                avatar: COACH_AVATAR,
+                time: "1h ago",
+                isOnline: true,
+                badgeLabel: "Product Sense & Metrics",
+                messages: [
+                    "For Product Management rounds, focus on product sense, user segmentation, and ruthless prioritization. Use frameworks like CIRCLES or RICE to evaluate trade-offs.",
+                    "Always define your North Star Metric alongside secondary counter-metrics before proposing feature solutions.",
+                ],
+                insight: "Coach Insight: Elite PM candidates articulate the root user problem clearly before brainstorming solutions.",
+                actions: [
+                    { label: "Practice Product Sense Drill", primary: true, icon: Play, onClick: onPractice },
+                ]
+            };
+        } else if (family === "product_designer") {
+            domainItem = {
+                id: "coach-domain",
+                sender: "Interview Coach",
+                avatar: COACH_AVATAR,
+                time: "1h ago",
+                isOnline: true,
+                badgeLabel: "Design Systems & UX",
+                messages: [
+                    "For Product Design interviews, walk the interviewer through your end-to-end user journeys, usability trade-offs, and design system component reusability.",
+                    "Be ready to defend your wireframing iterations, typography hierarchy, and accessibility (WCAG) standards.",
+                ],
+                insight: "Coach Insight: Walk through user pain points and edge cases before presenting final high-fidelity screens.",
+                actions: [
+                    { label: "Practice Design System Drill", primary: true, icon: Play, onClick: onPractice },
+                ]
+            };
+        } else if (family === "data_analyst") {
+            domainItem = {
+                id: "coach-domain",
+                sender: "Interview Coach",
+                avatar: COACH_AVATAR,
+                time: "1h ago",
+                isOnline: true,
+                badgeLabel: "Analytics & Experimentation",
+                messages: [
+                    "For Data & Analytics interviews, sharpen your root cause analysis on metric anomalies, A/B testing hypothesis formulation, and cohort retention models.",
+                    "Practice explaining statistical significance, sample sizes, and p-values in plain, impactful business terms.",
+                ],
+                insight: "Coach Insight: Formulating structured hypotheses before data exploration demonstrates senior analytical maturity.",
+                actions: [
+                    { label: "Practice Analytics Metric Drill", primary: true, icon: Play, onClick: onPractice },
+                ]
+            };
+        } else if (family === "frontend_developer") {
+            domainItem = {
+                id: "coach-domain",
+                sender: "Interview Coach",
+                avatar: COACH_AVATAR,
+                time: "1h ago",
+                isOnline: true,
+                badgeLabel: "Frontend Architecture",
+                messages: [
+                    "For Frontend engineering interviews, focus on state management boundaries, component rendering performance, and Core Web Vitals optimization.",
+                    "Review React concurrent patterns, memory leak prevention, and client-side caching strategies before your next session.",
+                ],
+                insight: "Coach Insight: Demonstrating DOM performance and accessibility (a11y) standards creates strong senior signal.",
+                actions: [
+                    { label: "Practice Frontend Drill", primary: true, icon: Play, onClick: onPractice },
+                ]
+            };
+        } else if (family === "backend_engineer") {
+            domainItem = {
+                id: "coach-domain",
+                sender: "Interview Coach",
+                avatar: COACH_AVATAR,
+                time: "1h ago",
+                isOnline: true,
+                badgeLabel: "System Architecture",
+                messages: [
+                    "To reach top scoring in system architecture, sharpen your cache invalidation strategies, database sharding, and back-of-the-envelope throughput math.",
+                    "Review distributed queue guarantees and database indexing before your next live mock.",
+                ],
+                insight: "Coach Insight: Real-time calculation speed creates strong senior engineering signal.",
+                actions: [
+                    { label: "Practice System Design Drill", primary: true, icon: Play, onClick: onPractice },
+                ]
+            };
+        } else {
+            domainItem = {
+                id: "coach-domain",
+                sender: "Interview Coach",
+                avatar: COACH_AVATAR,
+                time: "1h ago",
+                isOnline: true,
+                badgeLabel: "Domain Strategy",
+                messages: [
+                    "Structure your domain answers with clear problem definition, structured trade-offs, and measurable business outcomes.",
+                    "Lead with your high-level thesis before elaborating on supporting details.",
+                ],
+                insight: "Coach Insight: Structured communication separates top-tier candidates across all domains.",
+                actions: [
+                    { label: "Practice Interview Drill", primary: true, icon: Play, onClick: onPractice },
+                ]
+            };
+        }
+    }
+
+    // Item 3: Session Feedback Message — only after an interview
+    let feedbackItem: ChatDmItem | null = null;
+    if (hasInterview && lastFeedback) {
+        feedbackItem = {
+            id: "coach-interview-feedback",
             sender: "Interview Coach",
             avatar: COACH_AVATAR,
-            time: "2m ago",
+            time: "Just now",
             isOnline: true,
-            badgeLabel: "Behavioral & STAR",
+            badgeLabel: `Evaluation Complete · ${lastFeedback.overallScore}/100`,
             messages: [
-                `When preparing for ${displayRole} behavioral interviews, structuring your stories with the STAR method (Situation, Task, Action, Result) is essential for top scores.`,
-                `Spend 20% on the Situation & Task, 50% detailing your individual Actions, and 30% proving quantifiable business results (e.g. 'reduced customer churn by 18%').`,
+                `I've finished evaluating your latest interview session (${lastFeedback.verdict || "Strong Candidate"} · ${lastFeedback.overallScore}/100). ${lastFeedback.summary}`,
+                "Your complete performance evaluation is ready with a detailed breakdown of your recognized strengths, areas to improve, your spoken quotes, and model answers.",
             ],
-            insight: "Coach Insight: Candidates who quantify business results in STAR answers receive 40% higher evaluation scores.",
+            insight: "Coach Insight: Reviewing your interview feedback within 24 hours improves offer conversion by 45%.",
             actions: [
-                { label: "Practice Behavioral Drill", primary: true, icon: Play, onClick: onPractice },
-                { label: "View STAR Guide", icon: ArrowDown },
-            ]
+                {
+                    label: "View Feedback Report",
+                    primary: true,
+                    icon: ArrowUpRight,
+                    onClick: onOpenFeedback,
+                },
+                {
+                    label: "Practice Next Round",
+                    icon: Play,
+                    onClick: onPractice,
+                },
+            ],
         };
     }
 
-    // Item 2: Domain-Specific Assessment (Strictly aligned to role, NO SWE for PMs!)
-    let domainItem: ChatDmItem;
-    if (family === "product_manager") {
-        domainItem = {
-            id: "coach-domain",
+    // Item 4: Resume / CV Audit Feedback DMs — one per uploaded resume (own thread), not overwriting the same message
+    const resumeFeedbackItems: ChatDmItem[] = [];
+    const sourceList = Array.isArray(allResumeFeedbacks) && allResumeFeedbacks.length > 0 ? allResumeFeedbacks : lastResumeFeedback ? [lastResumeFeedback] : [];
+    // Most recent first, cap 10 to avoid spam
+    sourceList.slice(0, 10).forEach((fb, idx) => {
+        const score = typeof fb.score === "number" ? fb.score : 80;
+        const name = fb.resumeName || (fb as any).fileName || "Uploaded Resume";
+        const role = fb.role || displayRole;
+        const summaryText = fb.summary || (fb as any).executiveSummary || `Your resume scored ${score}/100. We evaluated your impact metrics, role keywords, action verbs, and ATS formatting.`;
+        const isLatest = idx === 0;
+        // Use updatedAt for relative time if available
+        let timeLabel = "Just now";
+        try {
+            if ((fb as any).updatedAt) {
+                const d = new Date((fb as any).updatedAt);
+                const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
+                if (diffMin < 2) timeLabel = "Just now";
+                else if (diffMin < 60) timeLabel = `${diffMin}m ago`;
+                else if (diffMin < 1440) timeLabel = `${Math.floor(diffMin / 60)}h ago`;
+                else timeLabel = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+            } else {
+                timeLabel = isLatest ? "Just now" : `${idx + 1}h ago`;
+            }
+        } catch {}
+        const fid = (fb as any).id || `resume-${idx}`;
+        resumeFeedbackItems.push({
+            id: `coach-resume-feedback-${fid}`,
             sender: "Interview Coach",
             avatar: COACH_AVATAR,
-            time: "1h ago",
+            time: timeLabel,
             isOnline: true,
-            badgeLabel: "Product Sense & Metrics",
+            badgeLabel: `CV Audit Complete · ${score}/100`,
             messages: [
-                "For Product Management rounds, focus on product sense, user segmentation, and ruthless prioritization. Use frameworks like CIRCLES or RICE to evaluate trade-offs.",
-                "Always define your North Star Metric alongside secondary counter-metrics before proposing feature solutions.",
+                `I finished auditing your resume (${name}) targeted for ${role}.`,
+                summaryText,
+                `Your full feedback report is ready with actionable suggestions and an in-line AI improver using the Google X-Y-Z formula.`,
             ],
-            insight: "Coach Insight: Elite PM candidates articulate the root user problem clearly before brainstorming solutions.",
+            insight: "Coach Insight: Resumes that quantify achievements with the Google X-Y-Z formula get 3x more interview callbacks.",
             actions: [
-                { label: "Practice Product Sense Drill", primary: true, icon: Play, onClick: onPractice },
-            ]
-        };
-    } else if (family === "product_designer") {
-        domainItem = {
-            id: "coach-domain",
-            sender: "Interview Coach",
-            avatar: COACH_AVATAR,
-            time: "1h ago",
-            isOnline: true,
-            badgeLabel: "Design Systems & UX",
-            messages: [
-                "For Product Design interviews, walk the interviewer through your end-to-end user journeys, usability trade-offs, and design system component reusability.",
-                "Be ready to defend your wireframing iterations, typography hierarchy, and accessibility (WCAG) standards.",
+                {
+                    label: "Review Full CV Feedback & Improve In-Line",
+                    primary: true,
+                    icon: ArrowUpRight,
+                    onClick: () => onOpenResumeFeedback?.(fid),
+                },
             ],
-            insight: "Coach Insight: Walk through user pain points and edge cases before presenting final high-fidelity screens.",
-            actions: [
-                { label: "Practice Design System Drill", primary: true, icon: Play, onClick: onPractice },
-            ]
-        };
-    } else if (family === "data_analyst") {
-        domainItem = {
-            id: "coach-domain",
-            sender: "Interview Coach",
-            avatar: COACH_AVATAR,
-            time: "1h ago",
-            isOnline: true,
-            badgeLabel: "Analytics & Experimentation",
-            messages: [
-                "For Data & Analytics interviews, sharpen your root cause analysis on metric anomalies, A/B testing hypothesis formulation, and cohort retention models.",
-                "Practice explaining statistical significance, sample sizes, and p-values in plain, impactful business terms.",
-            ],
-            insight: "Coach Insight: Formulating structured hypotheses before data exploration demonstrates senior analytical maturity.",
-            actions: [
-                { label: "Practice Analytics Metric Drill", primary: true, icon: Play, onClick: onPractice },
-            ]
-        };
-    } else if (family === "frontend_developer") {
-        domainItem = {
-            id: "coach-domain",
-            sender: "Interview Coach",
-            avatar: COACH_AVATAR,
-            time: "1h ago",
-            isOnline: true,
-            badgeLabel: "Frontend Architecture",
-            messages: [
-                "For Frontend engineering interviews, focus on state management boundaries, component rendering performance, and Core Web Vitals optimization.",
-                "Review React concurrent patterns, memory leak prevention, and client-side caching strategies before your next session.",
-            ],
-            insight: "Coach Insight: Demonstrating DOM performance and accessibility (a11y) standards creates strong senior signal.",
-            actions: [
-                { label: "Practice Frontend Drill", primary: true, icon: Play, onClick: onPractice },
-            ]
-        };
-    } else if (family === "backend_engineer") {
-        domainItem = {
-            id: "coach-domain",
-            sender: "Interview Coach",
-            avatar: COACH_AVATAR,
-            time: "1h ago",
-            isOnline: true,
-            badgeLabel: "System Architecture",
-            messages: [
-                "To reach top scoring in system architecture, sharpen your cache invalidation strategies, database sharding, and back-of-the-envelope throughput math.",
-                "Review distributed queue guarantees and database indexing before your next live mock.",
-            ],
-            insight: "Coach Insight: Real-time calculation speed creates strong senior engineering signal.",
-            actions: [
-                { label: "Practice System Design Drill", primary: true, icon: Play, onClick: onPractice },
-            ]
-        };
-    } else {
-        domainItem = {
-            id: "coach-domain",
-            sender: "Interview Coach",
-            avatar: COACH_AVATAR,
-            time: "1h ago",
-            isOnline: true,
-            badgeLabel: "Domain Strategy",
-            messages: [
-                "Structure your domain answers with clear problem definition, structured trade-offs, and measurable business outcomes.",
-                "Lead with your high-level thesis before elaborating on supporting details.",
-            ],
-            insight: "Coach Insight: Structured communication separates top-tier candidates across all domains.",
-            actions: [
-                { label: "Practice Interview Drill", primary: true, icon: Play, onClick: onPractice },
-            ]
-        };
-    }
+        });
+    });
 
-    // Item 3: Session Feedback Message with CTA opening the Feedback Modal
-    const feedbackItem: ChatDmItem = {
-        id: "coach-interview-feedback",
-        sender: "Interview Coach",
-        avatar: COACH_AVATAR,
-        time: lastFeedback ? "Just now" : "15m ago",
-        isOnline: true,
-        badgeLabel: lastFeedback
-            ? `Evaluation Complete · ${lastFeedback.overallScore}/100`
-            : "Latest Interview Evaluation · 84/100",
-        messages: [
-            lastFeedback
-                ? `I've finished evaluating your latest interview session (${lastFeedback.verdict || "Strong Candidate"} · ${lastFeedback.overallScore}/100). ${lastFeedback.summary}`
-                : `I've finished evaluating your latest interview session (Strong Candidate · 84/100). You articulated product trade-offs with structured thinking and maintained steady pacing throughout.`,
-            "Your complete performance evaluation is ready with a detailed breakdown of your recognized strengths, areas to improve, your spoken quotes, and model answers.",
-        ],
-        insight: "Coach Insight: Reviewing your interview feedback within 24 hours improves offer conversion by 45%.",
-        actions: [
-            {
-                label: "View Feedback Report",
-                primary: true,
-                icon: ArrowUpRight,
-                onClick: onOpenFeedback,
-            },
-            {
-                label: "Practice Next Round",
-                icon: Play,
-                onClick: onPractice,
-            },
-        ],
-    };
+    const coachItems: ChatDmItem[] = [];
+    if (welcomeItem) coachItems.push(welcomeItem);
+    if (resumeFeedbackItems.length > 0) {
+        coachItems.push(...resumeFeedbackItems);
+    }
+    if (feedbackItem) coachItems.push(feedbackItem);
+    if (starItem) coachItems.push(starItem);
+    if (domainItem) coachItems.push(domainItem);
 
     const coachProfile: CharacterProfile = {
         id: "coach",
@@ -519,8 +612,8 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
         role: "Technical & Behavioral Assessment",
         roleExplanation: coachExplanation,
         avatar: COACH_AVATAR,
-        unreadCount: lastFeedback ? 3 : 2,
-        items: [feedbackItem, starItem, domainItem],
+        unreadCount: coachItems.length,
+        items: coachItems,
     };
 
     // ─────────────────────────────────────────────────────────────

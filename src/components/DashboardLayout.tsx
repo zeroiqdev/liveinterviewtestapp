@@ -34,7 +34,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const userEmail = user?.email || "hello@useladder.com";
     const initials = userName.slice(0, 2).toUpperCase();
 
-    if (pathname === "/" || pathname === "/onboarding" || pathname === "/login" || pathname === "/dashboard" || pathname === "/interview" || pathname === "/feedback" || pathname === "/admin" || pathname === "/jobs") {
+    if (pathname === "/" || pathname === "/onboarding" || pathname === "/login" || pathname === "/dashboard" || pathname === "/interview" || pathname === "/feedback" || pathname === "/admin" || pathname === "/jobs" || pathname === "/resume-feedback" || pathname.startsWith("/resume-feedback")) {
         return <>{children}</>;
     }
 

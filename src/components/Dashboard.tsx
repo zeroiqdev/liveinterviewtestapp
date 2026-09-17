@@ -149,47 +149,61 @@ export default function Dashboard() {
     const handleCloseJobDesc = useCallback(() => setSelectedJobDesc(null), []);
 
     const handleOpenInterviewSetup = useCallback(
-        (context?: {
-            company?: string;
-            title?: string;
-            responsibilities?: string[];
-            roundTitle?: string;
-            interviewTypeTitle?: string;
-        }) => {
+        (context?: JobItem | { company?: string; title?: string; description?: string; responsibilities?: string[]; roundTitle?: string; interviewTypeTitle?: string }) => {
             if (context) {
-                if (context.company) {
+                if ((context as any).company) {
+                    // Derive responsibilities from explicit array or from description text
+                    let derived: string[] = [];
+                    if (Array.isArray((context as any).responsibilities) && (context as any).responsibilities.length > 0) {
+                        derived = (context as any).responsibilities as string[];
+                    } else if (typeof (context as any).description === "string" && (context as any).description.trim()) {
+                        const d = String((context as any).description);
+                        derived = d.split(/\n|•/).map((s) => s.trim()).filter((s) => s.length > 14);
+                        if (derived.length <= 1) {
+                            derived = d.split(/\. /).map((s) => s.trim()).filter((s) => s.length > 18).slice(0, 5);
+                        }
+                        derived = derived.slice(0, 6);
+                    }
                     setSetupModalContext({
                         role: context.title || user?.role || "Software Engineer",
                         company: context.company,
                         isSpecificJob: true,
                         jobTitle: context.title,
                         interviewTypeTitle: `${context.company} ${context.title || user?.role || "Interview"}`,
-                        jobResponsibilities: context.responsibilities || [],
+                        jobResponsibilities: derived,
                     });
-                } else if (context.roundTitle || context.interviewTypeTitle) {
-                    const raw = (context.roundTitle || context.interviewTypeTitle || "").replace(/\n/g, " ").trim();
+                } else if ((context as any).roundTitle || (context as any).interviewTypeTitle) {
+                    const raw = ((context as any).roundTitle || (context as any).interviewTypeTitle || "").replace(/\n/g, " ").trim();
                     const clean = raw.toLowerCase().endsWith("interview") ? raw : `${raw} Interview`;
+                    const roleTitle = (context as any).title || user?.role || "Product Manager";
                     setSetupModalContext({
-                        role: user?.role || "Product Manager",
-                        company: "",
-                        isSpecificJob: false,
-                        jobTitle: clean,
+                        role: roleTitle,
+                        company: (context as any).company || "Target Role",
+                        isSpecificJob: true,
+                        jobTitle: roleTitle,
                         interviewTypeTitle: clean,
+                        jobResponsibilities: Array.isArray((context as any).responsibilities) ? (context as any).responsibilities : [],
                     });
                 } else {
+                    const roleTitle = (context as any).title || user?.role || "Product Manager";
                     setSetupModalContext({
-                        role: user?.role || "Product Manager",
-                        company: "",
-                        isSpecificJob: false,
-                        interviewTypeTitle: context.title ? `${context.title} Interview` : "Product Sense Interview",
+                        role: roleTitle,
+                        company: (context as any).company || "Target Role",
+                        isSpecificJob: true,
+                        jobTitle: roleTitle,
+                        interviewTypeTitle: (context as any).title ? `${(context as any).title} Interview` : "Role Interview",
+                        jobResponsibilities: Array.isArray((context as any).responsibilities) ? (context as any).responsibilities : [],
                     });
                 }
             } else {
+                const roleTitle = user?.role || "Product Manager";
                 setSetupModalContext({
-                    role: user?.role || "Product Manager",
-                    company: "",
-                    isSpecificJob: false,
-                    interviewTypeTitle: "Product Sense Interview",
+                    role: roleTitle,
+                    company: "Target Role",
+                    isSpecificJob: true,
+                    jobTitle: roleTitle,
+                    interviewTypeTitle: "Role Interview",
+                    jobResponsibilities: [],
                 });
             }
             setIsInterviewSetupOpen(true);

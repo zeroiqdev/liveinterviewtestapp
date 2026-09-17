@@ -76,6 +76,7 @@ export default function OnboardingPage() {
     const [linkedinUrl, setLinkedinUrl] = useState("");
     const [cvName, setCvName] = useState<string | null>(null);
     const [cvData, setCvData] = useState<string | null>(null);
+    const [cvText, setCvText] = useState<string>("");
     const [checkingAuth, setCheckingAuth] = useState(true);
     const { updateSettings } = useInterview();
     const router = useRouter();
@@ -158,11 +159,32 @@ export default function OnboardingPage() {
     const handleFile = (file: File | undefined) => {
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = () => {
+        reader.onload = async () => {
             const result = typeof reader.result === "string" ? reader.result : "";
             const payload = result.startsWith("data:") ? result.split(",")[1] || "" : result;
             setCvData(payload);
             setCvName(file.name);
+
+            // Extract plain text via /api/resume/parse
+            try {
+                const parseRes = await fetch("/api/resume/parse", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        fileData: result,
+                        resumeText: file.type.startsWith("text/") ? result : "",
+                        resumeName: file.name,
+                    }),
+                });
+                const parseData = await parseRes.json();
+                if (parseData.success && parseData.text) {
+                    setCvText(parseData.text);
+                } else if (file.type.startsWith("text/")) {
+                    setCvText(result);
+                }
+            } catch {
+                if (file.type.startsWith("text/")) setCvText(result);
+            }
         };
         if (file.type.startsWith("text/") || file.name.endsWith(".txt") || file.name.endsWith(".md")) {
             reader.readAsText(file);
@@ -175,16 +197,23 @@ export default function OnboardingPage() {
         const domainVal = selectedRole?.domain || "Software & Engineering";
         const roleVal = selectedRole?.role || "Software Engineer";
 
-        let existing: { id?: string; resumes?: { id: string; name: string; data: string }[] } = {};
+        let existing: { id?: string; resumes?: { id: string; name: string; data: string; rawText?: string }[] } = {};
         try {
             existing = JSON.parse(localStorage.getItem("useladder_user") || "{}");
         } catch { /* ignore */ }
 
         const resumes = [...(existing.resumes || [])];
         let selectedResumeId: string | undefined;
+        const cleanResumeText = cvText || (cvData && !cvData.startsWith("data:") && cvData.length < 50000 ? cvData : "");
+
         if (cvData && cvName) {
             selectedResumeId = `cv_${Date.now()}`;
-            resumes.push({ id: selectedResumeId, name: cvName, data: cvData });
+            resumes.push({
+                id: selectedResumeId,
+                name: cvName,
+                data: cvData,
+                rawText: cleanResumeText,
+            });
         }
 
         const roleFamily = normalizeUserRoleFamily(roleVal);
@@ -219,7 +248,7 @@ export default function OnboardingPage() {
                 resume: selectedResumeId && cvData && cvName ? {
                     id: selectedResumeId,
                     name: cvName,
-                    rawText: cvData,
+                    rawText: cleanResumeText,
                     score: 80,
                 } : undefined,
             }),

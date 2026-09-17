@@ -6,7 +6,7 @@
     "sourceType": "job_board",
     "atsProvider": "jobberman",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:38:50.546Z",
+    "lastScraped": "2026-09-16T09:33:15.169Z",
     "lastJobCount": 25,
     "dateAdded": "2026-08-18"
   },
@@ -17,8 +17,8 @@
     "sourceType": "job_board",
     "atsProvider": "linkedin",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:38:58.507Z",
-    "lastJobCount": 43,
+    "lastScraped": "2026-09-16T09:33:22.322Z",
+    "lastJobCount": 42,
     "dateAdded": "2026-08-18"
   },
   {
@@ -28,7 +28,7 @@
     "sourceType": "job_board",
     "atsProvider": "wellfound",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:00.046Z",
+    "lastScraped": "2026-09-16T09:33:23.230Z",
     "lastJobCount": 30,
     "dateAdded": "2026-08-18"
   },
@@ -39,7 +39,7 @@
     "sourceType": "job_board",
     "atsProvider": "indeed",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:00.591Z",
+    "lastScraped": "2026-09-16T09:33:23.804Z",
     "lastJobCount": 0,
     "dateAdded": "2026-08-18"
   },
@@ -50,7 +50,7 @@
     "sourceType": "job_board",
     "atsProvider": "glassdoor",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:01.283Z",
+    "lastScraped": "2026-09-16T09:33:24.320Z",
     "lastJobCount": 0,
     "dateAdded": "2026-08-18"
   },
@@ -61,7 +61,7 @@
     "sourceType": "career_page",
     "atsProvider": "greenhouse",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:02.070Z",
+    "lastScraped": "2026-09-16T09:33:24.729Z",
     "lastJobCount": 0,
     "dateAdded": "2026-08-18"
   },
@@ -72,7 +72,7 @@
     "sourceType": "career_page",
     "atsProvider": "ashby",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:02.962Z",
+    "lastScraped": "2026-09-16T09:33:25.489Z",
     "lastJobCount": 0,
     "dateAdded": "2026-08-18"
   },
@@ -83,8 +83,8 @@
     "sourceType": "career_page",
     "atsProvider": "greenhouse",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:03.675Z",
-    "lastJobCount": 15,
+    "lastScraped": "2026-09-16T09:33:25.829Z",
+    "lastJobCount": 19,
     "dateAdded": "2026-08-18"
   },
   {
@@ -94,7 +94,7 @@
     "sourceType": "career_page",
     "atsProvider": "generic",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:05.959Z",
+    "lastScraped": "2026-09-16T09:33:27.400Z",
     "lastJobCount": 2,
     "dateAdded": "2026-08-18"
   },
@@ -105,7 +105,7 @@
     "sourceType": "career_page",
     "atsProvider": "greenhouse",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:06.240Z",
+    "lastScraped": "2026-09-16T09:33:27.793Z",
     "lastJobCount": 0,
     "dateAdded": "2026-08-18"
   },
@@ -116,7 +116,7 @@
     "sourceType": "career_page",
     "atsProvider": "lever",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:08.009Z",
+    "lastScraped": "2026-09-16T09:33:29.643Z",
     "lastJobCount": 0,
     "dateAdded": "2026-08-18"
   },
@@ -127,7 +127,7 @@
     "sourceType": "career_page",
     "atsProvider": "generic",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:10.521Z",
+    "lastScraped": "2026-09-16T09:33:30.933Z",
     "lastJobCount": 3,
     "dateAdded": "2026-08-18"
   },
@@ -138,7 +138,7 @@
     "sourceType": "career_page",
     "atsProvider": "generic",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:28.477Z",
+    "lastScraped": "2026-09-16T09:33:34.736Z",
     "lastJobCount": 4,
     "dateAdded": "2026-08-18"
   },
@@ -149,7 +149,7 @@
     "sourceType": "career_page",
     "atsProvider": "ashby",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:29.063Z",
+    "lastScraped": "2026-09-16T09:33:35.476Z",
     "lastJobCount": 0,
     "dateAdded": "2026-08-18"
   },
@@ -160,7 +160,7 @@
     "sourceType": "career_page",
     "atsProvider": "greenhouse",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:29.427Z",
+    "lastScraped": "2026-09-16T09:33:35.889Z",
     "lastJobCount": 0,
     "dateAdded": "2026-08-18"
   },
@@ -171,8 +171,8 @@
     "sourceType": "vc_portfolio",
     "atsProvider": "generic",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:34.325Z",
-    "lastJobCount": 6,
+    "lastScraped": "2026-09-16T09:33:59.848Z",
+    "lastJobCount": 3,
     "dateAdded": "2026-08-18"
   },
   {
@@ -182,7 +182,7 @@
     "sourceType": "vc_portfolio",
     "atsProvider": "generic",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:48.377Z",
+    "lastScraped": "2026-09-16T09:34:13.376Z",
     "lastJobCount": 0,
     "dateAdded": "2026-08-18"
   },
@@ -193,7 +193,7 @@
     "sourceType": "vc_portfolio",
     "atsProvider": "generic",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:53.024Z",
+    "lastScraped": "2026-09-16T09:34:20.150Z",
     "lastJobCount": 6,
     "dateAdded": "2026-08-18"
   },
@@ -204,8 +204,8 @@
     "sourceType": "career_page",
     "atsProvider": "greenhouse",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:53.727Z",
-    "lastJobCount": 634,
+    "lastScraped": "2026-09-16T09:34:20.592Z",
+    "lastJobCount": 647,
     "dateAdded": "2026-08-18"
   },
   {
@@ -215,7 +215,7 @@
     "sourceType": "career_page",
     "atsProvider": "greenhouse",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:54.039Z",
+    "lastScraped": "2026-09-16T09:34:20.943Z",
     "lastJobCount": 0,
     "dateAdded": "2026-08-18"
   },
@@ -226,8 +226,8 @@
     "sourceType": "career_page",
     "atsProvider": "greenhouse",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:54.813Z",
-    "lastJobCount": 86,
+    "lastScraped": "2026-09-16T09:34:21.751Z",
+    "lastJobCount": 85,
     "dateAdded": "2026-08-18"
   },
   {
@@ -237,7 +237,7 @@
     "sourceType": "career_page",
     "atsProvider": "ashby",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:55.312Z",
+    "lastScraped": "2026-09-16T09:34:22.383Z",
     "lastJobCount": 0,
     "dateAdded": "2026-08-18"
   },
@@ -248,7 +248,7 @@
     "sourceType": "career_page",
     "atsProvider": "greenhouse",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:56.081Z",
+    "lastScraped": "2026-09-16T09:34:23.175Z",
     "lastJobCount": 0,
     "dateAdded": "2026-08-18"
   },
@@ -259,7 +259,7 @@
     "sourceType": "career_page",
     "atsProvider": "greenhouse",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:39:57.117Z",
+    "lastScraped": "2026-09-16T09:34:24.217Z",
     "lastJobCount": 595,
     "dateAdded": "2026-08-18"
   },
@@ -270,8 +270,8 @@
     "sourceType": "vc_portfolio",
     "atsProvider": "generic",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:40:02.513Z",
-    "lastJobCount": 2659,
+    "lastScraped": "2026-09-16T09:34:29.488Z",
+    "lastJobCount": 2688,
     "dateAdded": "2026-08-18"
   },
   {
@@ -281,8 +281,8 @@
     "sourceType": "vc_portfolio",
     "atsProvider": "generic",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:40:07.159Z",
-    "lastJobCount": 634,
+    "lastScraped": "2026-09-16T09:34:33.867Z",
+    "lastJobCount": 647,
     "dateAdded": "2026-08-18"
   },
   {
@@ -292,8 +292,8 @@
     "sourceType": "vc_portfolio",
     "atsProvider": "generic",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:40:18.598Z",
-    "lastJobCount": 426,
+    "lastScraped": "2026-09-16T09:34:45.982Z",
+    "lastJobCount": 418,
     "dateAdded": "2026-08-18"
   },
   {
@@ -303,7 +303,7 @@
     "sourceType": "vc_portfolio",
     "atsProvider": "generic",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:40:25.054Z",
+    "lastScraped": "2026-09-16T09:34:52.406Z",
     "lastJobCount": 0,
     "dateAdded": "2026-08-18"
   },
@@ -314,8 +314,8 @@
     "sourceType": "vc_portfolio",
     "atsProvider": "generic",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:40:26.790Z",
-    "lastJobCount": 772,
+    "lastScraped": "2026-09-16T09:34:53.487Z",
+    "lastJobCount": 756,
     "dateAdded": "2026-08-18"
   },
   {
@@ -325,8 +325,8 @@
     "sourceType": "vc_portfolio",
     "atsProvider": "generic",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:40:30.158Z",
-    "lastJobCount": 5589,
+    "lastScraped": "2026-09-16T09:34:56.560Z",
+    "lastJobCount": 5675,
     "dateAdded": "2026-08-18"
   },
   {
@@ -336,8 +336,8 @@
     "sourceType": "vc_portfolio",
     "atsProvider": "generic",
     "enabled": true,
-    "lastScraped": "2026-09-12T13:40:32.972Z",
-    "lastJobCount": 763,
+    "lastScraped": "2026-09-16T09:34:59.302Z",
+    "lastJobCount": 780,
     "dateAdded": "2026-08-18"
   }
 ]

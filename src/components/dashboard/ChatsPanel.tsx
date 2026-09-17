@@ -1,7 +1,8 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { X } from "@phosphor-icons/react";
 import styles from "../dashboard.module.css";
-import { buildCharactersForUser } from "./constants";
+import { buildCharactersForUser, type ResumeScanFeedbackItem } from "./constants";
 import { DmRow } from "./DmRow";
 import FeedbackReport from "../FeedbackReport";
 import type { FeedbackReportData } from "@/app/api/feedback/generate/route";
@@ -24,7 +25,30 @@ export function ChatsPanel({
     onOpenJob,
     onOpenFeedback,
 }: ChatsPanelProps) {
-    const [openedDmId, setOpenedDmId] = useState<string | null>("coach-interview-feedback");
+    const router = useRouter();
+    const [openedDmId, setOpenedDmId] = useState<string | null>(() => {
+        if (typeof window !== "undefined") {
+            const hasNew = localStorage.getItem("useladder_has_new_resume_dm") === "true";
+            if (hasNew) localStorage.removeItem("useladder_has_new_resume_dm");
+            try {
+                const allRaw = localStorage.getItem("useladder_all_resume_feedbacks");
+                if (allRaw) {
+                    const arr = JSON.parse(allRaw);
+                    if (Array.isArray(arr) && arr.length > 0 && (arr[0] as any).id) return `coach-resume-feedback-${(arr[0] as any).id}`;
+                }
+            } catch {}
+            if (hasNew) return "coach-resume-feedback";
+            if (localStorage.getItem("useladder_last_resume_feedback")) {
+                try {
+                    const raw = localStorage.getItem("useladder_last_resume_feedback");
+                    const p = raw ? JSON.parse(raw) : null;
+                    if (p?.id) return `coach-resume-feedback-${p.id}`;
+                } catch {}
+                return "coach-resume-feedback";
+            }
+        }
+        return "coach-interview-feedback";
+    });
     const [showRoleBubble, setShowRoleBubble] = useState(true);
     const [lastFeedback] = useState<FeedbackReportData | null>(() => {
         if (typeof window === "undefined") return null;
@@ -51,6 +75,85 @@ export function ChatsPanel({
         }
         return null;
     });
+
+    const [lastResumeFeedback, setLastResumeFeedback] = useState<ResumeScanFeedbackItem | null>(() => {
+        if (typeof window === "undefined") return null;
+        try {
+            const raw = localStorage.getItem("useladder_last_resume_feedback");
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && typeof parsed.score === "number") {
+                    return parsed;
+                }
+            }
+            // If user has an active resume stored, show its feedback in DM immediately
+            const userRaw = localStorage.getItem("useladder_user");
+            if (userRaw) {
+                const user = JSON.parse(userRaw);
+                const activeResume = user.resume || (Array.isArray(user.resumes) && user.resumes[0]);
+                if (activeResume && activeResume.name) {
+                    return {
+                        id: activeResume.id,
+                        resumeName: activeResume.name,
+                        role: user.role || "Software Engineer",
+                        domain: user.domain || "Software & Engineering",
+                        resumeText: activeResume.data || activeResume.rawText || "",
+                        score: typeof activeResume.score === "number" ? activeResume.score : 82,
+                        summary: "Your resume has been audited for your targeted role. Review full feedback and elevate bullet points with our in-line Google X-Y-Z improver.",
+                    };
+                }
+            }
+        } catch {}
+        return null;
+    });
+
+    const [hasAdminTips, setHasAdminTips] = useState(false);
+    useEffect(() => {
+        fetch("/api/admin/tips")
+            .then((r) => r.json())
+            .then((d) => setHasAdminTips(!!d.enabled))
+            .catch(() => {});
+        const handler = () => fetch("/api/admin/tips").then((r) => r.json()).then((d) => setHasAdminTips(!!d.enabled)).catch(() => {});
+        window.addEventListener("useladder_tips_updated", handler);
+        return () => window.removeEventListener("useladder_tips_updated", handler);
+    }, []);
+
+    const [allResumeFeedbacks, setAllResumeFeedbacks] = useState<ResumeScanFeedbackItem[] | null>(() => {
+        if (typeof window === "undefined") return null;
+        try {
+            const allRaw = localStorage.getItem("useladder_all_resume_feedbacks");
+            if (allRaw) {
+                const arr = JSON.parse(allRaw);
+                if (Array.isArray(arr) && arr.length > 0 && typeof arr[0].score === "number") return arr as ResumeScanFeedbackItem[];
+            }
+        } catch {}
+        return null;
+    });
+
+    useEffect(() => {
+        const handleResumeScanned = () => {
+            try {
+                const raw = localStorage.getItem("useladder_last_resume_feedback");
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && typeof parsed.score === "number") {
+                        setLastResumeFeedback(parsed);
+                        // Prefer per-resume id if available
+                        const pid = (parsed as any).id ? `coach-resume-feedback-${(parsed as any).id}` : "coach-resume-feedback";
+                        setOpenedDmId(pid);
+                    }
+                }
+                const allRaw = localStorage.getItem("useladder_all_resume_feedbacks");
+                if (allRaw) {
+                    const arr = JSON.parse(allRaw);
+                    if (Array.isArray(arr) && arr.length > 0) setAllResumeFeedbacks(arr as ResumeScanFeedbackItem[]);
+                }
+            } catch {}
+        };
+        window.addEventListener("useladder_resume_scanned", handleResumeScanned);
+        return () => window.removeEventListener("useladder_resume_scanned", handleResumeScanned);
+    }, []);
+
     const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
     const handleOpenFeedback = useCallback(() => {
@@ -60,18 +163,64 @@ export function ChatsPanel({
         }
     }, [onOpenFeedback]);
 
+    const handleOpenResumeFeedback = useCallback((resumeId?: string) => {
+        // If a specific resume DM was clicked, make it the active resume so /resume-feedback shows that file
+        if (resumeId) {
+            try {
+                const raw = localStorage.getItem("useladder_all_resume_feedbacks");
+                const userRaw = localStorage.getItem("useladder_user");
+                if (raw) {
+                    const arr = JSON.parse(raw);
+                    const found = Array.isArray(arr) ? arr.find((r: any) => r.id === resumeId) : null;
+                    if (found) {
+                        localStorage.setItem("useladder_last_resume_feedback", JSON.stringify(found));
+                        if (userRaw) {
+                            const u = JSON.parse(userRaw);
+                            u.selectedResumeId = found.id;
+                            localStorage.setItem("useladder_user", JSON.stringify(u));
+                        }
+                    }
+                } else if (userRaw) {
+                    const u = JSON.parse(userRaw);
+                    const found = Array.isArray(u.resumes) ? u.resumes.find((r: any) => r.id === resumeId) : null;
+                    if (found) {
+                        u.selectedResumeId = found.id;
+                        localStorage.setItem("useladder_user", JSON.stringify(u));
+                    }
+                }
+            } catch {}
+        }
+        router.push("/resume-feedback");
+    }, [router]);
+
     const coachProfile = useMemo(() => {
         const characters = buildCharactersForUser({
             userRole,
             userRoleFamily,
             displayedJobs,
             lastFeedback,
+            lastResumeFeedback,
+            allResumeFeedbacks,
+            hasAdminTips,
             onPractice,
             onOpenJob,
             onOpenFeedback: handleOpenFeedback,
+            onOpenResumeFeedback: handleOpenResumeFeedback,
         });
         return characters.find((c) => c.id === "coach") || characters[0];
-    }, [userRole, userRoleFamily, displayedJobs, lastFeedback, onPractice, onOpenJob, handleOpenFeedback]);
+    }, [
+        userRole,
+        userRoleFamily,
+        displayedJobs,
+        lastFeedback,
+        lastResumeFeedback,
+        allResumeFeedbacks,
+        hasAdminTips,
+        onPractice,
+        onOpenJob,
+        handleOpenFeedback,
+        handleOpenResumeFeedback,
+    ]);
 
     const [readDmIds, setReadDmIds] = useState<Set<string>>(() => {
         if (typeof window === "undefined") return new Set<string>();

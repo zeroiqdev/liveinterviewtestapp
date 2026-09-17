@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, EB_Garamond } from "next/font/google";
 import "./globals.css";
 import { InterviewProvider } from "@/context/InterviewContext";
 import DashboardLayout from "@/components/DashboardLayout";
 
 const inter = Inter({ subsets: ["latin"] });
+const ebGaramond = EB_Garamond({ subsets: ["latin"], variable: "--font-eb-garamond" });
 
 export const viewport: Viewport = {
     width: "device-width",
@@ -36,7 +37,7 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en">
-            <body className={inter.className}>
+            <body className={`${inter.className} ${ebGaramond.variable}`}>
                 <InterviewProvider>
                     <DashboardLayout>
                         {children}

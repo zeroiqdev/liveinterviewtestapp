@@ -14,12 +14,18 @@
     "@elevenlabs/elevenlabs-js": "^2.64.0",
     "@mingcute/react": "^3.0.2",
     "@phosphor-icons/react": "^2.1.10",
+    "docx": "^9.7.1",
     "dotenv": "^16.6.1",
+    "mammoth": "^1.12.3",
     "mongoose": "^8.24.3",
+    "nanoid": "^6.0.1",
     "next": "16.0.7",
+    "pizzip": "^3.2.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "tsx": "^4.23.12"
+    "tsx": "^4.23.12",
+    "unpdf": "^1.8.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^20",
