@@ -222,19 +222,6 @@ export default function LoginPage() {
         <div className={styles.splitWrapper}>
             {/* ════════ LEFT HERO PANEL (MATCHES ONBOARDING) ════════ */}
             <div className={styles.leftHeroPanel}>
-                <div className={styles.leftLogoHeader}>
-                    <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: "0.6rem", textDecoration: "none" }}>
-                        <div className={styles.brandLogoWrap}>
-                            <img
-                                src="https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png"
-                                alt="onscript logo"
-                                className={styles.brandLogoImg}
-                            />
-                        </div>
-                        <span className={styles.brandLogoText}>onscript</span>
-                    </Link>
-                </div>
-
                 <div className={styles.leftHeroCenter}>
                     <h1 className={styles.welcomeHeading}>
                         <span className={styles.welcomeRow}>
@@ -255,20 +242,6 @@ export default function LoginPage() {
 
             {/* ════════ RIGHT CONTENT PANEL ════════ */}
             <div className={styles.rightContentPanel}>
-                {/* Mobile Logo */}
-                <div className={styles.mobileLogoHeader}>
-                    <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: "0.6rem", textDecoration: "none" }}>
-                        <div className={styles.brandLogoWrap}>
-                            <img
-                                src="https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png"
-                                alt="onscript logo"
-                                className={styles.brandLogoImg}
-                            />
-                        </div>
-                        <span className={styles.mobileBrandLogoText}>onscript</span>
-                    </Link>
-                </div>
-
                 {/* Back button to Home */}
                 <Link href="/" className={styles.topBackSquareBtn} aria-label="Go home">
                     <ArrowLeft size={18} />
