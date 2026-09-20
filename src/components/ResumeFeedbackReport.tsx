@@ -20,86 +20,29 @@ import {
     Sparkle,
 } from "@phosphor-icons/react";
 import type { ResumeScanFeedbackItem } from "./dashboard/constants";
+import {
+    StructuredBullet,
+    StructuredJob,
+    StructuredSkill,
+    StructuredEducation,
+    StructuredCustomSection,
+    StructuredResume,
+    SuggestionItem,
+    cleanLine,
+    toSectionTitle,
+    resolveExperienceTitle,
+    isProjectHeader,
+    isCompanyDescriptionLine,
+    parseResumeTextToStructured,
+    normalizeStructuredForDisplay,
+    DATE_RANGE_RE,
+    DATE_AT_END_RE,
+    ANY_DATE_RE,
+} from "@/lib/resumeParser";
+import { calculateStructuredAtsScore, calculateAtsScore, AtsScoreResult } from "@/lib/atsScorer";
 
-interface SuggestionItem {
-    id: string;
-    category: "Impact & Metrics" | "Action Verbs & Brevity" | "Role Alignment" | "Technical Depth";
-    title: string;
-    feedback: string;
-    recommendation: string;
-    targetSnippet: string;
-    proposedText: string;
-    scoreLift: number;
-    applied: boolean;
-    fusedKeyword?: string;
-    targetJobLabel?: string;
-}
+export type { StructuredResume, StructuredJob, StructuredBullet, SuggestionItem };
 
-interface StructuredJob {
-    id: string;
-    title: string;
-    company: string;
-    date: string;
-    sectionTitle?: string;
-    /** Employer tagline / company description — displayed as muted, uneditable text; never scored or suggested */
-    companyDescription?: string;
-    /** Project subheaders like "Onscript - Mock Interview Platform" — plain text between job header and bullets, not a bullet */
-    projectHeaders?: string[];
-    bullets: Array<{
-        id: string;
-        text: string;
-        suggestionId?: string;
-        projectHeader?: string;
-    }>;
-}
-
-interface StructuredResume {
-    name: string;
-    headline: string;
-    contact: string;
-    summary: string;
-    jobs: StructuredJob[];
-    skills: Array<{
-        category: string;
-        items: string;
-    }>;
-    education?: Array<{
-        institution: string;
-        date?: string;
-        degree: string;
-        details?: string;
-    }>;
-    experienceTitle?: string;
-    summaryTitle?: string;
-    skillsTitle?: string;
-}
-
-function cleanLine(l: string): string {
-    return l.replace(/^[#*•·\-\—\–\s\u2022\u2023\u25E6\u2043\u00B7●\u25CF]+/, "").trim();
-}
-
-function toSectionTitle(raw: string): string {
-    const trimmed = raw.trim();
-    if (!trimmed) return "Work Experience";
-    if (trimmed === trimmed.toUpperCase() && trimmed.length > 3) {
-        return trimmed
-            .split(/\s+/)
-            .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-            .join(" ");
-    }
-    return trimmed;
-}
-
-function resolveExperienceTitle(extracted?: string, role?: string, _headline?: string): string {
-    const s = (extracted || "").trim();
-    if (s) {
-        return toSectionTitle(s);
-    }
-    if (role && /product/i.test(role)) {
-        return "Product Management Experience";
-    }
-    return "Work Experience";
-}
 
 function extractOriginalFontFromDataUrl(dataUrl: string | null): string | null {
     if (!dataUrl) return null;
@@ -162,800 +105,6 @@ async function extractFontAsync(dataUrl: string | null): Promise<string | null> 
         if (docMatch) return docMatch[1];
     } catch {}
     return null;
-}
-
-const DATE_MATCH_RE = /(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}\s*[-–—]\s*(?:Present|Current|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}|\d{4})|(?:19|20)\d{2}\s*[-–—]\s*(?:Present|Current|\d{4}))/i;
-const DATE_AT_END_RE = /(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}\s*[-–—]\s*(?:Present|Current|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}|\d{4})|(?:19|20)\d{2}\s*[-–—]\s*(?:Present|Current|\d{4}))\s*$/i;
-
-function isProjectHeader(t: string): boolean {
-    const s = (t || "").trim();
-    if (!s || s.length > 95) return false;
-    // Disqualify action verbs
-    if (/^(Built|Designed|Defined|Created|Led|Managed|Developed|Implemented|Initiated|Orchestrated|Owned|Established|Architected|Engineered|Spearheaded|Delivered|Reduced|Increased|Generated|Accelerated|Collaborated|Formulated|Standardized|Directed|Supervised|Partnered|Resolved|Maintained|Optimized|Authored|Executed|Scaled)\b/i.test(s)) {
-        return false;
-    }
-    // Explicit project/product prefixes: "Product Title: ...", "Project: ...", "Platform: ..."
-    if (/^(?:Product|Project|Client|Initiative|Platform|Engagement)(?:\s+Title)?\s*[:\-–—(]/i.test(s)) {
-        return true;
-    }
-    // Parenthesized project names like "(Onscript - Mock Interview)" or "(Onscript - Mock Interview Platform)"
-    if (/^\([A-Za-z0-9&].*[-–—].*\)$/i.test(s)) {
-        return true;
-    }
-    // Names with dash like "Onscript - Mock Interview Platform" or "Product Name - Subtitle"
-    if (/^[A-Za-z0-9&]+(?:\s+[A-Za-z0-9&]+)*\s*[-–—]\s*[A-Za-z0-9&].{2,70}$/.test(s) && !/[.!?]$/.test(s)) {
-        return true;
-    }
-    return false;
-}
-
-function normalizeStructuredForDisplay(sr: StructuredResume): StructuredResume {
-    const experienceTitle = resolveExperienceTitle(sr.experienceTitle, sr.headline, sr.name);
-    const summaryTitle = sr.summaryTitle || "Professional Summary";
-    const skillsTitle = sr.skillsTitle || "Technical Competencies & Skills";
-
-    const jobs = sr.jobs.map((job) => {
-        let fixedTitle = job.title;
-        let fixedDate = job.date;
-        let fixedCompany = job.company;
-        const projectHeaders: string[] = Array.isArray(job.projectHeaders) ? [...job.projectHeaders] : [];
-
-        // Check if fixedDate has extra text after date (e.g. "July 2025 - Present Product Title (Onscript - Mock Interview)")
-        if (fixedDate) {
-            const dm = fixedDate.match(DATE_MATCH_RE);
-            if (dm && dm.index !== undefined) {
-                const after = fixedDate.slice(dm.index + dm[0].length).trim();
-                if (after.length > 0) {
-                    fixedDate = dm[0].trim();
-                    if (isProjectHeader(after) || (after.length < 80 && !/^(Collaborated|Spearheaded|Built|Led|Managed|Developed)\b/i.test(after) && !/[.!?]$/.test(after))) {
-                        projectHeaders.push(after);
-                    }
-                }
-            }
-        }
-
-        // Re-extract date if embedded in title or company
-        const combined = `${fixedTitle} ${fixedCompany} ${fixedDate}`.trim();
-        const m = combined.match(DATE_MATCH_RE);
-        if (m && (!fixedDate || fixedDate === "Present" || fixedDate.split(/\s+/).length <= 1)) {
-            fixedDate = m[0].trim();
-            const withoutDate = combined.slice(0, combined.lastIndexOf(m[0])).trim();
-            if (withoutDate.includes(",")) {
-                const parts = withoutDate.split(",").map((p) => p.trim()).filter(Boolean);
-                fixedTitle = parts[0] || fixedTitle;
-                fixedCompany = parts.slice(1).join(", ").trim() || fixedCompany;
-            } else {
-                fixedTitle = withoutDate;
-            }
-            fixedTitle = fixedTitle.replace(DATE_MATCH_RE, "").trim().replace(/[,·|]+$/g, "").trim();
-            fixedCompany = fixedCompany.replace(DATE_MATCH_RE, "").trim();
-        }
-
-        if (fixedTitle) {
-            const tm = fixedTitle.match(DATE_MATCH_RE);
-            if (tm && tm.index !== undefined) {
-                const after = fixedTitle.slice(tm.index + tm[0].length).trim();
-                fixedTitle = fixedTitle.slice(0, tm.index).trim().replace(/[,·|]+$/g, "").trim();
-                if (!fixedDate) fixedDate = tm[0].trim();
-                if (after && (isProjectHeader(after) || (after.length < 80 && !/^(Collaborated|Spearheaded|Built|Led|Managed|Developed)\b/i.test(after) && !/[.!?]$/.test(after)))) {
-                    projectHeaders.push(after);
-                }
-            }
-        }
-
-        // Keep every bullet intact without destructive merging so edits in the editor never disrupt CV structure!
-        const bullets = job.bullets.map((b) => ({
-            ...b,
-            text: b.text.trim(),
-            projectHeader: b.projectHeader,
-        }));
-
-        return { ...job, title: fixedTitle, company: fixedCompany, date: fixedDate, sectionTitle: job.sectionTitle, projectHeaders, bullets };
-    });
-
-    const contact = (sr.contact || "")
-        .replace(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\s*\((?:mailto:)?\1\)/gi, "$1")
-        .replace(/\((?:mailto:)([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\)/gi, "$1");
-
-    return { ...sr, contact, experienceTitle, summaryTitle, skillsTitle, education: sr.education, jobs };
-}
-
-function parseResumeTextToStructured(
-    rawText: string,
-    fallbackName: string,
-    fallbackRole: string,
-    fallbackEmail: string,
-    rawSuggestions?: Array<{ category?: string; feedback?: string; recommendation?: string }>
-): { structured: StructuredResume; suggestions: SuggestionItem[] } {
-    let text = (rawText || "").trim();
-
-    // Decode if plain text data URI (do not corrupt binary docx/pdf)
-    if (text.startsWith("data:text/")) {
-        try {
-            const base64 = text.split(",")[1];
-            text = atob(base64);
-        } catch {}
-    }
-
-    if (!text) {
-        return {
-            structured: {
-                name: fallbackName || "",
-                headline: "",
-                contact: "",
-                summary: "",
-                jobs: [],
-                skills: [],
-                education: [],
-                experienceTitle: resolveExperienceTitle(undefined, fallbackRole || "", ""),
-                summaryTitle: "Professional Summary",
-                skillsTitle: "Technical Competencies & Skills",
-            },
-            suggestions: [],
-        };
-    }
-
-    const displayName = fallbackName || "";
-    const displayRole = fallbackRole || "Software Engineer";
-    const displayEmail = fallbackEmail || (displayName ? `${displayName.toLowerCase().replace(/\s+/g, ".")}@example.com` : "");
-
-    // Helper to generate Google X-Y-Z formula from candidate's actual bullet text — ONLY used as last-resort fallback when LLM provides no rewrite.
-    // Retains candidate's real initiative, metrics, and context instead of inserting generic canned templates.
-    const createGoogleXYZ = (original: string, role: string): string => {
-        const cleaned = original.replace(/^(responsible for|helped to|worked on|assisted with|tasked with|participated in)\s*/i, "").trim();
-        const base = cleaned ? (cleaned.charAt(0).toUpperCase() + cleaned.slice(1)) : original;
-
-        const hasMetric = /(%|\$|naira|million|billion|users|customers|kpi|sla|latency|ms|roi|growth)/i.test(base);
-        if (hasMetric) {
-            const verb = /product/i.test(role) ? "Spearheaded" : /engineer|developer/i.test(role) ? "Architected" : "Orchestrated";
-            if (/^(spearheaded|architected|engineered|orchestrated|designed|developed|led|owned)/i.test(base)) {
-                return base;
-            }
-            return `${verb} ${base.charAt(0).toLowerCase() + base.slice(1)}`;
-        }
-
-        const verb = /product/i.test(role)
-            ? "Spearheaded end-to-end execution of"
-            : /design/i.test(role)
-            ? "Designed and standardized user-centric frameworks for"
-            : /lead|manager/i.test(role)
-            ? "Orchestrated cross-functional delivery of"
-            : "Architected and delivered scalable solutions for";
-
-        return `${verb} ${base.charAt(0).toLowerCase() + base.slice(1)}, improving operational efficiency, execution velocity, and core stakeholder alignment.`;
-    };
-
-    const isCompanyDescriptionLine = (line: string): boolean => {
-        const l = line.toLowerCase().trim();
-        // Never treat an action bullet starting with an action verb as a company description
-        if (/^(collaborated|spearheaded|built|led|managed|developed|implemented|initiated|orchestrated|owned|established|architected|engineered|delivered|reduced|increased|generated|accelerated|formulated|standardized|directed)\b/i.test(l)) {
-            return false;
-        }
-        return (
-            l.startsWith("moniepoint is") ||
-            l.startsWith("moniepoint is on a mission") ||
-            l.startsWith("norebase helps") ||
-            l.startsWith("fidia offered") ||
-            l.startsWith("sandbox connects") ||
-            l.startsWith("koins&kash was") ||
-            l.startsWith("koins & kash was") ||
-            / is on a mission to/.test(l) ||
-            (/^[^.!?]{10,90} (helps|offered|connects|was) (companies|freelancers|recruiters|an) /i.test(line) && line.split(" ").length <= 18)
-        );
-    };
-
-    const localBulletScore = (txt: string): number => {
-        if (isCompanyDescriptionLine(txt)) return 10; // never suggest
-        const t = txt.toLowerCase();
-        // Strong: hard metrics + strong verb
-        if (/(250\s*billion|99\.99|100\s*million|80%|30%|92\.\d+%|25%|40%|10 applications|100% increase)/i.test(txt) && /^(led|established|architected|spearheaded|implemented|developed|owned|orchestrated|designed)/i.test(txt.trim())) {
-            return 8;
-        }
-        if (/^responsible for|helped to|worked on|assisted with|participated in|tasked with/i.test(txt.trim())) return 4;
-        if (!/%|\$|naira|billion|million|users|transactions|revenue|growth|increase|reduced|acquisition/i.test(t)) return 5;
-        return 6;
-    };
-
-    // If text is minimal, placeholder, or contains old binary decode error message
-    if (
-        !text ||
-        text.length < 35 ||
-        /^resume document:\s*[\w.-]+/i.test(text) ||
-        text.includes("raw binary DOCX") ||
-        text.includes("The provided resume content is encoded") ||
-        text.startsWith("PK\x03\x04") ||
-        text.startsWith("%PDF")
-    ) {
-        const tailoredResume: StructuredResume = {
-            name: displayName,
-            headline: `${displayRole} · Full-Cycle Execution & Strategy`,
-            contact: `${displayEmail} · linkedin.com/in/${displayName.toLowerCase().replace(/\s+/g, "")}`,
-            summary: `Results-driven ${displayRole} with proven experience executing strategic milestones, delivering high-impact features, and collaborating cross-functionally across engineering and product teams.`,
-            experienceTitle: "Product Management Experience",
-            summaryTitle: "Professional Summary",
-            skillsTitle: "Technical Competencies & Skills",
-            jobs: [
-                {
-                    id: "job-1",
-                    title: `Senior ${displayRole}`,
-                    company: "TechScale Innovations",
-                    date: "2022 – Present",
-                    bullets: [
-                        {
-                            id: "b-1",
-                            text: `Responsible for maintaining core ${displayRole.toLowerCase()} deliverables and workflows.`,
-                            suggestionId: "sug-1",
-                        },
-                        {
-                            id: "b-2",
-                            text: "Built reusable components and standardized frameworks for team operations.",
-                            suggestionId: "sug-2",
-                        },
-                        {
-                            id: "b-3",
-                            text: "Worked with cross-functional stakeholders to improve operational performance.",
-                            suggestionId: "sug-3",
-                        },
-                    ],
-                },
-                {
-                    id: "job-2",
-                    title: displayRole,
-                    company: "BuildWave Studios",
-                    date: "2020 – 2022",
-                    bullets: [
-                        {
-                            id: "b-4",
-                            text: "Developed key product initiatives and resolved edge-case user bottlenecks.",
-                            suggestionId: "sug-4",
-                        },
-                        {
-                            id: "b-5",
-                            text: "Participated in weekly agile sprints, retrospectives, and architecture reviews.",
-                        },
-                    ],
-                },
-            ],
-            skills: [
-                {
-                    category: "Core Competencies",
-                    items: "Strategic Execution, Cross-Functional Leadership, Quality Assurance, Product Roadmapping",
-                },
-                {
-                    category: "Tools & Platforms",
-                    items: "Modern Web Technologies, Cloud Platforms, Git, Project Management, Analytics",
-                },
-            ],
-        };
-
-        const defaultSugs: SuggestionItem[] = [
-            {
-                id: "sug-1",
-                category: "Action Verbs & Brevity",
-                title: "Replace passive 'Responsible for' with active engineering ownership",
-                feedback: "The bullet opens with passive phrasing ('Responsible for maintaining') which dilutes leadership impact.",
-                recommendation: "Lead with a powerful verb: 'Engineered', 'Spearheaded', or 'Architected'.",
-                targetSnippet: tailoredResume.jobs[0].bullets[0].text,
-                proposedText: `Architected and deployed resilient ${displayRole.toLowerCase()} workflows, achieving 99.98% uptime SLA and unblocking 3 cross-functional squads.`,
-                scoreLift: 4,
-                applied: false,
-            },
-            {
-                id: "sug-2",
-                category: "Role Alignment",
-                title: "Emphasize design system adoption and team velocity",
-                feedback: "Building components is expected; highlight reusable architecture and developer velocity improvements.",
-                recommendation: "Specify adoption scope and productivity metrics.",
-                targetSnippet: tailoredResume.jobs[0].bullets[1].text,
-                proposedText: "Engineered reusable component architecture and standardized UI guidelines, accelerating release velocity by 35% across 4 squads.",
-                scoreLift: 4,
-                applied: false,
-            },
-            {
-                id: "sug-3",
-                category: "Impact & Metrics",
-                title: "Quantify operational speedup with Google X-Y-Z formula",
-                feedback: "Bullet lacks quantifiable metrics and measurable business outcomes.",
-                recommendation: "Use Google X-Y-Z: 'Accomplished [X], as measured by [Y], by doing [Z]'.",
-                targetSnippet: tailoredResume.jobs[0].bullets[2].text,
-                proposedText: "Optimized stakeholder delivery pipelines and data indexing, reducing response turnaround by 44% and eliminating critical bottlenecks.",
-                scoreLift: 5,
-                applied: false,
-            },
-            {
-                id: "sug-4",
-                category: "Technical Depth",
-                title: "Highlight performance optimization and user retention",
-                feedback: "Connecting technical work to conversion rate or page speed demonstrates senior-level commercial impact.",
-                recommendation: "Mention measurable user conversion lifts or reliability gains.",
-                targetSnippet: tailoredResume.jobs[1].bullets[0].text,
-                proposedText: "Shipped 6 high-priority customer initiatives and resolved edge-case user bottlenecks, lifting quarterly active retention by 14%.",
-                scoreLift: 3,
-                applied: false,
-            },
-        ];
-
-        return {
-            structured: tailoredResume,
-            suggestions: defaultSugs,
-        };
-    }
-
-    // Parse the actual user's uploaded CV text!
-    const splitMultiBullets = text
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean)
-        .flatMap((l) => {
-            if (/[^\s]\s+[•·\u2022]\s+/.test(l)) {
-                return l
-                    .split(/\s+[•·\u2022]\s+/)
-                    .filter(Boolean)
-                    .map((part, idx) => (idx === 0 && !l.startsWith("•") ? part : `• ${part}`).trim());
-            }
-            return [l];
-        });
-
-    const lines: string[] = [];
-    for (const l of splitMultiBullets) {
-        const dm = l.match(DATE_MATCH_RE);
-        if (dm && dm.index !== undefined) {
-            const before = l.slice(0, dm.index).trim();
-            const dateStr = dm[0].trim();
-            const after = l.slice(dm.index + dm[0].length).trim();
-            // If there is trailing text after the date (e.g. "Product Title (Onscript - Mock Interview)")
-            if (after.length > 0 && !/^[-–—]/.test(after)) {
-                if (before.length > 0) lines.push(`${before}   ${dateStr}`);
-                else lines.push(dateStr);
-                lines.push(after);
-                continue;
-            }
-        }
-        lines.push(l);
-    }
-
-    let extractedName = "";
-    let extractedContact = "";
-    let extractedHeadline = "";
-    let extractedSummary = "";
-    const jobs: StructuredJob[] = [];
-    const skills: Array<{ category: string; items: string }> = [];
-    const education: Array<{ institution: string; date?: string; degree: string; details?: string }> = [];
-
-    type SectionType = "none" | "summary" | "experience" | "skills" | "education" | "projects";
-    let currentSection: SectionType = "none";
-    let currentSectionTitle = "";
-    let currentJob: StructuredJob | null = null;
-    let bulletCounter = 1;
-
-    // First line is candidate's name
-    if (lines.length > 0) {
-        const firstLine = cleanLine(lines[0]);
-        if (firstLine.length > 2 && firstLine.length < 45 && !firstLine.includes("@") && !firstLine.includes("http")) {
-            extractedName = firstLine;
-        }
-    }
-    if (!extractedName) {
-        extractedName = displayName;
-    }
-
-    // Look for contact line and headline in the first 5 lines
-    for (let i = 1; i < Math.min(lines.length, 6); i++) {
-        const line = lines[i];
-        if (
-            line.includes("@") ||
-            line.includes("http") ||
-            line.includes(".com") ||
-            line.includes("github") ||
-            line.includes("linkedin") ||
-            /\d{3}[-\s]\d{3}/.test(line)
-        ) {
-            if (!extractedContact) extractedContact = cleanLine(line);
-        } else if (!extractedHeadline && !line.startsWith("#") && line.length < 75) {
-            extractedHeadline = cleanLine(line);
-        }
-    }
-    if (!extractedContact) {
-        extractedContact = displayEmail;
-    }
-    if (!extractedHeadline) {
-        extractedHeadline = `${displayRole} · Professional Profile`;
-    }
-
-    let extractedExperienceTitle = "";
-    let extractedSummaryTitle = "";
-    let extractedSkillsTitle = "";
-
-    const isSectionHeader = (line: string): { isHeader: boolean; type: SectionType; title?: string } => {
-        const cleaned = cleanLine(line);
-        const l = cleaned.toLowerCase();
-        if (/^(professional\s+|executive\s+)?(summary|about(\s+me)?|profile|overview|objective)$/i.test(l)) {
-            return { isHeader: true, type: "summary", title: cleaned };
-        }
-        if (
-            /^(product\s+(management\s+)?|technical\s+|work\s+|professional\s+|relevant\s+|leadership\s+|career\s+|independent\s+product\s+)?(experience|employment(\s+history)?|work\s+history|career\s+history|background|consultation|consulting)$/i.test(l) ||
-            /product\s+management\s+experience/i.test(l) ||
-            /technical\s+experience/i.test(l) ||
-            /independent\s+product\s+consultation/i.test(l) ||
-            (/(experience|employment|work\s+history|consultation)/i.test(l) && l.length <= 45 && !/[.!?]$/.test(l))
-        ) {
-            return { isHeader: true, type: "experience", title: cleaned };
-        }
-        if (/^(technical\s+|core\s+|key\s+)?(skills|competencies|technologies|tools(\s+&\s+tech)?|stack)$/i.test(l) || /^tools$/i.test(l) || /^core\s+competencies$/i.test(l)) {
-            return { isHeader: true, type: "skills", title: cleaned };
-        }
-        if (/^(education(al\s+background)?|academics|qualifications|certifications|education\s+and\s+certifications)$/i.test(l)) {
-            return { isHeader: true, type: "education", title: cleaned };
-        }
-        if (/^(key\s+)?(projects|initiatives|achievements|key\s+highlights)$/i.test(l)) {
-            return { isHeader: true, type: "projects", title: cleaned };
-        }
-        return { isHeader: false, type: "none" };
-    };
-
-    const summaryLines: string[] = [];
-    let activeProjectHeader = "";
-
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (i === 0 && line.includes(extractedName)) continue;
-        if (line === extractedContact || line === extractedHeadline) continue;
-
-        const { isHeader, type, title } = isSectionHeader(line);
-        if (isHeader) {
-            if (currentJob) {
-                jobs.push(currentJob);
-                currentJob = null;
-            }
-            activeProjectHeader = "";
-            currentSection = type;
-            currentSectionTitle = title || "";
-            if (type === "experience" && title && !extractedExperienceTitle) {
-                extractedExperienceTitle = toSectionTitle(title);
-            } else if (type === "summary" && title && !extractedSummaryTitle) {
-                extractedSummaryTitle = toSectionTitle(title);
-            } else if (type === "skills" && title && !extractedSkillsTitle) {
-                extractedSkillsTitle = toSectionTitle(title);
-            }
-            continue;
-        }
-
-        const cleanedLine = cleanLine(line);
-        const dateAtEndMatch = cleanedLine.match(DATE_AT_END_RE);
-        const hasDateAtEnd = !!dateAtEndMatch;
-        const isOnlyDate = DATE_AT_END_RE.test(cleanedLine) && cleanedLine.trim().split(/\s+/).length <= 6;
-
-        // If line is just a date and previous job has no bullets yet, attach date to previous job
-        if (isOnlyDate && currentJob && currentJob.bullets.length === 0 && !currentJob.date) {
-            currentJob.date = cleanedLine;
-            continue;
-        }
-
-        const nextLine = lines[i + 1] ? cleanLine(lines[i + 1]) : "";
-        const nextLineIsDate = DATE_AT_END_RE.test(nextLine) && nextLine.split(/\s+/).length <= 6;
-
-        // Auto-detect experience section if none set yet
-        const isLikelyJobHeader =
-            !isOnlyDate &&
-            !isProjectHeader(cleanedLine) &&
-            cleanedLine.length <= 85 && // Job title + company is concise, never a 200+ char bullet point!
-            !/[.!?]$/.test(cleanedLine) && // Job headers never end with sentence-ending punctuation!
-            !/^(Collaborated|Spearheaded|Built|Led|Managed|Developed|Implemented|Initiated|Orchestrated|Owned|Established|Architected|Engineered|Delivered|Reduced|Increased|Generated|Accelerated|Formulated|Standardized|Directed|Supervised|Partnered|Resolved|Maintained|Optimized|Authored|Executed|Scaled|Conducted|Facilitated|Automated|Mentored|Produced|Launched)\b/i.test(cleanedLine) && // Never starts with an action verb!
-            (line.startsWith("###") ||
-            line.includes("|") ||
-            line.includes("·") ||
-            hasDateAtEnd ||
-            (nextLineIsDate && /\b(manager|engineer|lead|director|developer|analyst|associate|head|designer|founder|consultant|specialist|product manager)\b/i.test(cleanedLine)) ||
-            (/\b(manager|engineer|director|developer|analyst|associate|designer|founder|consultant|specialist|product manager|lead engineer|lead designer|tech lead)\b/i.test(cleanedLine) && (cleanedLine.includes(",") || cleanedLine.toLowerCase().includes(" at ") || cleanedLine.includes("·") || cleanedLine.includes("|"))));
-
-        if (currentSection === "none" && isLikelyJobHeader) {
-            currentSection = "experience";
-        }
-
-        if (currentSection === "summary") {
-            summaryLines.push(cleanedLine);
-        } else if (currentSection === "experience" || currentSection === "none") {
-            if (isLikelyJobHeader) {
-                if (currentJob) {
-                    jobs.push(currentJob);
-                }
-                let date = "";
-                let headerWithoutDate = cleanedLine;
-                let extractedProjectHeader = "";
-                let extractedCompanyDescription = "";
-
-                // Match date anywhere in the header line
-                const dm = cleanedLine.match(DATE_MATCH_RE);
-                if (dm && dm.index !== undefined) {
-                    date = dm[0].trim();
-                    const before = cleanedLine.slice(0, dm.index).trim().replace(/[,·|–—-]+$/, "").trim();
-                    const after = cleanedLine.slice(dm.index + dm[0].length).trim();
-                    headerWithoutDate = before || cleanedLine;
-                    if (after.length > 0) {
-                        if (isCompanyDescriptionLine(after)) {
-                            extractedCompanyDescription = after;
-                        } else if (isProjectHeader(after) || after.length < 80) {
-                            extractedProjectHeader = after;
-                        }
-                    }
-                }
-
-                let title = headerWithoutDate || displayRole;
-                let company = "";
-                if (headerWithoutDate.includes(",")) {
-                    const parts = headerWithoutDate.split(",");
-                    title = parts[0].trim();
-                    company = parts.slice(1).join(",").trim();
-                } else if (headerWithoutDate.includes("·")) {
-                    const parts = headerWithoutDate.split("·");
-                    title = parts[0].trim();
-                    company = parts.slice(1).join("·").trim();
-                } else if (headerWithoutDate.toLowerCase().includes(" at ")) {
-                    const parts = headerWithoutDate.split(/\s+at\s+/i);
-                    title = parts[0].trim();
-                    company = parts.slice(1).join(" at ").trim();
-                } else if (headerWithoutDate.includes("|")) {
-                    const parts = headerWithoutDate.split("|");
-                    title = parts[0].trim();
-                    company = parts.slice(1).join("|").trim();
-                }
-
-                currentJob = {
-                    id: `job-${jobs.length + 1}`,
-                    title,
-                    company,
-                    date,
-                    sectionTitle: currentSectionTitle ? toSectionTitle(currentSectionTitle) : (jobs.length === 0 ? extractedExperienceTitle || "Technical Experience" : undefined),
-                    companyDescription: extractedCompanyDescription,
-                    projectHeaders: extractedProjectHeader ? [extractedProjectHeader] : [],
-                    bullets: [],
-                };
-                activeProjectHeader = extractedProjectHeader || "";
-            } else if (isProjectHeader(cleanedLine)) {
-                activeProjectHeader = cleanedLine;
-                if (currentJob) {
-                    currentJob.projectHeaders = currentJob.projectHeaders || [];
-                    if (!currentJob.projectHeaders.includes(cleanedLine)) {
-                        currentJob.projectHeaders.push(cleanedLine);
-                    }
-                }
-            } else if (
-                /^[•·\-\*\—\–●\u25CF]\s/.test(line.trim()) ||
-                line.trim().startsWith("•") ||
-                line.trim().startsWith("·") ||
-                line.trim().startsWith("-") ||
-                line.trim().startsWith("*") ||
-                line.trim().startsWith("●") ||
-                line.trim().startsWith("\u25CF")
-            ) {
-                if (!currentJob) {
-                    currentJob = {
-                        id: `job-${jobs.length + 1}`,
-                        title: displayRole,
-                        company: "Professional Experience",
-                        date: "",
-                        projectHeaders: [],
-                        bullets: [],
-                    };
-                }
-                if (cleanedLine.length > 5) {
-                    if (isCompanyDescriptionLine(cleanedLine)) {
-                        if (currentJob) {
-                            if (!currentJob.companyDescription) currentJob.companyDescription = cleanedLine;
-                            else if (!currentJob.companyDescription.includes(cleanedLine.slice(0, 24))) currentJob.companyDescription += " " + cleanedLine;
-                        }
-                        continue;
-                    }
-                    currentJob.bullets.push({
-                        id: `b-${bulletCounter++}`,
-                        text: cleanedLine,
-                        projectHeader: activeProjectHeader || undefined,
-                    });
-                }
-            } else if (currentJob && cleanedLine.length > 3) {
-                if (isCompanyDescriptionLine(cleanedLine)) {
-                    if (!currentJob.companyDescription) currentJob.companyDescription = cleanedLine;
-                    else if (!currentJob.companyDescription.includes(cleanedLine.slice(0, 24))) currentJob.companyDescription += " " + cleanedLine;
-                    continue;
-                }
-                if (isProjectHeader(cleanedLine)) {
-                    activeProjectHeader = cleanedLine;
-                    currentJob.projectHeaders = currentJob.projectHeaders || [];
-                    if (!currentJob.projectHeaders.includes(cleanedLine)) {
-                        currentJob.projectHeaders.push(cleanedLine);
-                    }
-                    continue;
-                }
-                // If line starts with lowercase and previous bullet exists, it's a wrapped continuation line
-                if (currentJob.bullets.length > 0 && /^[a-z]/.test(cleanedLine)) {
-                    currentJob.bullets[currentJob.bullets.length - 1].text += " " + cleanedLine;
-                    continue;
-                }
-                // Otherwise keep it as its own distinct bullet without merging or dropping
-                currentJob.bullets.push({
-                    id: `b-${bulletCounter++}`,
-                    text: cleanedLine,
-                    projectHeader: activeProjectHeader || undefined,
-                });
-            }
-        } else if (currentSection === "skills") {
-            const cleaned = cleanLine(line);
-            if (cleaned.includes(":")) {
-                const [cat, itms] = cleaned.split(":");
-                skills.push({ category: cat.trim(), items: itms.trim() });
-            } else if (cleaned.length > 0) {
-                skills.push({ category: "Technical Skills", items: cleaned });
-            }
-        } else if (currentSection === "education") {
-            const cleaned = cleanLine(line);
-            if (cleaned.length > 2) {
-                const dm = cleaned.match(DATE_MATCH_RE);
-                if (dm && dm.index !== undefined) {
-                    const inst = cleaned.slice(0, dm.index).trim().replace(/[,·|]+$/, "").trim();
-                    const dStr = dm[0].trim();
-                    education.push({ institution: inst || cleaned, date: dStr, degree: "" });
-                } else if (education.length > 0 && !education[education.length - 1].degree) {
-                    education[education.length - 1].degree = cleaned;
-                } else if (education.length > 0 && education[education.length - 1].degree && !education[education.length - 1].details) {
-                    education[education.length - 1].details = cleaned;
-                } else {
-                    education.push({ institution: cleaned, degree: "" });
-                }
-            }
-        }
-    }
-
-    if (currentJob) {
-        jobs.push(currentJob);
-    }
-
-    extractedSummary = summaryLines.join(" ");
-    if (!extractedSummary) {
-        extractedSummary = "";
-    }
-
-    if (jobs.length === 0) {
-        const fallbackBullets = lines
-            .filter((l) => l.length > 25 && !isSectionHeader(l).isHeader)
-            .slice(1, 6)
-            .map((l) => ({
-                id: `b-${bulletCounter++}`,
-                text: cleanLine(l),
-            }));
-
-        if (fallbackBullets.length > 0) {
-            jobs.push({
-                id: "job-1",
-                title: displayRole || "Professional Experience",
-                company: "",
-                date: "",
-                projectHeaders: [],
-                bullets: fallbackBullets,
-            });
-        }
-    }
-
-    // Now map suggestions to the user's actual bullets! — exclude project subheaders from scoring
-    const allBullets: Array<{ id: string; text: string; jobIndex: number; bulletIndex: number }> = [];
-    jobs.forEach((job, jIdx) => {
-        job.bullets.forEach((b, bIdx) => {
-            if (isProjectHeader(b.text)) return;
-            allBullets.push({ id: b.id, text: b.text, jobIndex: jIdx, bulletIndex: bIdx });
-        });
-    });
-
-    const generatedSuggestions: SuggestionItem[] = [];
-
-    if (rawSuggestions && rawSuggestions.length > 0) {
-        // Use actual LLM-provided targetSnippet/proposedText; only fall back to generic when LLM didn't supply a rewrite.
-        // Also respect 7/10 threshold — if LLM returned empty suggestions (all bullets >=7) we show no cards.
-        // Map each LLM suggestion to the best matching bullet by exact targetSnippet if provided.
-        const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-        rawSuggestions.slice(0, 6).forEach((rawSug: any, idx) => {
-            const target = (rawSug.targetSnippet || rawSug.target || rawSug.originalText || "").trim();
-            let bullet: typeof allBullets[number] | undefined;
-            if (target) {
-                bullet = allBullets.find((b) => b.text === target || b.text.includes(target.slice(0, 40)) || target.includes(b.text.slice(0, 40)));
-            }
-            if (!bullet) bullet = allBullets[idx % allBullets.length];
-            if (!bullet) return;
-
-            // Prevent duplicate mapping to same bullet
-            if (jobs[bullet.jobIndex].bullets[bullet.bulletIndex].suggestionId) return;
-
-            const category = (rawSug.category as SuggestionItem["category"]) || (idx === 0 ? "Impact & Metrics" : idx === 1 ? "Action Verbs & Brevity" : "Role Alignment");
-            const proposed = (rawSug.proposedText || rawSug.rewritten || rawSug.improvedText || "").trim() || createGoogleXYZ(bullet.text, displayRole);
-            // If LLM returned identical wording (no real improvement) treat as 7/10 → no suggestion, section is okay
-            const targetText = target || bullet.text;
-            if (proposed && norm(proposed) === norm(targetText)) return;
-            if (proposed && norm(proposed) === norm(bullet.text)) return;
-            const sugId = `sug-${idx + 1}`;
-
-            jobs[bullet.jobIndex].bullets[bullet.bulletIndex].suggestionId = sugId;
-
-            const deDupFeedback = (fb?: string) => {
-                if (!fb) return "";
-                return fb
-                    .replace(/^\s*The (description|bullet|text|sentence)\s+starts with\s+['"`][^'"`]*['"`]\s*,?\s*(which is|that is|is)?\s*/i, "")
-                    .replace(/^\s*This (bullet|description)\s+starts with\b.*?[.,]\s*/i, "")
-                    .trim();
-            };
-            const cleanFb = deDupFeedback(rawSug.feedback) || rawSug.feedback || "Bullet lacks specific metric proof points and strong action verbs.";
-            const titleFromRec = rawSug.recommendation ? rawSug.recommendation.split(".")[0].slice(0, 62) : "";
-            const title = titleFromRec && titleFromRec.length > 12 ? titleFromRec : cleanFb.slice(0, 62) || `Elevate bullet point with quantifiable metrics`;
-            generatedSuggestions.push({
-                id: sugId,
-                category,
-                title,
-                feedback: cleanFb,
-                recommendation: rawSug.recommendation || "Adopt the Google X-Y-Z formula: 'Accomplished [X], as measured by [Y], by doing [Z]'.",
-                targetSnippet: target || bullet.text,
-                proposedText: proposed,
-                scoreLift: 4,
-                applied: false,
-            });
-        });
-    } else {
-        // No LLM suggestions yet (e.g. first load before scan). Do NOT invent generic "Engineered modular component..." cards.
-        // Only create fallback suggestions for locally scored weak bullets (<7), skip company descriptions and strong 7+ bullets.
-        const weakBullets = allBullets.filter((b) => localBulletScore(b.text) < 7);
-        if (weakBullets.length === 0) {
-            // All bullets are strong — show no cards (user requested 7/10 = no suggestion). Return empty.
-        } else {
-            const categories: Array<SuggestionItem["category"]> = [
-                "Impact & Metrics",
-                "Action Verbs & Brevity",
-                "Role Alignment",
-                "Technical Depth",
-            ];
-            weakBullets.slice(0, 3).forEach((bullet, idx) => {
-                const category = categories[idx % categories.length];
-                const proposed = createGoogleXYZ(bullet.text, displayRole);
-                // Skip if fallback produced identical text — means section is already okay (7/10)
-                const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-                if (norm(proposed) === norm(bullet.text)) return;
-                const sugId = `sug-${idx + 1}`;
-                jobs[bullet.jobIndex].bullets[bullet.bulletIndex].suggestionId = sugId;
-                generatedSuggestions.push({
-                    id: sugId,
-                    category,
-                    title:
-                        idx === 0
-                            ? "Add scale and measurable outcome"
-                            : idx === 1
-                            ? "Use a stronger ownership verb"
-                            : "Show ownership and result",
-                    feedback:
-                        idx === 0
-                            ? "Missing scale or business metric — add users, revenue, or performance delta."
-                            : idx === 1
-                            ? "Passive phrasing — lead with a strong verb and ownership."
-                            : "Needs a clear result — quantify the impact of the action.",
-                    recommendation: "Reframe with Google X-Y-Z: 'Accomplished [X], as measured by [Y], by doing [Z]' — keep original metrics if present.",
-                    targetSnippet: bullet.text,
-                    proposedText: proposed,
-                    scoreLift: 4,
-                    applied: false,
-                });
-            });
-        }
-    }
-
-    return {
-        structured: {
-            name: extractedName,
-            headline: extractedHeadline,
-            contact: extractedContact,
-            summary: extractedSummary,
-            jobs,
-            skills,
-            education,
-            experienceTitle: resolveExperienceTitle(extractedExperienceTitle, displayRole, extractedHeadline),
-            summaryTitle: extractedSummaryTitle || "Professional Summary",
-            skillsTitle: extractedSkillsTitle || "Technical Competencies & Skills",
-        },
-        suggestions: generatedSuggestions,
-    };
 }
 
 interface ResumeFeedbackReportProps {
@@ -1084,6 +233,40 @@ function getInitialResumeState(initialData?: ResumeScanFeedbackItem | null): Res
         rawSuggestions
     );
 
+    const initialAts = calculateStructuredAtsScore(structured, uRole, uResumeText);
+    if (!uScore || uScore === 82) {
+        uScore = initialAts.overallScore;
+    }
+    if (!uSummary || uSummary.includes("inline editor")) {
+        uSummary = initialAts.summary;
+    }
+    if (initialAts.strengths.length > 0 && (uStrengths.length <= 3 && uStrengths[0]?.includes("milestones"))) {
+        uStrengths = initialAts.strengths;
+    }
+    if (initialAts.metrics.missingKeywords.length > 0 && uMissingKeywords.includes("Quantifiable Metrics")) {
+        uMissingKeywords = initialAts.metrics.missingKeywords;
+    }
+
+    const allSuggestions: SuggestionItem[] = [...suggestions];
+    for (const extra of initialAts.extraBulletSuggestions) {
+        if (!allSuggestions.some((s) => s.id === extra.id || s.proposedText === extra.proposedText)) {
+            allSuggestions.push({
+                id: extra.id,
+                category: extra.category,
+                title: extra.recommendation,
+                feedback: extra.feedback,
+                recommendation: extra.recommendation,
+                targetSnippet: extra.targetSnippet,
+                proposedText: extra.proposedText,
+                scoreLift: extra.scoreLift,
+                applied: false,
+                type: "addition",
+                targetJobId: extra.targetJobId,
+                targetJobLabel: extra.targetCompany,
+            });
+        }
+    }
+
     const report: ResumeScanFeedbackItem = {
         id: "active-cv-feedback",
         resumeName: uResumeName,
@@ -1099,7 +282,7 @@ function getInitialResumeState(initialData?: ResumeScanFeedbackItem | null): Res
     return {
         report,
         structured,
-        suggestions,
+        suggestions: allSuggestions,
     };
 }
 
@@ -1517,15 +700,157 @@ export default function ResumeFeedbackReport({
         }
     };
 
-    // Calculate dynamic live score based on applied improvements
-    const baseScore = report.score || 82;
-    const addedScore = suggestions
-        .filter((s) => s.applied)
-        .reduce((sum, s) => sum + s.scoreLift, 0);
-    const currentScore = Math.min(100, baseScore + addedScore);
+    const displayResume = useMemo(() => normalizeStructuredForDisplay(structuredResume), [structuredResume]);
 
+    // Live ATS Scoring Engine based on active document state
+    const liveAtsResult = useMemo(() => {
+        const liveText = [
+            displayResume.name,
+            displayResume.headline,
+            displayResume.contact,
+            displayResume.summaryTitle || "Professional Summary",
+            displayResume.summary,
+            displayResume.experienceTitle || "Product Management Experience",
+            displayResume.jobs.map((j) => `${j.title} at ${j.company} (${j.date || ""})\n${j.bullets.map((b) => b.text).join("\n")}`).join("\n\n"),
+            displayResume.skillsTitle || "Technical Competencies & Skills",
+            (displayResume.skills || []).map((s) => `${s.category}: ${s.items}`).join("\n"),
+            (displayResume.education || []).map((e) => `${e.degree} at ${e.institution} (${e.date || ""})`).join("\n"),
+        ].filter(Boolean).join("\n\n");
+
+        return calculateStructuredAtsScore(displayResume, report.role, liveText);
+    }, [displayResume, report.role]);
+
+    const currentScore = liveAtsResult.overallScore;
     const appliedCount = suggestions.filter((s) => s.applied).length;
     const totalCount = suggestions.length;
+
+    // Sync rating everywhere when resume is improved (keeps Update Credentials → Coach DMs → Resume Feedback consistent)
+    useEffect(() => {
+        if (!hasMounted) return;
+        // Avoid spamming on every keystroke – only sync when score actually changed from stored
+        try {
+            const rawUser = localStorage.getItem("useladder_user");
+            const rawFb = localStorage.getItem("useladder_last_resume_feedback");
+            let needsSync = false;
+            if (rawUser) {
+                const u = JSON.parse(rawUser);
+                const active = u?.resume || u?.resumes?.find((r: any) => r.id === u.selectedResumeId) || u?.resumes?.[0];
+                if (active && typeof active.score === "number" && active.score !== currentScore) needsSync = true;
+                if (!active) needsSync = true;
+            }
+            if (rawFb) {
+                const fb = JSON.parse(rawFb);
+                if (fb && typeof fb.score === "number" && fb.score !== currentScore) needsSync = true;
+            }
+            if (!needsSync) return;
+
+            // Build live full resume text from current structured state (improved bullets)
+            let liveFullText = "";
+            try {
+                liveFullText = [
+                    displayResume.name,
+                    displayResume.headline,
+                    displayResume.contact,
+                    displayResume.summaryTitle || "Professional Summary",
+                    displayResume.summary,
+                    displayResume.experienceTitle || "Experience",
+                    ...displayResume.jobs.flatMap((j) => [j.title, j.company, j.date || "", ...j.bullets.map((b) => b.text)]),
+                    displayResume.skillsTitle || "Skills",
+                    ...(displayResume.skills || []).map((s) => `${s.category}: ${s.items}`),
+                    ...(displayResume.education || []).map((e) => `${e.degree} ${e.institution} ${e.date || ""}`),
+                ]
+                    .filter(Boolean)
+                    .join("\n\n");
+            } catch {}
+
+            if (rawUser) {
+                const u = JSON.parse(rawUser);
+                if (u.resume) {
+                    u.resume.score = currentScore;
+                    if (liveFullText) u.resume.rawText = liveFullText;
+                }
+                if (Array.isArray(u.resumes)) {
+                    const selId = u.selectedResumeId || u.resume?.id;
+                    let idx = u.resumes.findIndex((r: any) => r.id === selId);
+                    if (idx >= 0) {
+                        u.resumes[idx].score = currentScore;
+                        if (liveFullText) u.resumes[idx].rawText = liveFullText;
+                    } else if (u.resumes[0]) {
+                        u.resumes[0].score = currentScore;
+                        if (liveFullText) u.resumes[0].rawText = liveFullText;
+                    }
+                }
+                localStorage.setItem("useladder_user", JSON.stringify(u));
+                // persist improved rawText to last feedback as well
+                if (liveFullText) {
+                    try {
+                        const fbRaw2 = localStorage.getItem("useladder_last_resume_feedback");
+                        if (fbRaw2) {
+                            const fb2 = JSON.parse(fbRaw2);
+                            fb2.resumeText = liveFullText;
+                            fb2.rawText = liveFullText;
+                            fb2.score = currentScore;
+                            fb2.summary = liveAtsResult.summary || fb2.summary;
+                            localStorage.setItem("useladder_last_resume_feedback", JSON.stringify(fb2));
+                        }
+                    } catch {}
+                }
+            }
+            if (rawFb) {
+                const fb = JSON.parse(rawFb);
+                fb.score = currentScore;
+                fb.summary = liveAtsResult.summary || fb.summary;
+                if (liveFullText) {
+                    fb.resumeText = liveFullText;
+                    (fb as any).rawText = liveFullText;
+                }
+                localStorage.setItem("useladder_last_resume_feedback", JSON.stringify(fb));
+                const allRaw = localStorage.getItem("useladder_all_resume_feedbacks");
+                if (allRaw) {
+                    const all = JSON.parse(allRaw);
+                    if (Array.isArray(all) && all.length > 0) {
+                        const fid = fb.id || "active-cv-feedback";
+                        const foundIdx = all.findIndex((x: any) => x.id === fid);
+                        if (foundIdx >= 0) {
+                            all[foundIdx].score = currentScore;
+                            all[foundIdx].summary = fb.summary;
+                            all[foundIdx].resumeText = liveFullText || fb.resumeText;
+                            (all[foundIdx] as any).rawText = liveFullText || fb.resumeText;
+                        } else if (all[0]) {
+                            all[0].score = currentScore;
+                            if (liveFullText) {
+                                all[0].resumeText = liveFullText;
+                                (all[0] as any).rawText = liveFullText;
+                            }
+                        }
+                        localStorage.setItem("useladder_all_resume_feedbacks", JSON.stringify(all));
+                    }
+                }
+            }
+            window.dispatchEvent(new Event("useladder_resume_scanned"));
+            // backend sync – fire and forget
+            try {
+                const u2 = JSON.parse(rawUser || "{}");
+                const email = u2.email;
+                const fb2 = JSON.parse(rawFb || "{}");
+                if (email && fb2) {
+                    fetch("/api/auth/user", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            email,
+                            resume: {
+                                id: fb2.id || u2.selectedResumeId || "active-cv-feedback",
+                                name: fb2.resumeName || "Resume.pdf",
+                                rawText: fb2.resumeText || "",
+                                score: currentScore,
+                            },
+                        }),
+                    }).catch(() => {});
+                }
+            } catch {}
+        } catch {}
+    }, [currentScore, hasMounted, liveAtsResult.summary, displayResume, structuredResume]);
 
     // Scroll to and highlight targeted bullet in document
     const handleSelectSuggestion = (sugId: string) => {
@@ -1551,6 +876,28 @@ export default function ResumeFeedbackReport({
         const sug = suggestions.find((s) => s.id === sugId);
         if (!sug) return;
 
+        if (sug.type === "addition") {
+            setStructuredResume((prev) => ({
+                ...prev,
+                jobs: prev.jobs.map((job) => {
+                    const match = (sug.targetJobId && job.id === sug.targetJobId) ||
+                        (sug.targetJobLabel && job.company && job.company.toLowerCase().includes(sug.targetJobLabel.toLowerCase())) ||
+                        (sug.targetSnippet && (job.title.toLowerCase().includes(sug.targetSnippet.slice(0, 15).toLowerCase()) || job.company.toLowerCase().includes(sug.targetSnippet.slice(0, 15).toLowerCase())));
+                    if (match && !job.bullets.some((b) => b.suggestionId === sug.id || b.text === sug.proposedText)) {
+                        return {
+                            ...job,
+                            bullets: [...job.bullets, { id: `added-${sug.id}`, text: sug.proposedText, suggestionId: sug.id }],
+                        };
+                    }
+                    return job;
+                }),
+            }));
+            setSuggestions((prev) =>
+                prev.map((s) => (s.id === sugId ? { ...s, applied: true } : s))
+            );
+            return;
+        }
+
         // Update document bullets
         setStructuredResume((prev) => ({
             ...prev,
@@ -1574,6 +921,19 @@ export default function ResumeFeedbackReport({
     const handleUndoImprovement = (sugId: string) => {
         const sug = suggestions.find((s) => s.id === sugId);
         if (!sug) return;
+
+        if (sug.type === "addition") {
+            setStructuredResume((prev) => ({
+                ...prev,
+                jobs: prev.jobs.map((job) => ({
+                    ...job,
+                    bullets: job.bullets.filter((b) => b.suggestionId !== sugId && b.id !== `added-${sugId}` && b.text !== sug.proposedText),
+                })),
+            }));
+            setSuggestions((prev) => prev.map((s) => (s.id === sugId ? { ...s, applied: false } : s)));
+            return;
+        }
+
         setStructuredResume((prev) => ({
             ...prev,
             jobs: prev.jobs.map((job) => ({
@@ -1591,21 +951,37 @@ export default function ResumeFeedbackReport({
 
     // Apply all improvements at once
     const handleApplyAll = () => {
-        setStructuredResume((prev) => ({
-            ...prev,
-            jobs: prev.jobs.map((job) => ({
+        setStructuredResume((prev) => {
+            let updatedJobs = prev.jobs.map((job) => ({
                 ...job,
                 bullets: job.bullets.map((b) => {
                     const matchedSug = suggestions.find(
-                        (s) => s.id === b.suggestionId || b.text.includes(s.targetSnippet.slice(0, 30))
+                        (s) => s.type !== "addition" && (s.id === b.suggestionId || b.text.includes(s.targetSnippet.slice(0, 30)))
                     );
                     if (matchedSug) {
                         return { ...b, text: matchedSug.proposedText };
                     }
                     return b;
                 }),
-            })),
-        }));
+            }));
+
+            suggestions.filter((s) => s.type === "addition" && !s.applied).forEach((sug) => {
+                updatedJobs = updatedJobs.map((job) => {
+                    const match = (sug.targetJobId && job.id === sug.targetJobId) ||
+                        (sug.targetJobLabel && job.company && job.company.toLowerCase().includes(sug.targetJobLabel.toLowerCase())) ||
+                        (sug.targetSnippet && (job.title.toLowerCase().includes(sug.targetSnippet.slice(0, 15).toLowerCase()) || job.company.toLowerCase().includes(sug.targetSnippet.slice(0, 15).toLowerCase())));
+                    if (match && !job.bullets.some((b) => b.suggestionId === sug.id || b.text === sug.proposedText)) {
+                        return {
+                            ...job,
+                            bullets: [...job.bullets, { id: `added-${sug.id}`, text: sug.proposedText, suggestionId: sug.id }],
+                        };
+                    }
+                    return job;
+                });
+            });
+
+            return { ...prev, jobs: updatedJobs };
+        });
 
         setSuggestions((prev) => prev.map((s) => ({ ...s, applied: true })));
     };
@@ -2015,9 +1391,9 @@ export default function ResumeFeedbackReport({
         setInfusingKeyword(keyword);
         try {
             const fullResumeText =
-                report.resumeText && report.resumeText.length > 40
-                    ? report.resumeText
-                    : structuredResume.jobs.map((j) => `${j.title} at ${j.company}\n${j.bullets.map((b) => `- ${b.text}`).join("\n")}`).join("\n\n");
+                structuredResume.jobs && structuredResume.jobs.length > 0
+                    ? structuredResume.jobs.map((j) => `${j.title} at ${j.company}\n${j.bullets.map((b) => `- ${b.text}`).join("\n")}`).join("\n\n")
+                    : (report.resumeText || "");
 
             const res = await fetch("/api/resume/infuse-keyword", {
                 method: "POST",
@@ -2153,14 +1529,13 @@ export default function ResumeFeedbackReport({
         return parts.length > 0 ? <>{parts}</> : text;
     };
 
-    const displayResume = useMemo(() => normalizeStructuredForDisplay(structuredResume), [structuredResume]);
     const isDocLoading = !hasMounted || isAnalyzingNewResume || !displayResume.name || displayResume.jobs.length === 0;
 
     const radius = 38;
     const circumference = 2 * Math.PI * radius;
     const offset = circumference - (currentScore / 100) * circumference;
 
-    const verdict = currentScore >= 90 ? "Top 5% Resume" : currentScore >= 80 ? "Strong Candidate" : "Needs Polish";
+    const verdict = liveAtsResult.verdict || (currentScore >= 90 ? "Top 5% Resume" : currentScore >= 80 ? "Strong Candidate" : "Needs Polish");
     const verdictClass =
         currentScore >= 80
             ? styles.verdictGood
@@ -2174,9 +1549,13 @@ export default function ResumeFeedbackReport({
             <nav className={styles.navbar}>
                 <div className={styles.logo}>
                     <div className={styles.logoIcon}>
-                        <FileText size={18} weight="bold" />
+                        <img
+                            src="https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png"
+                            alt="onscript"
+                            className={styles.logoImg}
+                        />
                     </div>
-                    <span>useladder</span>
+                    <span className={styles.brandName}>onscript</span>
                 </div>
                 <div className={styles.navActions}>
                     <input
@@ -2186,14 +1565,26 @@ export default function ResumeFeedbackReport({
                         accept=".pdf,.docx,.doc,.txt,.md"
                         style={{ display: "none" }}
                     />
-                    <button
-                        type="button"
-                        className={styles.backBtn}
-                        onClick={() => router.push("/dashboard")}
-                    >
-                        <ArrowLeft size={14} weight="regular" />
-                        Back to Dashboard
-                    </button>
+                    {onClose ? (
+                        <button
+                            type="button"
+                            className={styles.backBtn}
+                            onClick={onClose}
+                            aria-label="Close"
+                        >
+                            <X size={15} weight="regular" />
+                            <span>Close</span>
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            className={styles.backBtn}
+                            onClick={() => router.replace("/dashboard")}
+                        >
+                            <ArrowLeft size={15} weight="regular" />
+                            <span>Back to Dashboard</span>
+                        </button>
+                    )}
                 </div>
             </nav>
 
@@ -2247,6 +1638,11 @@ export default function ResumeFeedbackReport({
                                 <Check size={12} weight="regular" />
                                 {verdict}
                             </span>
+                            {liveAtsResult.seniority && (
+                                <span style={{ fontSize: "0.78rem", color: "#64748B", fontWeight: 500, marginLeft: "0.5rem" }}>
+                                    Experience Tier: <strong style={{ color: "#334155" }}>{liveAtsResult.seniority.label}</strong> ({liveAtsResult.seniority.totalYears} yrs detected)
+                                </span>
+                            )}
                         </div>
 
                         <p className={styles.summaryParagraph}>
@@ -2257,24 +1653,24 @@ export default function ResumeFeedbackReport({
                             <div className={styles.rubricPill}>
                                 <span>Impact & Metrics:</span>
                                 <span className={styles.rubricVal}>
-                                    {Math.min(98, (report.metrics?.impactScore ?? 84) + appliedCount * 3)}%
+                                    {liveAtsResult.metrics.impactScore}%
                                 </span>
                             </div>
                             <div className={styles.rubricPill}>
                                 <span>Role Alignment:</span>
                                 <span className={styles.rubricVal}>
-                                    {Math.min(96, (report.metrics?.roleAlignmentScore ?? 88) + (appliedCount > 0 ? 4 : 0))}%
+                                    {liveAtsResult.metrics.roleAlignmentScore}%
                                 </span>
                             </div>
                             <div className={styles.rubricPill}>
                                 <span>Action Verbs:</span>
                                 <span className={styles.rubricVal}>
-                                    {Math.min(95, (report.metrics?.brevityScore ?? 80) + appliedCount * 3)}%
+                                    {liveAtsResult.metrics.brevityScore}%
                                 </span>
                             </div>
                             <div className={styles.rubricPill}>
                                 <span>Structure & ATS:</span>
-                                <span className={styles.rubricVal}>92%</span>
+                                <span className={styles.rubricVal}>{liveAtsResult.metrics.structureScore}%</span>
                             </div>
                         </div>
                     </div>
@@ -2371,11 +1767,18 @@ export default function ResumeFeedbackReport({
                                         </div>
 
 
-                                        {/* Original — full, red callout, Inter */}
-                                        <div className={styles.suggestionTargetSnippet} title="Original" style={{ background: "#FEF2F2", borderLeft: "2px solid #EF4444", color: "#991B1B", display: "block", WebkitLineClamp: "unset", overflow: "visible", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
-                                            <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#DC2626", display: "block", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>Original</span>
-                                            &ldquo;{sug.targetSnippet}&rdquo;
-                                        </div>
+                                        {/* Original — full, red callout for edits, or target context for additions */}
+                                        {sug.type === "addition" ? (
+                                            <div className={styles.suggestionTargetSnippet} title="Target Role" style={{ background: "#F1F5F9", borderLeft: "2px solid #64748B", color: "#334155", display: "block", WebkitLineClamp: "unset", overflow: "visible", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
+                                                <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>Target Role</span>
+                                                Add new bullet to <strong>{sug.targetJobLabel || "Experience"}</strong>
+                                            </div>
+                                        ) : (
+                                            <div className={styles.suggestionTargetSnippet} title="Original" style={{ background: "#FEF2F2", borderLeft: "2px solid #EF4444", color: "#991B1B", display: "block", WebkitLineClamp: "unset", overflow: "visible", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
+                                                <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#DC2626", display: "block", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>Original</span>
+                                                &ldquo;{sug.targetSnippet}&rdquo;
+                                            </div>
+                                        )}
 
                                         {/* Improvement — green bg */}
                                         <div className={styles.suggestionProposedBox}>

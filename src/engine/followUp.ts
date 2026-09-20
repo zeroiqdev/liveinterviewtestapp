@@ -12,6 +12,11 @@ import type {
     SessionDoc,
 } from "./types";
 
+function stripBold(text: string): string {
+    if (!text) return text;
+    return text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*\*/g, "");
+}
+
 const SYSTEM = `You write ONE follow-up question for a live interview. Hard constraints:
 - It must probe the specific detail just surfaced in the candidate's last answer.
 - It must stay inside the competency currently being assessed — no topic hopping.
@@ -21,6 +26,7 @@ const SYSTEM = `You write ONE follow-up question for a live interview. Hard cons
   This signals the material was actually read.
 - When the detail contradicts a profile claim, surface the gap directly but neutrally.
 - Never stack multiple questions. Never preface with praise or filler.
+- Never use ** for bold. Plain text only, no markdown.
 
 Output ONLY: { "followUp": "<the question>", "reason": "<one sentence>" }`;
 
@@ -61,12 +67,12 @@ If no profile claims are provided, ground the follow-up purely in the live answe
             },
         });
         if (raw.followUp && raw.followUp.trim().length > 0) {
-            return { followUp: raw.followUp.trim(), reason: raw.reason || "generated" };
+            return { followUp: stripBold(raw.followUp.trim()), reason: raw.reason || "generated" };
         }
         throw new Error("empty follow-up");
     } catch {
         return {
-            followUp: `Can you go deeper on that — specifically what you did and what came of it?`,
+            followUp: stripBold(`Can you go deeper on that — specifically what you did and what came of it?`),
             reason: "fallback follow-up",
         };
     }

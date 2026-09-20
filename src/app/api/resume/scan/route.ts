@@ -3,6 +3,7 @@ import { callJSON } from "@/engine/llm";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { extractDocumentText } from "@/lib/documentParser";
+import { calculateAtsScore } from "@/lib/atsScorer";
 
 export interface BulletReview {
     originalText: string;
@@ -42,6 +43,7 @@ CRITICAL RULES — you MUST follow these exactly:
    - Score EVERY achievement bullet 1-10 on: strong action verb, quantifiable business impact (numbers/%, Naira/$, users, tx volume), specificity of how it was done, and brevity.
    - If a bullet is ALREADY strong (7/10 or higher) — e.g. "Led the revamp of the Monnify Channels team onboarding flow to evade over 250 billion Naira in fines" or "Established the first growth task force ... 20% to 40% by Q1, 2025. Currently at 25%" or any bullet with clear ownership + hard metric + business risk — then mark it 7-10, leave feedback/recommendation/rewritten EMPTY, and DO NOT create a suggestion for it. Strong bullets need no rewrite.
    - ONLY for bullets scoring <7 (weak: vague verbs like "Responsible for", "Worked with", "Participated", "Helped", missing metrics, passive phrasing, or generic claims) provide feedback + recommendation + a GROUNDED rewrite.
+   - DO NOT NITPICK OR GENERATE COSMETIC SUGGESTIONS: If a candidate has already revised and polished their bullets so that ownership and impact are clear, DO NOT nitpick minor stylistic word choices or synonyms. Only flag bullets with legitimate structural or metric deficiencies. If all bullets are 7+, return an empty suggestions array.
 
  3. GROUNDED REWRITES — NO FABRICATION:
     - Rewrites MUST reuse numbers/metrics already in the original bullet (e.g. keep "250 billion Naira", "30%", "99.99%", "100M transactions", "80% volume", "92.23% reduction"). Do NOT invent generic metrics like "35% velocity" or "95+ Lighthouse" unless they replace a vague claim and you signal they're illustrative.
@@ -148,13 +150,26 @@ export async function POST(req: NextRequest) {
                         bulletReviews.push({ originalText: n.text, score: 8, isCompanyDescription: false });
                     }
                 }
-                const score = Math.max(48, Math.min(92, 62 + valid.length * 3 + (parsedDoc.source.confidence > 0.7 ? 12 : 0)));
+                const extractedText = flat.map((n) => n.text).join("\n");
+                const ats = calculateAtsScore(extractedText, role);
+                const score = ats.overallScore;
+
+                for (const extra of ats.extraBulletSuggestions) {
+                    suggestions.push({
+                        category: extra.category,
+                        feedback: extra.feedback,
+                        recommendation: extra.recommendation,
+                        targetSnippet: extra.targetSnippet,
+                        proposedText: extra.proposedText,
+                    });
+                }
+
                 const result: ResumeScanResult = {
                     score,
-                    summary: `Reviewed ${flat.filter((n) => n.kind === "bullet").length} bullets via canonical model (confidence ${(parsedDoc.source.confidence * 100).toFixed(0)}%). ${valid.length ? `${valid.length} focused improvements proposed.` : "No changes needed — strong bullets."}`,
-                    strengths: valid.length ? [] : ["Strong, well-quantified bullets."],
+                    summary: ats.summary || `Reviewed ${flat.filter((n) => n.kind === "bullet").length} bullets via canonical model against ${ats.seniority.label} standards.`,
+                    strengths: ats.strengths.length > 0 ? ats.strengths : (valid.length ? [] : ["Strong, well-quantified bullets."]),
                     suggestions,
-                    missingKeywords: [],
+                    missingKeywords: ats.metrics.missingKeywords,
                     bulletReviews,
                 };
                 // Persist if email
@@ -211,6 +226,24 @@ export async function POST(req: NextRequest) {
             maxTokens: 2500,
             timeoutMs: 35000,
         });
+
+        const ats = calculateAtsScore(parsedText, role);
+        result.score = ats.overallScore;
+        if (ats.metrics.missingKeywords.length > 0) {
+            result.missingKeywords = Array.from(new Set([...(result.missingKeywords || []), ...ats.metrics.missingKeywords]));
+        }
+        if (ats.strengths.length > 0) {
+            result.strengths = Array.from(new Set([...(result.strengths || []), ...ats.strengths]));
+        }
+        for (const extra of ats.extraBulletSuggestions) {
+            result.suggestions.push({
+                category: extra.category,
+                feedback: extra.feedback,
+                recommendation: extra.recommendation,
+                targetSnippet: extra.targetSnippet,
+                proposedText: extra.proposedText,
+            });
+        }
 
         // Optionally persist scan to user record if email is provided
         if (email) {

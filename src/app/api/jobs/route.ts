@@ -14,6 +14,7 @@ export interface JobItem {
     employmentType: string;
     salaryRange?: string;
     description?: string;
+    responsibilities?: string[];
     source: "manual" | "scraped";
     datePosted: string;
     status?: "active" | "expired";
@@ -70,7 +71,7 @@ export async function GET(req: Request) {
     const source = searchParams.get("source");
     const search = searchParams.get("search");
     const status = searchParams.get("status") || "active"; // "active" | "expired" | "all"
-    const freshness = searchParams.get("freshness"); // "7d" | "30d" | "all"
+    const freshness = searchParams.get("freshness"); // "14d" | "7d" | "3d" | "all"
     const country = searchParams.get("country");
     const city = searchParams.get("city");
     const isAfricaParam = searchParams.get("isAfrica");
@@ -79,7 +80,7 @@ export async function GET(req: Request) {
 
     let jobs = await readJobs();
 
-    const MAX_POSTING_AGE_DAYS = 7;
+    const MAX_POSTING_AGE_DAYS = 14;
     const ttlCutoff = new Date(Date.now() - MAX_POSTING_AGE_DAYS * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
     // 0. Status & Freshness filtering
@@ -90,7 +91,10 @@ export async function GET(req: Request) {
     }
 
     // 0b. Optional explicit freshness filter
-    if (freshness === "7d") {
+    if (freshness === "14d") {
+        const cutoff = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+        jobs = jobs.filter((j) => !j.datePosted || j.datePosted >= cutoff);
+    } else if (freshness === "7d") {
         const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
         jobs = jobs.filter((j) => !j.datePosted || j.datePosted >= cutoff);
     } else if (freshness === "3d") {

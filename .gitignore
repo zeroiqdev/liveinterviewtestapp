@@ -53,3 +53,9 @@ scratch/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# opencode / craft skill local cache (do not commit)
+.agents/
+.claude/
+skills-lock.json
+.opencode/

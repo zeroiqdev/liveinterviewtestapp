@@ -2779,5 +2779,257 @@
     "category": "conflict_resolution",
     "applies_to_all": true,
     "source": "questions_json"
+  },
+  {
+    "id": "SQL_001",
+    "role_family": "data_science",
+    "sub_type": "medium",
+    "question": "Write a SQL query using window functions (e.g. DENSE_RANK() or ROW_NUMBER()) to find the top 3 highest spending customers in each geographic region from a transactions table, handling ties gracefully.",
+    "category": "SQL & Analytics",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "SQL_002",
+    "role_family": "data_science",
+    "sub_type": "hard",
+    "question": "How would you write a query to calculate month-over-month user retention cohorts? Walk me through the CTE or self-join logic and how you compute cohort active percentages across consecutive months.",
+    "category": "SQL & Analytics",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "SQL_003",
+    "role_family": "data_science",
+    "sub_type": "medium",
+    "question": "Given a table of user login timestamps, write a SQL query to identify users who logged in for 3 or more consecutive days. What window functions (like LEAD or LAG) or date arithmetic would you utilize?",
+    "category": "SQL & Analytics",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "SQL_004",
+    "role_family": "data_science",
+    "sub_type": "hard",
+    "question": "You are analyzing an analytical table with 50 million rows and a critical dashboard query is taking 45 seconds to execute. How do you interpret the EXPLAIN execution plan, and what indexing or partitioning strategies would you apply?",
+    "category": "SQL & Analytics",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "SQL_005",
+    "role_family": "data_science",
+    "sub_type": "medium",
+    "question": "Write a SQL query to calculate the 7-day rolling average of daily transaction volume per merchant, properly handling missing days where no transactions occurred.",
+    "category": "SQL & Analytics",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "SQL_006",
+    "role_family": "data_science",
+    "sub_type": "easy",
+    "question": "Explain the architectural and performance difference between WHERE clause filtering and HAVING clause filtering with aggregated data, and how table indexing impacts each.",
+    "category": "SQL & Analytics",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "SQL_007",
+    "role_family": "data_science",
+    "sub_type": "hard",
+    "question": "In a star-schema data warehouse, how would you design fact and dimension tables to track user clickstream events, and how do you handle slowly changing dimensions (SCD Type 2) in SQL?",
+    "category": "SQL & Analytics",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "SQL_008",
+    "role_family": "data_science",
+    "sub_type": "easy",
+    "question": "Write a SQL query to identify duplicate customer records where email matches regardless of casing or trailing whitespace, and demonstrate how you would clean and deduplicate the table.",
+    "category": "SQL & Analytics",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "SYS_001",
+    "role_family": "software_tech",
+    "sub_type": "hard",
+    "question": "How would you design a distributed, highly available payment processing system that guarantees idempotency and zero duplicate charges during network partitions and client retries?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "SYS_002",
+    "role_family": "software_tech",
+    "sub_type": "hard",
+    "question": "Design a real-time ride-matching and driver location tracking service like Uber or Bolt. How would you handle geospatial indexing (Quadtree vs Geohash) for millions of concurrent updates?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "SYS_003",
+    "role_family": "software_tech",
+    "sub_type": "medium",
+    "question": "Design a distributed webhook delivery engine that delivers events to thousands of merchant endpoints with at-least-once delivery, exponential backoff, and circuit breakers.",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "SYS_004",
+    "role_family": "software_tech",
+    "sub_type": "hard",
+    "question": "How would you design an immutable double-entry ledger database for a financial platform that processes 10,000 transactions per second with strict ACID guarantees?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "SYS_005",
+    "role_family": "software_tech",
+    "sub_type": "medium",
+    "question": "Design a distributed rate limiter supporting both IP-based and token-bucket algorithms that works across multiple data centers with low latency using Redis and local caches.",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "SYS_006",
+    "role_family": "software_tech",
+    "sub_type": "medium",
+    "question": "Design a real-time notification dispatch service capable of sending 50 million push notifications and SMS per day, with priority queuing, failure dead-letter queues, and user alert preference management.",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "SYS_007",
+    "role_family": "software_tech",
+    "sub_type": "hard",
+    "question": "Design a distributed live video streaming platform supporting 100,000 concurrent viewers on a single live stream. How do you structure the ingest, transcoding pipeline, and edge CDN distribution?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "TECH_001",
+    "role_family": "software_tech",
+    "sub_type": "medium",
+    "question": "Walk me through how you would implement a robust concurrency-safe in-memory cache with LRU eviction policy, thread safety, and TTL expiration in your primary programming language.",
+    "category": "Technical Implementation",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "TECH_002",
+    "role_family": "software_tech",
+    "sub_type": "hard",
+    "question": "How do you detect and prevent race conditions and database deadlocks when two concurrent requests attempt to deduct funds from the same account balance simultaneously?",
+    "category": "Technical Implementation",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "TECH_003",
+    "role_family": "software_tech",
+    "sub_type": "medium",
+    "question": "Walk me through how the JavaScript event loop handles microtasks (Promises) versus macrotasks (setTimeout, I/O), and how you prevent UI thread blocking in high-frequency rendering scenarios.",
+    "category": "Technical Implementation",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "TECH_004",
+    "role_family": "software_tech",
+    "sub_type": "medium",
+    "question": "How would you implement a custom React hook that handles debounced API search queries, cancels outdated in-flight requests using AbortController, and cleanly manages loading and error states?",
+    "category": "Technical Implementation",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "TECH_005",
+    "role_family": "software_tech",
+    "sub_type": "medium",
+    "question": "Compare optimistic concurrency control (version numbers) versus pessimistic locking (SELECT FOR UPDATE) in relational databases. In what real-world scenarios would you choose one over the other?",
+    "category": "Technical Implementation",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "TECH_006",
+    "role_family": "software_tech",
+    "sub_type": "hard",
+    "question": "How would you architect a zero-downtime database migration that involves renaming a high-traffic column or splitting a large table in production without service interruption?",
+    "category": "Technical Implementation",
+    "applies_to_all": false,
+    "source": "curated_bank"
+  },
+  {
+    "id": "CO_PAYSTACK_001",
+    "role_family": "software_tech",
+    "sub_type": "hard",
+    "question": "Paystack processes millions of checkout transactions across multiple African banks. How would you design Paystack transaction routing engine to automatically fail over to an alternate acquirer switch when a primary bank gateway latency spikes?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "company_benchmarks"
+  },
+  {
+    "id": "CO_PAYSTACK_002",
+    "role_family": "software_tech",
+    "sub_type": "medium",
+    "question": "At Paystack, webhook reliability is critical for merchant fulfillment. How would you architect the webhook delivery queue to handle intermittent merchant server downtime without creating backpressure on core transaction processing?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "company_benchmarks"
+  },
+  {
+    "id": "CO_STRIPE_001",
+    "role_family": "software_tech",
+    "sub_type": "hard",
+    "question": "Stripe prioritizes developer ergonomics, idempotency, and 99.999% availability. How would you architect Stripe API layer to handle idempotency keys across distributed API gateways and prevent double charges?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "company_benchmarks"
+  },
+  {
+    "id": "CO_MONIEPOINT_001",
+    "role_family": "software_tech",
+    "sub_type": "hard",
+    "question": "Moniepoint powers in-person POS terminals and business banking for thousands of merchants. How would you design an offline-capable transaction queue on smart POS hardware that safely synchronizes when connectivity restores?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "company_benchmarks"
+  },
+  {
+    "id": "CO_AMAZON_001",
+    "role_family": "general",
+    "sub_type": "hard",
+    "question": "At Amazon, Customer Obsession and Bias for Action are core principles. Describe a time you had to make a critical high-stakes decision with incomplete information to protect customer trust.",
+    "category": "conflict_resolution",
+    "applies_to_all": true,
+    "source": "company_benchmarks"
+  },
+  {
+    "id": "CO_GOOGLE_001",
+    "role_family": "software_tech",
+    "sub_type": "hard",
+    "question": "Google operates at planetary scale with strict P99 latency SLAs. How would you design a distributed key-value cache that mitigates cache stampedes (thundering herd problem) when high-profile keys expire?",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "company_benchmarks"
+  },
+  {
+    "id": "CO_UBER_001",
+    "role_family": "software_tech",
+    "sub_type": "hard",
+    "question": "Uber requires sub-second driver dispatch. Walk me through the data architecture you would use to shard drivers by geographical location and compute the nearest available drivers under surge conditions.",
+    "category": "System Design",
+    "applies_to_all": false,
+    "source": "company_benchmarks"
   }
 ]

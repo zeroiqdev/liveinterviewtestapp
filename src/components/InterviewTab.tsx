@@ -628,9 +628,24 @@ export default function InterviewTab() {
             {/* Navbar */}
             <nav className={styles.navbar}>
                 <div className={styles.navLeft}>
-                    <div className={styles.logo}>
-                        <div className={styles.logoIcon}>L</div>
-                        useladder
+                    <div
+                        className={styles.logo}
+                        onClick={() => router.replace("/dashboard")}
+                        style={{ cursor: "pointer" }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") router.replace("/dashboard");
+                        }}
+                    >
+                        <div className={styles.logoIcon}>
+                            <img
+                                src="https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png"
+                                alt="onscript"
+                                className={styles.logoImg}
+                            />
+                        </div>
+                        <span className={styles.brandName}>onscript</span>
                     </div>
                 </div>
                 <div className={styles.navRight}>
@@ -682,12 +697,7 @@ export default function InterviewTab() {
                                         Click start button to start interview
                                     </h3>
 
-                                    {resumeText && (
-                                        <div className={styles.resumeStatusBadge} style={{ marginTop: "0.75rem", marginBottom: "0.5rem" }}>
-                                            <CheckCircle size={15} weight="fill" color="#10b981" />
-                                            <span>Resume loaded · Questions will personalize to your background</span>
-                                        </div>
-                                    )}
+
 
                                     <button
                                         className={styles.grantBtn}

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import {
     SquaresFour,
@@ -600,13 +599,14 @@ export default function AdminPage() {
             {/* Top Navigation Header */}
             <header className={styles.adminNav}>
                 <div className={styles.brandWrap}>
-                    <Image
-                        src="/useladder_logo.png"
-                        alt="useladder"
-                        width={110}
-                        height={24}
-                        className={styles.brandLogo}
-                    />
+                    <div className={styles.brandLogoWrap}>
+                        <img
+                            src="https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png"
+                            alt="onscript"
+                            className={styles.brandLogo}
+                        />
+                    </div>
+                    <span className={styles.brandTitle}>onscript</span>
                     <span className={styles.adminBadge}>Admin Portal</span>
                 </div>
 
@@ -976,8 +976,19 @@ export default function AdminPage() {
                                             <option value="all">All Role Families</option>
                                             <option value="product_manager">Product Manager</option>
                                             <option value="product_designer">Product Designer</option>
+                                            <option value="ui_designer">UI Designer</option>
+                                            <option value="product_marketer">Product Marketer</option>
                                             <option value="frontend_developer">Frontend Developer</option>
                                             <option value="backend_engineer">Backend Engineer</option>
+                                            <option value="devops_sre">DevOps / SRE</option>
+                                            <option value="data_analyst">Data Analyst / Scientist</option>
+                                            <option value="business_analyst">Business Analyst</option>
+                                            <option value="banking_finance">Banking & Finance</option>
+                                            <option value="sales">Sales & Commercial</option>
+                                            <option value="customer_service">Customer Service & Support</option>
+                                            <option value="virtual_assistant">Virtual Assistant & Admin</option>
+                                            <option value="oil_gas">Engineering — Oil & Gas</option>
+                                            <option value="general">General / Other</option>
                                         </select>
                                     </div>
 
@@ -1464,7 +1475,7 @@ export default function AdminPage() {
                                         type="text"
                                         required
                                         className={styles.inputField}
-                                        placeholder="e.g. UseLadder AI"
+                                        placeholder="e.g. OnScript AI"
                                         value={jFormCompany}
                                         onChange={(e) => setJFormCompany(e.target.value)}
                                     />
@@ -1491,8 +1502,18 @@ export default function AdminPage() {
                                     >
                                         <option value="product_manager">product_manager</option>
                                         <option value="product_designer">product_designer</option>
+                                        <option value="ui_designer">ui_designer</option>
+                                        <option value="product_marketer">product_marketer</option>
                                         <option value="frontend_developer">frontend_developer</option>
                                         <option value="backend_engineer">backend_engineer</option>
+                                        <option value="devops_sre">devops_sre</option>
+                                        <option value="data_analyst">data_analyst</option>
+                                        <option value="business_analyst">business_analyst</option>
+                                        <option value="banking_finance">banking_finance</option>
+                                        <option value="sales">sales</option>
+                                        <option value="customer_service">customer_service</option>
+                                        <option value="virtual_assistant">virtual_assistant</option>
+                                        <option value="oil_gas">oil_gas</option>
                                         <option value="general">general</option>
                                     </select>
                                 </div>

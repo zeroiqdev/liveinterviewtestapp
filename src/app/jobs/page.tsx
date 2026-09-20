@@ -222,9 +222,18 @@ export default function AllJobsPage() {
                             <option value="all">💼 All Roles</option>
                             <option value="frontend_developer">Frontend Developer</option>
                             <option value="backend_engineer">Backend Engineer</option>
+                            <option value="devops_sre">DevOps / SRE</option>
                             <option value="product_manager">Product Manager</option>
                             <option value="product_designer">Product Designer</option>
-                            <option value="data_analyst">Data Analyst</option>
+                            <option value="ui_designer">UI Designer</option>
+                            <option value="product_marketer">Product Marketer</option>
+                            <option value="data_analyst">Data Analyst / Scientist</option>
+                            <option value="business_analyst">Business Analyst</option>
+                            <option value="banking_finance">Banking & Finance</option>
+                            <option value="sales">Sales & Commercial</option>
+                            <option value="customer_service">Customer Service & Support</option>
+                            <option value="virtual_assistant">Virtual Assistant & Admin</option>
+                            <option value="oil_gas">Engineering — Oil & Gas</option>
                         </select>
                     </div>
                 </div>
@@ -285,6 +294,7 @@ export default function AllJobsPage() {
                     }}
                     calibrationSectionTitle="Interview Preparation"
                     calibrationText={`Practice real-time technical and behavioral interview scenarios calibrated for ${selectedJobDesc.company}'s hiring standards with our AI Interview Coach and Recruiter.`}
+                    userRole={userRole || undefined}
                 />
             )}
 

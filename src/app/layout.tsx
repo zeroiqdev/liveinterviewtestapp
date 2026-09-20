@@ -11,22 +11,22 @@ export const viewport: Viewport = {
     width: "device-width",
     initialScale: 1,
     maximumScale: 1,
-    themeColor: "#000000",
+    themeColor: "#F4F6FA",
 };
 
 export const metadata: Metadata = {
-    title: "useladder - AI Interview Training",
+    title: "onscript - AI Interview Training",
     description: "Comprehensive Interview Test Role-Play Training for Success",
     icons: {
-        icon: "/useladder_logo.png",
-        shortcut: "/useladder_logo.png",
-        apple: "/useladder_logo.png",
+        icon: "https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png",
+        shortcut: "https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png",
+        apple: "https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png",
     },
     manifest: "/manifest.json",
     appleWebApp: {
         capable: true,
         statusBarStyle: "black-translucent",
-        title: "useladder",
+        title: "onscript",
     },
 };
 

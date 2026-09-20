@@ -11,9 +11,16 @@ import {
     ArrowRightRegular,
 } from "@mingcute/react/core-regular";
 import { CheckCircleFilled } from "@mingcute/react/core-filled";
-import { Target, Warning, Check, SpinnerGap } from "@phosphor-icons/react";
+import { Warning, SpinnerGap, Trash, FileText } from "@phosphor-icons/react";
 import styles from "../dashboard.module.css";
 import { COACH_AVATAR, RECRUITER_AVATAR } from "./constants";
+import { DeleteConfirmModal } from "./DeleteConfirmModal";
+import {
+    deriveJobResponsibilities,
+    getJobMatchCacheKey,
+    getCachedJobMatch,
+    setCachedJobMatch,
+} from "./utils";
 
 export interface StoredResumeItem {
     id: string;
@@ -21,7 +28,7 @@ export interface StoredResumeItem {
     data?: string;
     rawText?: string;
     updatedAt?: string;
-    source?: "uploaded" | "narrative_studio";
+    source?: "uploaded";
 }
 
 export interface InterviewSetupModalProps {
@@ -33,6 +40,8 @@ export interface InterviewSetupModalProps {
     jobTitle?: string;
     interviewTypeTitle?: string;
     jobResponsibilities?: string[];
+    jobDescription?: string;
+    userRole?: string;
 }
 
 function getDefaultResponsibilitiesForRole(roleName: string): string[] {
@@ -76,10 +85,12 @@ export function InterviewSetupModal({
     jobTitle = "",
     interviewTypeTitle = "",
     jobResponsibilities = [],
+    jobDescription = "",
+    userRole = "",
 }: InterviewSetupModalProps) {
     const router = useRouter();
 
-    // ── 1. Interview Mode (Live Coaching vs Mock Simulation) ──
+    // ── 1. Interview Mode (Live Coaching vs Mock Interview) ──
     const [interviewMode, setInterviewMode] = useState<"live_coaching" | "post_interview">("live_coaching");
 
     // ── 2. Resume Selection & Upload State ──
@@ -93,6 +104,9 @@ export function InterviewSetupModal({
     const [matchData, setMatchData] = useState<any | null>(null);
     const [matchLoading, setMatchLoading] = useState(false);
     const [matchError, setMatchError] = useState<string | null>(null);
+    const [deletingResumeId, setDeletingResumeId] = useState<string | null>(null);
+    const [resumeToDelete, setResumeToDelete] = useState<StoredResumeItem | null>(null);
+    const [showMatchDetails, setShowMatchDetails] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -107,17 +121,34 @@ export function InterviewSetupModal({
 
     const effectiveResponsibilities = useMemo(() => {
         if (jobResponsibilities && jobResponsibilities.length > 0) return jobResponsibilities;
-        return getDefaultResponsibilitiesForRole(jobTitle || effectiveRole || initialRole);
-    }, [jobResponsibilities, jobTitle, effectiveRole, initialRole]);
+        return deriveJobResponsibilities({
+            title: jobTitle || effectiveRole || initialRole,
+            description: jobDescription,
+        });
+    }, [jobResponsibilities, jobTitle, effectiveRole, initialRole, jobDescription]);
 
+    const cacheKey = useMemo(() => {
+        if (!activeResumeText || activeResumeText.length < 30 || !effectiveResponsibilities.length) return "";
+        return getJobMatchCacheKey(activeResumeText, jobTitle || effectiveRole, initialCompany || "Target Company", effectiveResponsibilities);
+    }, [activeResumeText, jobTitle, effectiveRole, initialCompany, effectiveResponsibilities]);
 
     // Fetch resume ↔ role match whenever role/job + resume are selected
     useEffect(() => {
-        if (!isOpen || !activeResumeText || activeResumeText.length < 30 || !effectiveResponsibilities.length) {
+        if (!isOpen || !activeResumeText || activeResumeText.length < 30 || !effectiveResponsibilities.length || !cacheKey) {
             setMatchData(null);
             setMatchError(null);
             return;
         }
+
+        // 1. Check instant shared cache
+        const cached = getCachedJobMatch(cacheKey);
+        if (cached) {
+            setMatchData(cached);
+            setMatchLoading(false);
+            setMatchError(null);
+            return;
+        }
+
         let cancelled = false;
         setMatchLoading(true);
         setMatchError(null);
@@ -132,24 +163,34 @@ export function InterviewSetupModal({
                         jobTitle: jobTitle || effectiveRole,
                         jobCompany: initialCompany || "Target Company",
                         jobResponsibilities: effectiveResponsibilities,
-                        jobDescription: effectiveResponsibilities.join("\n"),
+                        jobDescription: jobDescription || effectiveResponsibilities.join("\n"),
                         requiredExperience: "",
+                        userRole: userRole || initialRole || "",
+                        candidateRole: userRole || initialRole || "",
                     }),
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || "Match failed");
-                if (!cancelled) setMatchData(data.result);
+                if (!cancelled && data.result) {
+                    setCachedJobMatch(cacheKey, data.result);
+                    setMatchData(data.result);
+                }
             } catch (e: any) {
                 if (!cancelled) setMatchError(e.message || "Failed to compute match");
             } finally {
                 if (!cancelled) setMatchLoading(false);
             }
-        }, 500);
+        }, 120);
         return () => {
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [isOpen, effectiveResponsibilities, activeResumeText, activeResumeName, jobTitle, effectiveRole, initialCompany]);
+    }, [isOpen, cacheKey, effectiveResponsibilities, activeResumeText, activeResumeName, jobTitle, effectiveRole, initialCompany, jobDescription, userRole, initialRole]);
+
+    // Collapse detailed breakdown when resume/role changes
+    useEffect(() => {
+        setShowMatchDetails(false);
+    }, [activeResumeName, jobTitle, effectiveRole]);
 
     const resolveResumeText = (item: StoredResumeItem): string => {
         if (item.rawText && !item.rawText.startsWith("data:") && !item.rawText.startsWith("PK") && item.rawText.length >= 30) {
@@ -269,6 +310,98 @@ export function InterviewSetupModal({
                 console.error("Error updating selected resume in storage:", e);
             }
         }
+    };
+
+    const handleDeleteResume = (resumeId: string) => {
+        const target = savedResumes.find((r) => r.id === resumeId);
+        if (!target) return;
+        setResumeToDelete(target);
+    };
+
+    const handleConfirmDelete = async () => {
+        const resumeId = resumeToDelete?.id;
+        const target = resumeToDelete;
+        if (!resumeId || !target) return;
+
+        setDeletingResumeId(resumeId);
+        try {
+            const updatedList = savedResumes.filter((r) => r.id !== resumeId);
+            setSavedResumes(updatedList);
+
+            if (selectedResumeId === resumeId) {
+                if (updatedList.length > 0) {
+                    const next = updatedList[0];
+                    setSelectedResumeId(next.id);
+                    setActiveResumeName(next.name);
+                    setActiveResumeText(resolveResumeText(next));
+                    setIsUploadingNew(false);
+                } else {
+                    setSelectedResumeId("");
+                    setActiveResumeName("");
+                    setActiveResumeText("");
+                    setIsUploadingNew(true);
+                }
+            }
+
+            try {
+                const raw = localStorage.getItem("useladder_user");
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed.resumes)) {
+                        parsed.resumes = (parsed.resumes as any[]).filter((r: any) => (r.id || r._id) !== resumeId);
+                    }
+                    if (parsed.selectedResumeId === resumeId) {
+                        parsed.selectedResumeId = updatedList[0]?.id || "";
+                    }
+                    if (parsed.resume && (parsed.resume.id === resumeId || parsed.resume._id === resumeId)) {
+                        parsed.resume = updatedList[0] || null;
+                        if (!parsed.resume) delete parsed.resume;
+                    }
+                    if (!parsed.resumes || parsed.resumes.length === 0) {
+                        delete parsed.resumes;
+                        delete parsed.selectedResumeId;
+                        delete parsed.resume;
+                    }
+                    // Also fetch email for backend sync
+                    const email = parsed.email;
+                    localStorage.setItem("useladder_user", JSON.stringify(parsed));
+                    if (email) {
+                        fetch(`/api/auth/user?email=${encodeURIComponent(email)}&resumeId=${encodeURIComponent(resumeId)}`, {
+                            method: "DELETE",
+                        }).catch(() => {});
+                    }
+                }
+            } catch {}
+
+            try {
+                const lastRaw = localStorage.getItem("useladder_last_resume_feedback");
+                if (lastRaw) {
+                    const last = JSON.parse(lastRaw);
+                    if (last.id === resumeId || last.resumeName === target.name) {
+                        localStorage.removeItem("useladder_last_resume_feedback");
+                    }
+                }
+            } catch {}
+            try {
+                const allRaw = localStorage.getItem("useladder_all_resume_feedbacks");
+                if (allRaw) {
+                    const all = JSON.parse(allRaw);
+                    if (Array.isArray(all)) {
+                        const filtered = all.filter((f: any) => f.id !== resumeId && f.resumeName !== target.name);
+                        localStorage.setItem("useladder_all_resume_feedbacks", JSON.stringify(filtered));
+                    }
+                }
+            } catch {}
+            window.dispatchEvent(new Event("useladder_resume_scanned"));
+        } finally {
+            setDeletingResumeId(null);
+            setResumeToDelete(null);
+        }
+    };
+
+    const handleCancelDelete = () => {
+        if (deletingResumeId) return;
+        setResumeToDelete(null);
     };
 
     // Handle uploading a new resume file
@@ -453,11 +586,11 @@ export function InterviewSetupModal({
                                         >
                                             <div className={styles.modeTabHeaderWrap}>
                                                 <span className={styles.modeTabHeader}>
-                                                    Mock Simulation
+                                                    Mock Interview
                                                 </span>
                                             </div>
                                             <p className={styles.modeTabDesc}>
-                                                A realistic, uninterrupted mock interview round with comprehensive evaluation and benchmark scoring at the end.
+                                                A realistic, uninterrupted interview with no interruptions — get a full evaluation and benchmark score at the end.
                                             </p>
                                         </div>
                                     </div>
@@ -519,21 +652,41 @@ export function InterviewSetupModal({
                                                                 <div className={styles.resumeOptionTextGroup}>
                                                                     <span className={styles.resumeOptionName}>{resume.name}</span>
                                                                     <div className={styles.resumeOptionSub}>
-                                                                        {resume.source === "narrative_studio" ? (
-                                                                            <span style={{ color: "#2563EB" }}>Tailored in Studio</span>
-                                                                        ) : (
-                                                                            <span>Uploaded Resume</span>
-                                                                        )}
-                                                                        {resume.updatedAt && <span>• {resume.updatedAt}</span>}
+                                                                        <span>Uploaded Resume</span>
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                            <div className={styles.resumeOptionCheck}>
-                                                                {isSelected ? (
-                                                                    <CheckCircleFilled size={18} color="#2563EB" />
-                                                                ) : (
-                                                                    <div style={{ width: 16, height: 16, borderRadius: "50%", border: "1px solid #CBD5E1" }} />
-                                                                )}
+                                                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleDeleteResume(resume.id);
+                                                                    }}
+                                                                    disabled={deletingResumeId === resume.id}
+                                                                    aria-label={`Delete ${resume.name}`}
+                                                                    title="Delete resume"
+                                                                    style={{
+                                                                        background: "#FFF1F2",
+                                                                        border: "1px solid #FECDD3",
+                                                                        borderRadius: 6,
+                                                                        padding: "4px 6px",
+                                                                        cursor: deletingResumeId === resume.id ? "not-allowed" : "pointer",
+                                                                        opacity: deletingResumeId === resume.id ? 0.6 : 1,
+                                                                        display: "flex",
+                                                                        alignItems: "center",
+                                                                        justifyContent: "center",
+                                                                    }}
+                                                                >
+                                                                    <Trash size={14} weight="bold" color="#DC2626" />
+                                                                </button>
+                                                                <div className={styles.resumeOptionCheck}>
+                                                                    {isSelected ? (
+                                                                        <CheckCircleFilled size={18} color="#2563EB" />
+                                                                    ) : (
+                                                                        <div style={{ width: 16, height: 16, borderRadius: "50%", border: "1px solid #CBD5E1" }} />
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     );
@@ -593,8 +746,14 @@ export function InterviewSetupModal({
                             {/* ── ITEM 3: RESUME ↔ ROLE MATCH ── */}
                             {Boolean(effectiveResponsibilities.length > 0) && (
                                 <div className={styles.timelineItem}>
-                                    <div className={styles.timelineAvatarCircle} title="Role Match" style={{ background: matchData ? (matchData.overallMatch >= 75 ? "#F0FDF4" : matchData.overallMatch >= 50 ? "#FFFBEB" : "#FEF2F2") : "#EFF6FF", border: "1px solid #E2E8F0" }}>
-                                        <Target size={16} weight="bold" color={matchData ? (matchData.overallMatch >= 75 ? "#16A34A" : matchData.overallMatch >= 50 ? "#D97706" : "#DC2626") : "#2563EB"} />
+                                    <div className={styles.timelineAvatarCircle} title="Recruiter">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                            src={RECRUITER_AVATAR}
+                                            alt="Recruiter"
+                                            className={styles.timelineAvatarImg}
+                                            draggable={false}
+                                        />
                                     </div>
                                     <div className={styles.timelineItemTopRow}>
                                         <div className={styles.greetingChipRow}>
@@ -609,56 +768,146 @@ export function InterviewSetupModal({
                                         ) : matchError ? (
                                             <div style={{ fontSize: "0.76rem", color: "#DC2626", background: "#FEF2F2", border: "1px solid #FECACA", padding: "0.55rem 0.7rem", borderRadius: 7 }}>{matchError}</div>
                                         ) : matchData ? (
-                                            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                                                {/* Overall + experience */}
-                                                <div style={{ display: "flex", gap: 12, alignItems: "stretch" }}>
-                                                    <div style={{ flex: "0 0 92px", background: matchData.overallMatch >= 75 ? "#F0FDF4" : matchData.overallMatch >= 50 ? "#FFFBEB" : "#FEF2F2", border: `1px solid ${matchData.overallMatch >= 75 ? "#DCFCE7" : matchData.overallMatch >= 50 ? "#FDE68A" : "#FECACA"}`, borderRadius: 10, padding: "0.7rem 0.5rem", textAlign: "center" }}>
-                                                        <div style={{ fontSize: "1.45rem", fontWeight: 700, color: matchData.overallMatch >= 75 ? "#15803D" : matchData.overallMatch >= 50 ? "#B45309" : "#B91C1C", lineHeight: 1 }}>{matchData.overallMatch}%</div>
-                                                        <div style={{ fontSize: "0.62rem", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "#475569", marginTop: 4 }}>Overall Match</div>
+                                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                                {/* Compact overall header – always visible */}
+                                                <div style={{ display: "flex", gap: 10, alignItems: "stretch" }}>
+                                                    <div style={{ flex: "0 0 78px", background: matchData.overallMatch >= 75 ? "#F0FDF4" : matchData.overallMatch >= 50 ? "#FFFBEB" : "#FEF2F2", border: `1px solid ${matchData.overallMatch >= 75 ? "#DCFCE7" : matchData.overallMatch >= 50 ? "#FDE68A" : "#FECACA"}`, borderRadius: 10, padding: "0.55rem 0.4rem", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                                                        <div className={styles.tabularNums} style={{ fontSize: "1.25rem", fontWeight: 800, color: matchData.overallMatch >= 75 ? "#15803D" : matchData.overallMatch >= 50 ? "#B45309" : "#B91C1C", lineHeight: 1 }}>{matchData.overallMatch}%</div>
+                                                        <div style={{ fontSize: "0.6rem", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "#475569", marginTop: 3 }}>Overall</div>
                                                     </div>
-                                                    <div style={{ flex: 1, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "0.65rem 0.75rem" }}>
-                                                        <div style={{ fontSize: "0.72rem", fontWeight: 700, color: "#0F172A", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}><Check size={12} weight="bold" color="#2563EB" /> {activeResumeName || "Selected resume"}</div>
-                                                        <div style={{ fontSize: "0.78rem", color: "#334155", lineHeight: 1.45 }}>{matchData.summary}</div>
-                                                        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                                            <span style={{ fontSize: "0.68rem", background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 5, padding: "0.18rem 0.45rem", color: "#475569" }}>Experience {matchData.experienceMatch.score}%</span>
-                                                            <span style={{ fontSize: "0.68rem", color: "#64748B" }}>{matchData.experienceMatch.candidate} → {matchData.experienceMatch.required}</span>
-                                                        </div>
-                                                        <div style={{ fontSize: "0.68rem", color: "#64748B", marginTop: 4, fontStyle: "italic" }}>{matchData.experienceMatch.note}</div>
-                                                    </div>
-                                                </div>
-                                                {/* Per-responsibility bars */}
-                                                <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                                                    {matchData.responsibilityMatches.map((r: any, idx: number) => {
-                                                        const barColor = r.score >= 75 ? "#16A34A" : r.score >= 45 ? "#F59E0B" : "#DC2626";
-                                                        const bgTrack = r.score >= 75 ? "#DCFCE7" : r.score >= 45 ? "#FEF3C7" : "#FECACA";
-                                                        return (
-                                                            <div key={idx} style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, padding: "0.6rem 0.75rem" }}>
-                                                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 5 }}>
-                                                                    <span style={{ fontSize: "0.76rem", fontWeight: 600, color: "#0F172A", lineHeight: 1.35, flex: 1 }}>{idx + 1}. {r.responsibility}</span>
-                                                                    <span style={{ fontSize: "0.7rem", fontWeight: 700, color: barColor, background: bgTrack, padding: "0.15rem 0.4rem", borderRadius: 5, flexShrink: 0 }}>{r.score}% · {r.status}</span>
+                                                    <div style={{ flex: 1, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "0.7rem 0.95rem", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                                                        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                                                            <FileText size={18} weight="bold" color="#4782F6" style={{ flexShrink: 0 }} />
+                                                            <div style={{ minWidth: 0 }}>
+                                                                <div style={{ fontSize: "0.62rem", fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.04em" }}>Selected Resume</div>
+                                                                <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                                    {activeResumeName || "Selected resume"}
                                                                 </div>
-                                                                <div style={{ height: 6, background: "#F1F5F9", borderRadius: 999, overflow: "hidden", marginBottom: 6 }}><div style={{ width: `${r.score}%`, height: "100%", background: barColor, borderRadius: 999 }} /></div>
-                                                                <div style={{ fontSize: "0.7rem", color: "#334155", lineHeight: 1.4 }}><span style={{ fontWeight: 600, color: "#475569" }}>Evidence:</span> {r.evidence}</div>
-                                                                {r.status !== "strong" && <div style={{ fontSize: "0.68rem", color: "#B45309", marginTop: 3, lineHeight: 1.35 }}><span style={{ fontWeight: 600 }}>Gap:</span> {r.gap}</div>}
                                                             </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                                {/* Strengths / gaps */}
-                                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                                                    <div style={{ background: "#F0FDF4", border: "1px solid #DCFCE7", borderRadius: 8, padding: "0.6rem 0.7rem" }}>
-                                                        <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#15803D", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>Strengths for this role</div>
-                                                        <ul style={{ margin: 0, paddingLeft: "1rem", fontSize: "0.72rem", color: "#166534", lineHeight: 1.45 }}>{matchData.strengthsForRole.map((s: string, i: number) => <li key={i} style={{ marginBottom: 2 }}>{s}</li>)}</ul>
-                                                    </div>
-                                                    <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 8, padding: "0.6rem 0.7rem" }}>
-                                                        <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#B45309", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>Gaps to address</div>
-                                                        <ul style={{ margin: 0, paddingLeft: "1rem", fontSize: "0.72rem", color: "#92400E", lineHeight: 1.45 }}>{matchData.gapsForRole.map((g: string, i: number) => <li key={i} style={{ marginBottom: 2 }}>{g}</li>)}</ul>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                {matchData.interviewFocusAreas?.length > 0 && (
-                                                    <div style={{ background: "#EFF6FF", border: "1px solid #DBEAFE", borderRadius: 8, padding: "0.6rem 0.7rem" }}>
-                                                        <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#1D4ED8", marginBottom: 4 }}>Interview focus for this role</div>
-                                                        <ul style={{ margin: 0, paddingLeft: "1rem", fontSize: "0.72rem", color: "#1E40AF", lineHeight: 1.45 }}>{matchData.interviewFocusAreas.map((f: string, i: number) => <li key={i} style={{ marginBottom: 2 }}>{f}</li>)}</ul>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowMatchDetails((v) => !v)}
+                                                    style={{
+                                                        alignSelf: "flex-start",
+                                                        background: "#FFFFFF",
+                                                        border: "1px solid #D1D5DB",
+                                                        color: "#000000",
+                                                        fontSize: "0.74rem",
+                                                        fontWeight: 600,
+                                                        padding: "0.38rem 0.8rem",
+                                                        borderRadius: 9999,
+                                                        cursor: "pointer",
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        gap: 5,
+                                                    }}
+                                                >
+                                                    <span style={{ color: "#000000" }}>{showMatchDetails ? "Hide details" : "View feedback"}</span>
+                                                    <span style={{ fontSize: "0.65rem", transform: showMatchDetails ? "rotate(180deg)" : "none", display: "inline-block", transition: "transform 0.15s", color: "#000000" }}>▾</span>
+                                                </button>
+
+                                                {showMatchDetails && (
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem", maxHeight: 440, overflowY: "auto", paddingRight: 4, scrollbarWidth: "thin" }}>
+                                                        {/* ── Card explaining why you are a fit ── */}
+                                                        {matchData.summary && (
+                                                            <div style={{
+                                                                background: "#F8FAFC",
+                                                                border: "1px solid #E2E8F0",
+                                                                borderRadius: 10,
+                                                                padding: "0.95rem 1.15rem",
+                                                            }}>
+                                                                <p style={{
+                                                                    margin: 0,
+                                                                    fontSize: "0.79rem",
+                                                                    lineHeight: 1.6,
+                                                                    color: "#1E293B",
+                                                                    fontWeight: 400,
+                                                                }}>
+                                                                    {matchData.summary}
+                                                                </p>
+                                                            </div>
+                                                        )}
+
+                                                        {/* ── List of your experience that makes it a match ── */}
+                                                        <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem" }}>
+                                                            <div style={{
+                                                                fontSize: "0.72rem",
+                                                                fontWeight: 700,
+                                                                textTransform: "uppercase",
+                                                                letterSpacing: "0.04em",
+                                                                color: "#475569",
+                                                                marginTop: "0.25rem",
+                                                            }}>
+                                                                Your Experience &amp; Role Requirements
+                                                            </div>
+                                                            {matchData.responsibilityMatches?.map((r: any, idx: number) => {
+                                                                return (
+                                                                    <div
+                                                                        key={idx}
+                                                                        style={{
+                                                                            background: "#FFFFFF",
+                                                                            border: "1px solid #E2E8F0",
+                                                                            borderRadius: 10,
+                                                                            padding: "0.95rem 1.15rem",
+                                                                            display: "flex",
+                                                                            flexDirection: "column",
+                                                                            gap: "0.55rem",
+                                                                            boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+                                                                        }}
+                                                                    >
+                                                                        <div style={{ fontSize: "0.82rem", fontWeight: 500, fontFamily: "'Inter', sans-serif", color: "#0F172A", lineHeight: 1.4 }}>
+                                                                            {idx + 1}. {r.responsibility}
+                                                                        </div>
+                                                                        <div style={{
+                                                                            fontSize: "0.76rem",
+                                                                            color: "#475569",
+                                                                            lineHeight: 1.55,
+                                                                            background: "#F8FAFC",
+                                                                            padding: "0.65rem 0.85rem",
+                                                                            borderRadius: 8,
+                                                                            border: "1px solid #F1F5F9",
+                                                                        }}>
+                                                                            <span style={{ fontWeight: 600, color: "#1E293B" }}>Evidence from resume: </span>
+                                                                            {r.evidence || r.gap || "Demonstrated in candidate experience."}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+
+                                                        {/* Strengths / gaps */}
+                                                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginTop: "0.25rem" }}>
+                                                            <div style={{ background: "#F0FDF4", border: "1px solid #DCFCE7", borderRadius: 10, padding: "0.85rem 1rem" }}>
+                                                                <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#15803D", marginBottom: "0.4rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>Strengths</div>
+                                                                <ul style={{ margin: 0, paddingLeft: "1rem", fontSize: "0.74rem", color: "#166534", lineHeight: 1.55 }}>
+                                                                    {matchData.strengthsForRole?.map((s: string, i: number) => (
+                                                                        <li key={i} style={{ marginBottom: "0.25rem" }}>{s}</li>
+                                                                    ))}
+                                                                </ul>
+                                                            </div>
+                                                            <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 10, padding: "0.85rem 1rem" }}>
+                                                                <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#B45309", marginBottom: "0.4rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>Gaps to Address</div>
+                                                                <ul style={{ margin: 0, paddingLeft: "1rem", fontSize: "0.74rem", color: "#92400E", lineHeight: 1.55 }}>
+                                                                    {matchData.gapsForRole?.map((g: string, i: number) => (
+                                                                        <li key={i} style={{ marginBottom: "0.25rem" }}>{g}</li>
+                                                                    ))}
+                                                                </ul>
+                                                            </div>
+                                                        </div>
+                                                        {matchData.interviewFocusAreas?.length > 0 && (
+                                                            <div style={{ background: "#EFF6FF", border: "1px solid #DBEAFE", borderRadius: 10, padding: "0.85rem 1rem" }}>
+                                                                <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#1D4ED8", marginBottom: "0.4rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>Interview Focus</div>
+                                                                <ul style={{ margin: 0, paddingLeft: "1rem", fontSize: "0.74rem", color: "#1E40AF", lineHeight: 1.55 }}>
+                                                                    {matchData.interviewFocusAreas.map((f: string, i: number) => (
+                                                                        <li key={i} style={{ marginBottom: "0.25rem" }}>{f}</li>
+                                                                    ))}
+                                                                </ul>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -686,11 +935,19 @@ export function InterviewSetupModal({
                         className={styles.settingsSaveFooterBtn}
                         onClick={handleStartSession}
                     >
-                        <span>Start {interviewMode === "live_coaching" ? "Live Coaching" : "Interview"} Session</span>
+                        <span>Start Interview</span>
                         <ArrowRightRegular size={16} />
                     </button>
                 </div>
             </div>
+
+            <DeleteConfirmModal
+                isOpen={!!resumeToDelete}
+                resumeName={resumeToDelete?.name || ""}
+                isDeleting={!!deletingResumeId}
+                onCancel={handleCancelDelete}
+                onConfirm={handleConfirmDelete}
+            />
         </div>
     );
 }

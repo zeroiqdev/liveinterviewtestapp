@@ -351,81 +351,261 @@ export function normalizeUserRoleFamily(roleStr: string = ""): string {
         return "general";
     }
 
-    // 1. Product Design / UI / UX (use word boundaries, NEVER substring match "ui" in "recruiting")
+    // 1. Oil & Gas / Engineering & Energy (must be checked BEFORE generic "engineer")
+    if (
+        r.includes("oil & gas") ||
+        r.includes("oil and gas") ||
+        r.includes("oil gas") ||
+        r.includes("petroleum") ||
+        r.includes("drilling") ||
+        r.includes("reservoir") ||
+        r.includes("pipeline") ||
+        r.includes("subsea") ||
+        r.includes("geoscientist") ||
+        r.includes("geologist") ||
+        r.includes("hse") ||
+        r.includes("safety") ||
+        r.includes("risk manager") ||
+        r.includes("safety officer") ||
+        r.includes("solids control") ||
+        r.includes("offshore") ||
+        r.includes("refinery") ||
+        r.includes("engineering — oil") ||
+        r.includes("engineering - oil") ||
+        r === "oil_gas"
+    ) {
+        return "oil_gas";
+    }
+
+    // 2. Virtual Assistant & Administrative Support
+    if (
+        r.includes("virtual assistant") ||
+        r.includes("executive assistant") ||
+        r.includes("administrative") ||
+        r.includes("office assistant") ||
+        r.includes("personal assistant") ||
+        r.includes("admin assistant") ||
+        r.includes("secretary") ||
+        r.includes("office administrator") ||
+        r.includes("data entry") ||
+        r === "virtual_assistant" ||
+        r === "administrative"
+    ) {
+        return "virtual_assistant";
+    }
+
+    // 3. Customer Service & Support
+    if (
+        r.includes("customer service") ||
+        r.includes("customer support") ||
+        r.includes("call centre") ||
+        r.includes("call center") ||
+        r.includes("customer experience") ||
+        r.includes("client support") ||
+        r.includes("client relations") ||
+        r.includes("customer care") ||
+        r.includes("helpdesk") ||
+        r === "customer_service"
+    ) {
+        return "customer_service";
+    }
+
+    // 4. Banking & Finance
+    if (
+        r.includes("investment banker") ||
+        r.includes("investment banking") ||
+        r.includes("financial analyst") ||
+        r.includes("finance analyst") ||
+        r.includes("banking & finance") ||
+        r.includes("banking and finance") ||
+        r.includes("banking") ||
+        r.includes("accountant") ||
+        r.includes("accounting") ||
+        r.includes("auditor") ||
+        r.includes("auditing") ||
+        r.includes("treasury") ||
+        r.includes("credit risk") ||
+        r === "banking_finance" ||
+        (r.includes("finance") && !r.includes("engineer"))
+    ) {
+        return "banking_finance";
+    }
+
+    // 5. Sales & Business Development
+    if (
+        r.includes("sales & business development") ||
+        r.includes("sales and business development") ||
+        r.includes("business development") ||
+        r.includes("account executive") ||
+        (r.includes("account manager") && r.includes("sales")) ||
+        r === "sales" ||
+        r.includes("sales representative") ||
+        r.includes("sales executive") ||
+        r.includes("direct sales") ||
+        r.includes("field sales") ||
+        r.includes("bizdev") ||
+        r.includes("biz dev") ||
+        r.includes("sales & commercial")
+    ) {
+        return "sales";
+    }
+
+    // 6. Business Analyst
+    if (
+        r.includes("business analyst") ||
+        r.includes("business analysis") ||
+        r.includes("functional analyst") ||
+        r.includes("business operations") ||
+        r.includes("business strategy") ||
+        r.includes("operations analyst") ||
+        r.includes("erp specialist") ||
+        r === "business_analyst"
+    ) {
+        return "business_analyst";
+    }
+
+    // 7. Product Marketer
+    if (
+        r.includes("product marketer") ||
+        r.includes("product marketing") ||
+        r.includes("growth marketer") ||
+        r.includes("growth marketing") ||
+        r.includes("brand and marketing") ||
+        r.includes("marketing manager") ||
+        r.includes("digital marketing") ||
+        r === "product_marketer"
+    ) {
+        return "product_marketer";
+    }
+
+    // 8a. UI Designer
+    if (
+        r.includes("ui designer") ||
+        r.includes("ui design") ||
+        r.includes("user interface designer") ||
+        r.includes("visual designer") ||
+        r.includes("design systems designer") ||
+        r === "ui_designer"
+    ) {
+        return "ui_designer";
+    }
+
+    // 8b. Product Design / UI / UX (use word boundaries, NEVER substring match "ui" in "recruiting")
     if (
         r.includes("product design") ||
         r.includes("product designer") ||
         r.includes("ui/ux") ||
         r.includes("ui-ux") ||
         r.includes("ux designer") ||
-        r.includes("ui designer") ||
         r.includes("ux researcher") ||
-        r.includes("visual designer") ||
         r.includes("design system") ||
         r.includes("graphic designer") ||
         r.includes("designer") ||
         r.includes("interaction designer") ||
         /\bui\b/i.test(r) ||
-        /\bux\b/i.test(r)
+        /\bux\b/i.test(r) ||
+        r === "product_designer"
     ) {
         return "product_designer";
     }
 
-    // 2. Product Manager (PM)
+    // 9. Product Manager (PM)
     if (
         r.includes("product manager") ||
         r.includes("product lead") ||
         r.includes("program manager") ||
         r.includes("product owner") ||
         r.includes("product ops") ||
+        r.includes("technical product manager") ||
         r.includes("cpo") ||
-        r === "product"
+        r === "product" ||
+        r === "product_manager"
     ) {
         return "product_manager";
     }
 
-    // 3. Frontend & Fullstack
-    if (
-        r.includes("frontend") ||
-        r.includes("front-end") ||
-        r.includes("react") ||
-        r.includes("web developer") ||
-        r.includes("javascript developer") ||
-        r.includes("fullstack") ||
-        r.includes("full stack") ||
-        r.includes("full-stack")
-    ) {
-        return "frontend_developer";
-    }
-
-    // 4. Backend & Systems
-    if (
-        r.includes("backend") ||
-        r.includes("back-end") ||
-        r.includes("software engineer") ||
-        r.includes("software developer") ||
-        r.includes("node") ||
-        r.includes("python") ||
-        r.includes("golang") ||
-        r.includes("java") ||
-        r.includes("rust") ||
-        r.includes("devops") ||
-        r.includes("cloud") ||
-        r.includes("sre")
-    ) {
-        return "backend_engineer";
-    }
-
-    // 5. Data Analyst & Scientist
+    // 10. Data Analyst & Scientist
     if (
         r.includes("data analyst") ||
         r.includes("data scientist") ||
         r.includes("analytics") ||
         r.includes("scientist") ||
         r.includes("machine learning") ||
-        /\bdata\b/i.test(r)
+        r.includes("bi engineer") ||
+        r.includes("data engineer") ||
+        /\bml\b/i.test(r) ||
+        /\bdata\b/i.test(r) ||
+        r === "data_analyst"
     ) {
         return "data_analyst";
+    }
+
+    // 11. Frontend & Mobile Engineering
+    if (
+        r.includes("frontend") ||
+        r.includes("front-end") ||
+        r.includes("react") ||
+        r.includes("web developer") ||
+        r.includes("javascript developer") ||
+        r.includes("android") ||
+        r.includes("ios") ||
+        r.includes("mobile developer") ||
+        r.includes("mobile engineer") ||
+        r.includes("mobile app") ||
+        r.includes("flutter") ||
+        r.includes("swift") ||
+        r.includes("kotlin") ||
+        r.includes("ui engineer") ||
+        r === "frontend_developer"
+    ) {
+        return "frontend_developer";
+    }
+
+    // 12. DevOps, SRE & Cloud Architecture (must be checked BEFORE generic backend_engineer)
+    if (
+        r.includes("devops") ||
+        r.includes("sre") ||
+        r.includes("site reliability") ||
+        r.includes("cloud") ||
+        r.includes("infrastructure") ||
+        r.includes("platform engineer") ||
+        r.includes("system administrator") ||
+        r.includes("systems administrator") ||
+        r.includes("linux administrator") ||
+        r.includes("server administrator") ||
+        r.includes("devsecops") ||
+        r.includes("ci/cd") ||
+        r.includes("reliability engineer") ||
+        r.includes("solutions architect") ||
+        r === "devops_sre"
+    ) {
+        return "devops_sre";
+    }
+
+    // 13. Backend & Systems Infrastructure
+    if (
+        r.includes("backend") ||
+        r.includes("back-end") ||
+        r.includes("fullstack") ||
+        r.includes("full stack") ||
+        r.includes("full-stack") ||
+        r.includes("software engineer") ||
+        r.includes("software developer") ||
+        r.includes("systems engineer") ||
+        r.includes("programmer") ||
+        r.includes("architect") ||
+        r.includes("tech lead") ||
+        r.includes("technical lead") ||
+        r.includes("node") ||
+        r.includes("python") ||
+        r.includes("golang") ||
+        r.includes("java") ||
+        r.includes("rust") ||
+        r.includes("developer") ||
+        r.includes("engineer") ||
+        r === "backend_engineer"
+    ) {
+        return "backend_engineer";
     }
 
     return "general";
@@ -439,8 +619,10 @@ export function isJobRoleMatch(jobRoleFamily: string = "", jobTitle: string = ""
     if (!userRole || userRole === "all" || userRole === "general") return true;
 
     const userFamily = normalizeUserRoleFamily(userRole);
-    const jobFamily = normalizeUserRoleFamily(jobRoleFamily || jobTitle);
-    const jobText = (jobTitle + " " + jobRoleFamily).toLowerCase();
+    const jobFamily = (jobRoleFamily && jobRoleFamily !== "general")
+        ? normalizeUserRoleFamily(jobRoleFamily)
+        : normalizeUserRoleFamily(jobTitle);
+    const jobText = (jobTitle + " " + (jobRoleFamily || "")).toLowerCase();
 
     // 0. Recruiter & HR check - NEVER match for Product Designers, PMs, or Engineers
     if (
@@ -457,8 +639,19 @@ export function isJobRoleMatch(jobRoleFamily: string = "", jobTitle: string = ""
 
     // 1. PRODUCT MANAGER: Strictly Product Management only
     if (userFamily === "product_manager") {
-        // Exclude design and engineering roles
-        if (jobText.includes("designer") || jobText.includes("ui/ux") || jobText.includes("ux/") || jobText.includes("engineer") || jobText.includes("developer")) {
+        // Exclude design, engineering, and admin roles
+        if (
+            jobText.includes("designer") ||
+            jobText.includes("ui/ux") ||
+            jobText.includes("ux/") ||
+            jobText.includes("engineer") ||
+            jobText.includes("developer") ||
+            jobText.includes("programmer") ||
+            jobText.includes("virtual assistant") ||
+            jobText.includes("administrative") ||
+            jobText.includes("customer service") ||
+            jobText.includes("social media")
+        ) {
             return false;
         }
         return (
@@ -474,20 +667,87 @@ export function isJobRoleMatch(jobRoleFamily: string = "", jobTitle: string = ""
         );
     }
 
-    // 2. PRODUCT DESIGNER: Strictly UI/UX & Product Design only
-    if (userFamily === "product_designer") {
-        // Exclude PM and engineering roles
-        if (jobText.includes("product manager") || jobText.includes("backend") || jobText.includes("frontend engineer") || jobText.includes("software engineer")) {
+    // 2a. UI DESIGNER: Strictly UI/UX, Visual Design, Design Systems & Interaction Design
+    if (userFamily === "ui_designer") {
+        if (
+            jobFamily === "product_manager" ||
+            jobFamily === "backend_engineer" ||
+            jobFamily === "data_analyst" ||
+            jobFamily === "sales" ||
+            jobFamily === "virtual_assistant" ||
+            jobFamily === "customer_service" ||
+            jobFamily === "banking_finance" ||
+            jobFamily === "oil_gas" ||
+            jobText.includes("backend") ||
+            jobText.includes("software engineer") ||
+            jobText.includes("developer") ||
+            jobText.includes("programmer") ||
+            jobText.includes("product manager") ||
+            jobText.includes("virtual assistant") ||
+            jobText.includes("administrative") ||
+            jobText.includes("customer service") ||
+            jobText.includes("sales") ||
+            jobText.includes("food designer") ||
+            jobText.includes("fashion designer") ||
+            jobText.includes("interior designer") ||
+            jobText.includes("floral designer")
+        ) {
             return false;
         }
         return (
-            jobFamily === "product_designer" &&
+            jobFamily === "ui_designer" ||
+            jobFamily === "product_designer" ||
+            jobText.includes("ui designer") ||
+            jobText.includes("ui design") ||
+            jobText.includes("user interface") ||
+            jobText.includes("ui/ux") ||
+            jobText.includes("visual designer") ||
+            jobText.includes("visual design") ||
+            jobText.includes("design system") ||
+            jobText.includes("interaction designer") ||
+            jobText.includes("interaction design") ||
+            jobText.includes("product design") ||
+            jobText.includes("web designer") ||
+            /\bui\b/i.test(jobText)
+        );
+    }
+
+    // 2b. PRODUCT DESIGNER: Strictly UI/UX & Product Design only
+    if (userFamily === "product_designer") {
+        // Exclude PM, engineering, and admin roles
+        if (
+            jobFamily === "product_manager" ||
+            jobFamily === "backend_engineer" ||
+            jobFamily === "data_analyst" ||
+            jobFamily === "sales" ||
+            jobFamily === "virtual_assistant" ||
+            jobFamily === "customer_service" ||
+            jobFamily === "banking_finance" ||
+            jobFamily === "oil_gas" ||
+            jobText.includes("product manager") ||
+            jobText.includes("backend") ||
+            jobText.includes("frontend engineer") ||
+            jobText.includes("software engineer") ||
+            jobText.includes("developer") ||
+            jobText.includes("programmer") ||
+            jobText.includes("virtual assistant") ||
+            jobText.includes("administrative") ||
+            jobText.includes("food designer") ||
+            jobText.includes("fashion designer") ||
+            jobText.includes("interior designer") ||
+            jobText.includes("floral designer")
+        ) {
+            return false;
+        }
+        return (
+            (jobFamily === "product_designer" || jobFamily === "ui_designer") &&
             (jobText.includes("design") ||
              jobText.includes("ui/ux") ||
              jobText.includes("ux researcher") ||
              jobText.includes("design system") ||
              jobText.includes("visual designer") ||
              jobText.includes("product design") ||
+             jobText.includes("ui designer") ||
              /\bui\b/i.test(jobText) ||
              /\bux\b/i.test(jobText))
         );
@@ -495,7 +755,19 @@ export function isJobRoleMatch(jobRoleFamily: string = "", jobTitle: string = ""
 
     // 3. DATA ANALYST / DATA SCIENTIST: Strictly Data only
     if (userFamily === "data_analyst") {
-        if (jobText.includes("product designer") || jobText.includes("ui/ux") || jobText.includes("product manager")) {
+        if (
+            jobFamily === "product_designer" ||
+            jobFamily === "ui_designer" ||
+            jobFamily === "virtual_assistant" ||
+            jobFamily === "sales" ||
+            jobFamily === "customer_service" ||
+            jobText.includes("product designer") ||
+            jobText.includes("ui/ux") ||
+            jobText.includes("product manager") ||
+            jobText.includes("virtual assistant") ||
+            jobText.includes("administrative") ||
+            (jobText.includes("software engineer") && !jobText.includes("data") && !jobText.includes("ml"))
+        ) {
             return false;
         }
         return (
@@ -505,13 +777,30 @@ export function isJobRoleMatch(jobRoleFamily: string = "", jobTitle: string = ""
             jobText.includes("analytics") ||
             jobText.includes("data scientist") ||
             jobText.includes("bi engineer") ||
-            jobText.includes("machine learning")
+            jobText.includes("machine learning") ||
+            jobText.includes("data engineer")
         );
     }
 
-    // 4. FRONTEND DEVELOPER: Cross-matches Frontend & Fullstack (excludes PM & Design)
+    // 4. FRONTEND & MOBILE DEVELOPER: Cross-matches Frontend, Mobile & Fullstack (excludes PM, Design & Admin)
     if (userFamily === "frontend_developer") {
-        if (jobText.includes("product manager") || jobText.includes("product designer") || jobText.includes("ui/ux") || jobText.includes("ux researcher")) {
+        if (
+            jobFamily === "product_manager" ||
+            jobFamily === "product_designer" ||
+            jobFamily === "ui_designer" ||
+            jobFamily === "data_analyst" ||
+            jobFamily === "virtual_assistant" ||
+            jobFamily === "customer_service" ||
+            jobFamily === "sales" ||
+            jobText.includes("product manager") ||
+            jobText.includes("product designer") ||
+            jobText.includes("ui/ux") ||
+            jobText.includes("ux researcher") ||
+            jobText.includes("virtual assistant") ||
+            jobText.includes("administrative") ||
+            jobText.includes("customer service") ||
+            jobText.includes("sales")
+        ) {
             return false;
         }
         return (
@@ -521,14 +810,95 @@ export function isJobRoleMatch(jobRoleFamily: string = "", jobTitle: string = ""
             jobText.includes("full stack") ||
             jobText.includes("fullstack") ||
             jobText.includes("react") ||
+            jobText.includes("vue") ||
+            jobText.includes("angular") ||
             jobText.includes("web developer") ||
-            jobText.includes("ui engineer")
+            jobText.includes("ui engineer") ||
+            jobText.includes("android") ||
+            jobText.includes("ios") ||
+            jobText.includes("mobile") ||
+            jobText.includes("flutter") ||
+            jobText.includes("swift") ||
+            jobText.includes("kotlin")
         );
     }
 
-    // 5. BACKEND DEVELOPER: Cross-matches Backend & Fullstack (excludes PM & Design)
+    // 5. DEVOPS & SRE: Strictly DevOps, SRE, Cloud, Platform & Infrastructure roles
+    if (userFamily === "devops_sre") {
+        if (
+            jobFamily === "product_manager" ||
+            jobFamily === "product_designer" ||
+            jobFamily === "data_analyst" ||
+            jobFamily === "virtual_assistant" ||
+            jobFamily === "customer_service" ||
+            jobFamily === "sales" ||
+            jobFamily === "human_resources" ||
+            jobFamily === "banking_finance" ||
+            jobFamily === "hse_officer" ||
+            jobText.includes("frontend") ||
+            jobText.includes("front-end") ||
+            jobText.includes("mobile developer") ||
+            jobText.includes("android") ||
+            jobText.includes("ios") ||
+            jobText.includes("product designer") ||
+            jobText.includes("ui/ux") ||
+            jobText.includes("ux researcher") ||
+            jobText.includes("product manager") ||
+            jobText.includes("project manager") ||
+            jobText.includes("program manager") ||
+            jobText.includes("virtual assistant") ||
+            jobText.includes("administrative") ||
+            jobText.includes("customer service") ||
+            jobText.includes("sales") ||
+            jobText.includes("civil") ||
+            jobText.includes("construction") ||
+            jobText.includes("facilities") ||
+            jobText.includes("structural") ||
+            jobText.includes("mechanical") ||
+            jobText.includes("hardware") ||
+            jobText.includes("land development") ||
+            jobText.includes("communications officer")
+        ) {
+            return false;
+        }
+        return (
+            jobFamily === "devops_sre" ||
+            jobText.includes("devops") ||
+            jobText.includes("sre") ||
+            jobText.includes("site reliability") ||
+            jobText.includes("cloud engineer") ||
+            jobText.includes("cloud architect") ||
+            jobText.includes("cloud solutions architect") ||
+            jobText.includes("cloud operations") ||
+            jobText.includes("cloud security") ||
+            jobText.includes("cloud") ||
+            jobText.includes("infrastructure") ||
+            jobText.includes("platform engineer") ||
+            jobText.includes("platform engineering") ||
+            jobText.includes("kubernetes") ||
+            jobText.includes("system administrator") ||
+            jobText.includes("systems administrator") ||
+            jobText.includes("linux administrator") ||
+            jobText.includes("server administrator") ||
+            jobText.includes("devsecops") ||
+            jobText.includes("ci/cd") ||
+            jobText.includes("reliability") ||
+            jobText.includes("solutions architect")
+        );
+    }
+
+    // 6. BACKEND & SYSTEMS DEVELOPER: Cross-matches Backend & Fullstack (excludes PM, Design & Admin)
     if (userFamily === "backend_engineer") {
-        if (jobText.includes("product manager") || jobText.includes("product designer") || jobText.includes("ui/ux") || jobText.includes("ux researcher")) {
+        if (
+            jobText.includes("product manager") ||
+            jobText.includes("product designer") ||
+            jobText.includes("ui/ux") ||
+            jobText.includes("ux researcher") ||
+            jobText.includes("virtual assistant") ||
+            jobText.includes("administrative") ||
+            jobText.includes("customer service") ||
+            jobText.includes("sales")
+        ) {
             return false;
         }
         return (
@@ -538,14 +908,208 @@ export function isJobRoleMatch(jobRoleFamily: string = "", jobTitle: string = ""
             jobText.includes("full stack") ||
             jobText.includes("fullstack") ||
             jobText.includes("software engineer") ||
-            jobText.includes("systems") ||
+            jobText.includes("software developer") ||
+            jobText.includes("systems engineer") ||
             jobText.includes("golang") ||
             jobText.includes("python") ||
             jobText.includes("node") ||
             jobText.includes("api") ||
-            jobText.includes("infrastructure") ||
             jobText.includes("architect")
         );
+    }
+
+    // 6. VIRTUAL ASSISTANT: Strictly Administrative Support only
+    if (userFamily === "virtual_assistant") {
+        // STRICT EXCLUSION: Reject ANY engineering, technical, product, design, data, sales, or banking roles
+        if (
+            jobText.includes("developer") ||
+            jobText.includes("engineer") ||
+            jobText.includes("software") ||
+            jobText.includes("programmer") ||
+            jobText.includes("architect") ||
+            jobText.includes("android") ||
+            jobText.includes("ios") ||
+            jobText.includes("mobile") ||
+            jobText.includes("devops") ||
+            jobText.includes("cloud") ||
+            jobText.includes("sre") ||
+            jobText.includes("backend") ||
+            jobText.includes("frontend") ||
+            jobText.includes("fullstack") ||
+            jobText.includes("product manager") ||
+            jobText.includes("product lead") ||
+            jobText.includes("product designer") ||
+            jobText.includes("ui/ux") ||
+            jobText.includes("data scientist") ||
+            jobText.includes("data analyst") ||
+            jobText.includes("investment banker") ||
+            jobText.includes("salesforce")
+        ) {
+            return false;
+        }
+        return (
+            jobFamily === "virtual_assistant" ||
+            jobText.includes("virtual assistant") ||
+            jobText.includes("executive assistant") ||
+            jobText.includes("administrative assistant") ||
+            jobText.includes("administrative coordinator") ||
+            jobText.includes("administrative business partner") ||
+            jobText.includes("office assistant") ||
+            jobText.includes("personal assistant") ||
+            jobText.includes("admin assistant") ||
+            jobText.includes("secretary") ||
+            jobText.includes("office administrator")
+        );
+    }
+
+    // 7. CUSTOMER SERVICE: Strictly Customer Support only
+    if (userFamily === "customer_service") {
+        if (jobText.includes("software engineer") || jobText.includes("product manager") || jobText.includes("product designer")) {
+            return false;
+        }
+        return (
+            jobFamily === "customer_service" ||
+            jobText.includes("customer service") ||
+            jobText.includes("customer support") ||
+            jobText.includes("call centre") ||
+            jobText.includes("call center") ||
+            jobText.includes("customer experience") ||
+            jobText.includes("client support") ||
+            jobText.includes("customer service representative")
+        );
+    }
+
+    // 8. SALES & BUSINESS DEVELOPMENT: Strictly Sales only
+    if (userFamily === "sales") {
+        if (jobText.includes("software engineer") || jobText.includes("product designer") || jobText.includes("virtual assistant") || jobText.includes("customer service")) {
+            return false;
+        }
+        return (
+            jobFamily === "sales" ||
+            jobText.includes("sales") ||
+            jobText.includes("business development") ||
+            jobText.includes("account executive") ||
+            jobText.includes("bizdev") ||
+            jobText.includes("account manager")
+        );
+    }
+
+    // 9. BANKING & FINANCE: Strictly Finance only
+    if (userFamily === "banking_finance") {
+        if (jobText.includes("software engineer") || jobText.includes("product manager") || jobText.includes("virtual assistant")) {
+            return false;
+        }
+        return (
+            jobFamily === "banking_finance" ||
+            jobText.includes("banking") ||
+            jobText.includes("investment banker") ||
+            jobText.includes("financial analyst") ||
+            jobText.includes("finance") ||
+            jobText.includes("investment")
+        );
+    }
+
+    // 10. PRODUCT MARKETER: Strictly Product Marketing & Growth
+    if (userFamily === "product_marketer") {
+        if (
+            jobText.includes("software engineer") ||
+            jobText.includes("backend") ||
+            jobText.includes("virtual assistant") ||
+            jobText.includes("customer service")
+        ) {
+            return false;
+        }
+        return (
+            jobFamily === "product_marketer" ||
+            jobText.includes("product market") ||
+            jobText.includes("growth market") ||
+            jobText.includes("marketing manager") ||
+            jobText.includes("digital market") ||
+            jobText.includes("marketing communication") ||
+            jobText.includes("brand manager")
+        );
+    }
+
+    // 11. OIL & GAS / ENERGY: Strictly Oil & Gas & HSE only
+    if (userFamily === "oil_gas") {
+        if (
+            jobFamily === "backend_engineer" ||
+            jobFamily === "frontend_developer" ||
+            jobFamily === "product_manager" ||
+            jobFamily === "product_designer" ||
+            jobFamily === "ui_designer" ||
+            jobFamily === "data_analyst" ||
+            jobFamily === "virtual_assistant" ||
+            jobFamily === "sales" ||
+            jobText.includes("software engineer") ||
+            jobText.includes("developer") ||
+            jobText.includes("frontend") ||
+            jobText.includes("backend") ||
+            jobText.includes("product manager") ||
+            jobText.includes("virtual assistant") ||
+            jobText.includes("sales development") ||
+            jobText.includes("outbound") ||
+            jobText.includes("account executive") ||
+            jobText.includes("sdr")
+        ) {
+            return false;
+        }
+        return (
+            jobFamily === "oil_gas" ||
+            jobText.includes("oil & gas") ||
+            jobText.includes("oil and gas") ||
+            jobText.includes("petroleum") ||
+            jobText.includes("drilling") ||
+            jobText.includes("reservoir") ||
+            (jobText.includes("pipeline") && !jobText.includes("sales") && !jobText.includes("talent")) ||
+            jobText.includes("subsea") ||
+            jobText.includes("geoscientist") ||
+            jobText.includes("geologist") ||
+            jobText.includes("hse") ||
+            jobText.includes("safety") ||
+            jobText.includes("risk manager") ||
+            jobText.includes("safety officer") ||
+            jobText.includes("offshore") ||
+            jobText.includes("refinery") ||
+            jobText.includes("solids control") ||
+            jobText.includes("engineering — oil") ||
+            jobText.includes("engineering - oil")
+        );
+    }
+
+    // 12. BUSINESS ANALYST: Strictly Business Systems, Operations & Strategy
+    if (userFamily === "business_analyst") {
+        if (
+            jobFamily === "product_designer" ||
+            jobFamily === "ui_designer" ||
+            jobFamily === "virtual_assistant" ||
+            jobFamily === "backend_engineer" ||
+            jobFamily === "frontend_developer" ||
+            jobFamily === "devops_sre" ||
+            jobText.includes("software engineer") ||
+            jobText.includes("software developer") ||
+            jobText.includes("programmer") ||
+            jobText.includes("frontend") ||
+            jobText.includes("backend") ||
+            jobText.includes("product designer") ||
+            jobText.includes("ui/ux") ||
+            jobText.includes("virtual assistant")
+        ) {
+            return false;
+        }
+        return (
+            jobFamily === "business_analyst" ||
+            jobFamily === "data_analyst" ||
+            jobText.includes("business analyst") ||
+            jobText.includes("business analysis") ||
+            jobText.includes("functional analyst") ||
+            jobText.includes("operations analyst") ||
+            jobText.includes("business operations")
+        );
+    }
+
+    if (userFamily === "general" || jobFamily === "general") {
+        return false;
     }
 
     return jobFamily === userFamily;

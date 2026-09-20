@@ -182,6 +182,12 @@ export interface SessionDoc {
         questionId: string | null;
     } | null;
     complete: boolean;
+    company?: string | null;
+    interviewType?: string | null;
+    isSpecificJob?: boolean;
+    dedicatedInterviewType?: string | null;
+    customQuestionPool?: BankQuestion[];
+    alreadyAskedQuestionIds?: string[];
 }
 
 /* ── Engine I/O ── */

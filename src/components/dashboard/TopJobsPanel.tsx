@@ -3,6 +3,7 @@ import { Check, Globe, X } from "@phosphor-icons/react";
 import type { JobItem } from "@/app/api/jobs/route";
 import type { UserLocation } from "@/utils/locationDetector";
 import styles from "../dashboard.module.css";
+import { getJobStableKey } from "../Dashboard";
 import { JobPickRow } from "./JobPickRow";
 import { RECRUITER_AVATAR } from "./constants";
 
@@ -25,6 +26,8 @@ interface TopJobsPanelProps {
     onSwitchLocation: (preset: { country: string; countryCode: string; city?: string; continent: string; isAfrica: boolean; isNigeria: boolean }) => void;
     onOpenJob: (job: JobItem) => void;
     onPractice: (job?: JobItem) => void;
+    jobMatches?: Record<string, { bestResumeId: string; bestResumeName: string; bestScore: number; summary: string }>;
+    isMatching?: boolean;
 }
 
 export function TopJobsPanel({
@@ -34,6 +37,8 @@ export function TopJobsPanel({
     onSwitchLocation,
     onOpenJob,
     onPractice,
+    jobMatches,
+    isMatching,
 }: TopJobsPanelProps) {
     const [showDropdown, setShowDropdown] = useState(false);
     const [showBubble, setShowBubble] = useState(true);
@@ -102,6 +107,24 @@ export function TopJobsPanel({
                 </div>
 
                 <div className={styles.topJobPicksRight}>
+                    {isMatching && (
+                        <div
+                            style={{
+                                fontSize: "0.72rem",
+                                color: "#64748B",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 6,
+                                padding: "4px 8px",
+                                background: "#F1F5F9",
+                                borderRadius: "6px",
+                            }}
+                            title={`Matching ${jobs.length} jobs against your resumes…`}
+                        >
+                            <span style={{ width: 8, height: 8, border: "2px solid #CBD5E1", borderTopColor: "#2563EB", borderRadius: "50%", display: "inline-block", animation: "spin 0.7s linear infinite" }} />
+                            <span style={{ fontSize: "0.7rem", fontWeight: 500, color: "#64748B" }}>Matching…</span>
+                        </div>
+                    )}
                     {userLocation && (
                         <div className={styles.locationSwitcherWrap} ref={dropdownRef}>
                             <button
@@ -142,17 +165,24 @@ export function TopJobsPanel({
             </div>
 
             <div className={styles.jobPickList}>
-                {jobs.map((job) => (
-                    <JobPickRow
-                        key={job.id || `${job.company}-${job.title}`}
-                        job={job}
-                        onOpen={onOpenJob}
-                        onPractice={() => onPractice(job)}
-                    />
-                ))}
-                {jobs.length === 0 && (
+                {jobs.map((job) => {
+                    const key = getJobStableKey(job);
+                    const m = jobMatches?.[key] || jobMatches?.[job.id];
+                    return (
+                        <JobPickRow
+                            key={job.id || `${job.company}-${job.title}`}
+                            job={job}
+                            onOpen={onOpenJob}
+                            onPractice={() => onPractice(job)}
+                            matchScore={m?.bestScore}
+                            matchResumeName={m?.bestResumeName}
+                        />
+                    );
+                })}
+                {jobs.length === 0 && !isMatching && (
                     <div className={styles.jobEmptyMessage}>
                         No active {userRole ? `${userRole} ` : ""}opportunities currently found in this region.
+                        {jobMatches && Object.keys(jobMatches).length > 0 ? " No jobs met the 50% resume match threshold." : ""}
                     </div>
                 )}
             </div>

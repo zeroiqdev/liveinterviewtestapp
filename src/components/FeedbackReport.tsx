@@ -284,7 +284,7 @@ export default function FeedbackReport({
         if (isModal && onClose) {
             onClose();
         } else {
-            router.push("/dashboard");
+            router.replace("/dashboard");
         }
     };
 
@@ -1042,8 +1042,14 @@ export default function FeedbackReport({
                         if (e.key === "Enter" || e.key === " ") handleCloseAction();
                     }}
                 >
-                    <div className={styles.logoIcon}>L</div>
-                    <span>useladder</span>
+                    <div className={styles.logoIcon}>
+                        <img
+                            src="https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png"
+                            alt="onscript"
+                            className={styles.logoImg}
+                        />
+                    </div>
+                    <span className={styles.brandName}>onscript</span>
                 </div>
 
                 <div className={styles.navActions}>

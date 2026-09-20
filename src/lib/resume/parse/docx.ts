@@ -71,7 +71,7 @@ function parseContact(lines: string[], htmlLines: string[]): Contact {
 
 function classifyHeading(text: string): string | null {
   const t = text.trim().toLowerCase();
-  if (/^(product management|work)?\s*experience$/.test(t)) return "experience";
+  if (/^(product\s+(management\s+)?|technical\s+|work\s+|professional\s+|relevant\s+|leadership\s+|career\s+|independent\s+product\s+)?(experience|employment(\s+history)?|work\s+history|career\s+history|background|consultation)$/i.test(t)) return "experience";
   if (/^(professional\s+)?summary/.test(t)) return "summary";
   if (/^skills/.test(t)) return "skills";
   if (/^education/.test(t)) return "education";

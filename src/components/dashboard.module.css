@@ -15,15 +15,43 @@
     font-weight: 400;
     position: relative;
     isolation: isolate;
+    overscroll-behavior-x: none;
 }
 
-/* ── Disable all animations and transitions on Dashboard ── */
-.dashboardPage,
-.dashboardPage *,
-.dashboardPage *::before,
-.dashboardPage *::after {
-    animation: none !important;
-    transition: none !important;
+/* ── Craft: Tabular Numbers – steady digits for changing values ── */
+.tabularNums {
+    font-variant-numeric: tabular-nums;
+}
+
+.numericColumn {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+/* ── Craft: Hover Restraint – frequent interactions instant, rare motion kept ── */
+.jobPickRow,
+.resumeOptionCard,
+.roleTintRow,
+.conversationBox,
+.moduleCard,
+.recruiterTabBtn,
+.locationDropdownItem {
+    transition: none;
+}
+.jobPickRow:hover,
+.resumeOptionCard:hover,
+.roleTintRow:hover,
+.conversationBox:hover,
+.moduleCard:hover {
+    transition: none;
+}
+/* Rare / intentional motion keeps its animation */
+.settingsModalContent,
+.jobModalBox {
+    animation: scaleModal 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.settingsModalOverlay {
+    animation: fadeInOverlay 0.2s ease;
 }
 
 /* ── Top Navigation Bar ── */
@@ -44,29 +72,52 @@
     display: flex;
     align-items: center;
     gap: 2rem;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .logo {
-    display: flex;
+    display: inline-flex;
+    flex-direction: row;
     align-items: center;
+    flex-wrap: nowrap;
     gap: 0.6rem;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 1.15rem;
-    font-weight: 700;
+    font-weight: 400;
     color: #141414;
     letter-spacing: -0.01em;
+    white-space: nowrap;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.brandName {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    line-height: 1;
+    display: inline-block;
 }
 
 .logoIcon {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
-    background: #4782F6;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #ffffff;
-    font-weight: 600;
-    font-size: 0.8rem;
+    overflow: visible;
+    flex-shrink: 0;
+    transform: translateY(2px);
+}
+
+.logoImg {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transform: scale(1.65);
+    display: block;
 }
 
 .searchBar {
@@ -211,8 +262,28 @@
     align-items: center;
     margin-bottom: 2rem;
     position: relative;
+    isolation: isolate;
     overflow: hidden;
     box-shadow: 0 10px 30px rgba(71, 130, 246, 0.2);
+}
+
+/* Craft: Noise – tiled grain hides banding on large gradient */
+.heroSection::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+    background-size: 200px 200px;
+    background-repeat: repeat;
+    opacity: 0.08;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.heroSection > * {
+    position: relative;
+    z-index: 1;
 }
 
 .heroSection::after {
@@ -256,9 +327,10 @@
     background: #ffffff;
     border: none;
     color: #4782F6;
+    font-family: 'Inter', sans-serif;
     font-size: 0.85rem;
-    font-weight: 700;
-    padding: 0.75rem 1.5rem;
+    font-weight: 400;
+    padding: 0.75rem 1.35rem 0.75rem 1.5rem;
     border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -284,6 +356,7 @@
     scrollbar-width: none;
     -ms-overflow-style: none;
     padding: 0.5rem 0.25rem;
+    overscroll-behavior-x: none;
 }
 
 .moduleCardsScroll::-webkit-scrollbar {
@@ -346,7 +419,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding-left: 2px;
     transition: all 0.2s ease;
     cursor: pointer;
 }
@@ -591,7 +663,7 @@
     border-right: none;
     border-radius: 0;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
     min-width: 0;
     position: relative;
 }
@@ -696,8 +768,8 @@
     border-radius: 6px;
     padding: 7px 14px;
     font-size: 0.78rem;
-    font-weight: 600;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 400;
+    font-family: 'Inter', sans-serif;
     cursor: pointer;
     flex-shrink: 0;
     transition: all 0.15s ease;
@@ -859,12 +931,29 @@
     background: #FFFFFF;
     border-radius: 6px;
     width: 100%;
-    max-width: 580px;
+    max-width: 620px;
     max-height: 85vh;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.jobModalBox,
+.jobModalBox * {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.jobModalBox strong,
+.jobModalBox b,
+.jobModalBox h1,
+.jobModalBox h2,
+.jobModalBox h3,
+.jobModalBox h4,
+.jobModalBox h5,
+.jobModalBox h6 {
+    font-weight: 500;
 }
 
 .jobModalHeader {
@@ -924,13 +1013,14 @@
     gap: 1.25rem;
 }
 
+/* Craft: Nested Border Radius – jobModalBox outer 6px, inset 24px → inner max(0, 6 - 8) */
 .jobModalMetaGrid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
     gap: 0.75rem;
     background: #F8FAFC;
     border: 1px solid #E2E8F0;
-    border-radius: 6px;
+    border-radius: max(0px, 6px - 8px);
     padding: 1rem;
 }
 
@@ -945,18 +1035,18 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: #64748B;
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .jobModalMetaVal {
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 500;
     color: #0F172A;
 }
 
 .jobModalSectionTitle {
     font-size: 0.88rem;
-    font-weight: 700;
+    font-weight: 500;
     color: #0F172A;
     margin-bottom: 0.5rem;
 }
@@ -976,6 +1066,130 @@
     align-items: center;
     justify-content: flex-end;
     gap: 10px;
+}
+
+/* ── Job Modal ATS Resume Match & Feedback ── */
+.jobModalAtsCard {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.jobModalAtsHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.jobModalAtsScoreGroup {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.jobModalAtsScoreNum {
+    font-size: 1.6rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+.jobModalAtsBadge {
+    font-size: 0.72rem;
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.jobModalAtsResumeSelect {
+    font-size: 0.74rem;
+    font-weight: 500;
+    color: #334155;
+    background: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    border-radius: 6px;
+    padding: 4px 8px;
+    outline: none;
+    cursor: pointer;
+    max-width: 220px;
+}
+
+.jobModalAtsSummaryBox {
+    background: #FFFFFF;
+    border-left: 3px solid #2563EB;
+    border-top: 1px solid #E2E8F0;
+    border-right: 1px solid #E2E8F0;
+    border-bottom: 1px solid #E2E8F0;
+    border-radius: 5px;
+    padding: 0.75rem 0.85rem;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: #1E293B;
+}
+
+.jobModalAtsPillGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.85rem;
+}
+
+.jobModalAtsPillGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.jobModalAtsPillLabel {
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.jobModalAtsPillsWrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.jobModalAtsPill {
+    font-size: 0.72rem;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.jobModalApplyBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    background: #2563EB;
+    color: #FFFFFF;
+    border: 1px solid #1D4ED8;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'Inter', sans-serif;
+    text-decoration: none;
+    transition: background 0.15s ease;
+    cursor: pointer;
+}
+
+.jobModalApplyBtn:hover {
+    background: #1D4ED8;
 }
 
 /* ── Scheduled / Chats Panel ── */
@@ -1042,6 +1256,13 @@
     background: #ffffff;
 }
 
+/* ── Craft: Image Outlines – faint inner edge for content images only (coach/illustrations keep single border) ── */
+.jobPickLogoWrap img,
+.companyLogoImg {
+    outline: 1px solid rgb(0 0 0 / 0.10);
+    outline-offset: -1px;
+}
+
 .headerCharAvatarButtonActive .headerCharAvatarCircle {
     border-color: #4782F6;
     box-shadow: 0 0 0 2px rgba(71, 130, 246, 0.25);
@@ -1104,6 +1325,7 @@
 }
 
 .imessageRoleText {
+    font-family: 'Inter', sans-serif;
     font-size: 0.735rem;
     color: #ffffff;
     line-height: 1.35;
@@ -1158,8 +1380,9 @@
 }
 
 .activeCharacterName {
+    font-family: 'Inter', sans-serif;
     font-size: 0.82rem;
-    font-weight: 700;
+    font-weight: 400;
     color: #0F172A;
     letter-spacing: -0.01em;
 }
@@ -1182,8 +1405,9 @@
 }
 
 .chatActiveTabTitle {
+    font-family: 'Inter', sans-serif;
     font-size: 0.825rem;
-    font-weight: 700;
+    font-weight: 400;
     color: #4782F6;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -1203,6 +1427,7 @@
     display: flex;
     flex-direction: column;
     gap: 0;
+    width: calc(100% + 3.5rem);
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
@@ -1213,7 +1438,6 @@
     scrollbar-width: thin;
     scrollbar-color: #94A3B8 #F1F5F9;
     min-width: 0;
-    max-width: 100%;
 }
 
 .conversationDmList::-webkit-scrollbar {
@@ -1248,7 +1472,8 @@
     transition: all 0.2s ease;
     position: relative;
     min-width: 0;
-    max-width: 100%;
+    width: 100%;
+    flex-shrink: 0;
     box-sizing: border-box;
     overflow-x: hidden;
 }
@@ -1274,6 +1499,10 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
     position: relative;
     z-index: 2;
+}
+
+.conversationBoxClosed {
+    background: #ffffff;
 }
 
 .conversationSenderRow {
@@ -1330,8 +1559,9 @@
 }
 
 .conversationSenderName {
+    font-family: 'Inter', sans-serif;
     font-size: 0.78rem;
-    font-weight: 700;
+    font-weight: 400;
     background: #E2E8F0;
     color: #0F172A;
     padding: 2px 8px;
@@ -1340,8 +1570,9 @@
 }
 
 .dmTopicBadge {
+    font-family: 'Inter', sans-serif;
     font-size: 0.72rem;
-    font-weight: 700;
+    font-weight: 400;
     color: #4782F6;
     background: #EFF6FF;
     padding: 2px 8px;
@@ -1430,15 +1661,14 @@
 }
 
 .speechBubbleIndicator {
-    background: #ffffff;
+    background: #F8FAFC;
     border: 1px solid #E2E8F0;
     border-radius: 9999px;
     padding: 0.4rem 0.85rem;
-    font-size: 0.76rem;
-    color: #475569;
+    font-size: 0.78rem;
+    color: #334155;
     display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
     width: fit-content;
     max-width: 100%;
     box-sizing: border-box;
@@ -1467,7 +1697,8 @@
 }
 
 .indicatorText {
-    font-weight: 500;
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
     color: #475569;
     min-width: 0;
     word-break: break-word;
@@ -1484,13 +1715,14 @@
 }
 
 .conversationBtnPrimary {
+    font-family: 'Inter', sans-serif;
     background: #4782F6;
     color: #FFFFFF;
     border: 1px solid #4782F6;
     border-radius: 9999px;
     padding: 0.45rem 1.1rem;
     font-size: 0.78rem;
-    font-weight: 600;
+    font-weight: 400;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -1498,19 +1730,30 @@
     transition: all 0.15s ease;
 }
 
-.conversationBtnPrimary:hover {
+.conversationBtnPrimary:hover:not(:disabled) {
     background: #3B71E8;
     border-color: #3B71E8;
 }
 
+.conversationBtnPrimary:disabled,
+.conversationBtnPrimary[disabled] {
+    background: #F1F5F9;
+    color: #94A3B8;
+    border-color: #CBD5E1;
+    cursor: not-allowed;
+    box-shadow: none;
+    opacity: 0.75;
+}
+
 .conversationBtnSecondary {
+    font-family: 'Inter', sans-serif;
     background: #EFF6FF;
     color: #4782F6;
     border: 1px solid #BFDBFE;
     border-radius: 9999px;
     padding: 0.45rem 1.1rem;
     font-size: 0.78rem;
-    font-weight: 600;
+    font-weight: 400;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -1518,9 +1761,19 @@
     transition: all 0.15s ease;
 }
 
-.conversationBtnSecondary:hover {
+.conversationBtnSecondary:hover:not(:disabled) {
     background: #DBEAFE;
     border-color: #93C5FD;
+}
+
+.conversationBtnSecondary:disabled,
+.conversationBtnSecondary[disabled] {
+    background: #F8FAFC;
+    color: #94A3B8;
+    border-color: #E2E8F0;
+    cursor: not-allowed;
+    box-shadow: none;
+    opacity: 0.75;
 }
 
 .conversationBtnIcon {
@@ -2433,6 +2686,7 @@
     min-height: 0;
     padding: 0.5rem 0 0;
     overflow: hidden;
+    overscroll-behavior-x: none;
 }
 
 .deckViewport {
@@ -3363,11 +3617,11 @@
     text-transform: uppercase;
 }
 
-/* Resume Scan & AI Enhancer Inner Form Card */
+/* Resume Scan & AI Enhancer Inner Form Card — Craft: Nested Border Radius inner = outer - inset */
 .resumeInnerFormCard {
     background: #FFFFFF;
     border: 1px solid #E2E8F0;
-    border-radius: 8px;
+    border-radius: max(0px, 18px - 10px);
     padding: 1.25rem;
     display: flex;
     flex-direction: column;
@@ -3376,7 +3630,7 @@
 
 .resumeDropzoneArea {
     border: 2px dashed #CBD5E1;
-    border-radius: 8px;
+    border-radius: max(0px, 8px - 8px);
     padding: 1.5rem 1rem;
     display: flex;
     flex-direction: column;
@@ -3437,7 +3691,7 @@
     padding: 0.6rem 1.4rem;
     font-family: 'Inter', sans-serif;
     font-size: 0.84rem;
-    font-weight: 600;
+    font-weight: 400;
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
@@ -3666,8 +3920,9 @@
     border: none;
     border-radius: 6px;
     padding: 7px 14px;
+    font-family: 'Inter', sans-serif;
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 400;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -3689,8 +3944,9 @@
     border: 1px solid #CBD5E1;
     border-radius: 6px;
     padding: 7px 14px;
+    font-family: 'Inter', sans-serif;
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 400;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -3735,8 +3991,9 @@
     border: none;
     border-radius: 8px;
     padding: 0.6rem 1.4rem;
+    font-family: 'Inter', sans-serif;
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 400;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -3758,8 +4015,9 @@
     border: 1px solid transparent;
     border-radius: 8px;
     padding: 0.6rem 1.1rem;
+    font-family: 'Inter', sans-serif;
     font-size: 0.85rem;
-    font-weight: 500;
+    font-weight: 400;
     cursor: pointer;
     transition: all 0.15s ease;
 }
@@ -4702,8 +4960,9 @@
 }
 
 .resumeOptionName {
+    font-family: 'Inter', sans-serif;
     font-size: 0.82rem;
-    font-weight: 600;
+    font-weight: 400;
     color: #0F172A;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -4748,8 +5007,9 @@
     border: 1px dashed #CBD5E1;
     border-radius: 8px;
     color: #2563EB;
+    font-family: 'Inter', sans-serif;
     font-size: 0.78rem;
-    font-weight: 600;
+    font-weight: 400;
     cursor: pointer;
     transition: all 0.15s ease;
 }
@@ -4768,17 +5028,19 @@
 }
 
 .resumePickerTitle {
+    font-family: 'Inter', sans-serif;
     font-size: 0.78rem;
-    font-weight: 700;
+    font-weight: 400;
     color: #475569;
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
 
 .resumePickerCount {
+    font-family: 'Inter', sans-serif;
     font-size: 0.72rem;
     color: #64748B;
-    font-weight: 500;
+    font-weight: 400;
 }
 
 @media (max-width: 640px) {

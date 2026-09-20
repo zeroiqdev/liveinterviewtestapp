@@ -17,8 +17,14 @@ const file = blueprintFile as unknown as BlueprintFile;
 
 export const GENERAL_POOL: GeneralBehavioralPool = file.generalBehavioralPool;
 
-export const QUESTION_BANK: BankQuestion[] =
-    questionBankFile as unknown as BankQuestion[];
+function stripBold(text: string): string {
+    if (!text) return text;
+    return text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*\*/g, "");
+}
+
+export const QUESTION_BANK: BankQuestion[] = (
+    questionBankFile as unknown as BankQuestion[]
+).map((q) => ({ ...q, question: stripBold(q.question) }));
 
 export function listBlueprints(): Pick<
     Blueprint,
@@ -35,12 +41,13 @@ export function getBlueprint(blueprintId: string): Blueprint | null {
     return file.blueprints[blueprintId] ?? null;
 }
 
-/** Pool query — the blueprint never embeds question text. */
-export function queryPool(filter: QuestionPoolFilter): BankQuestion[] {
-    return QUESTION_BANK.filter(
+/** Pool query — supports both static bank and dynamic custom questions. */
+export function queryPool(filter: QuestionPoolFilter, customPool?: BankQuestion[]): BankQuestion[] {
+    const source = customPool && customPool.length > 0 ? [...customPool, ...QUESTION_BANK] : QUESTION_BANK;
+    return source.filter(
         (q) =>
-            q.role_family === filter.role_family &&
-            filter.category_in.includes(q.category)
+            (q.role_family === filter.role_family || q.applies_to_all) &&
+            filter.category_in.some((c) => q.category.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(q.category.toLowerCase()))
     );
 }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callJSON } from "@/engine/llm";
 import { extractDocumentText } from "@/lib/documentParser";
+import { matchResumeToJob } from "@/lib/atsScorer";
 
 export interface JobMatchResponsibilityScore {
     responsibility: string;
@@ -30,11 +31,12 @@ const JOB_MATCH_SYSTEM = `You are an elite hiring manager and ATS matcher for to
 Given a CANDIDATE RESUME and a TARGET JOB (title, company, responsibilities, experience required), score how well the resume matches the role.
 
 CRITICAL RULES:
-- Use ONLY evidence in the resume. Do not invent experience. If a responsibility has no matching bullet, score 25-40 and mark gap.
+- CAREER DOMAIN ALIGNMENT IS MANDATORY: If the candidate's resume or background is in an unrelated functional domain (e.g. Administrative Support / Virtual Assistant / Customer Support applying for Software Engineer / Android Developer / Data Scientist / Product Management), overallMatch MUST NOT exceed 25% (and MUST be strictly < 50%). Never award high scores or inflate matches based on generic soft skills when core technical/domain prerequisites are missing.
+- Use ONLY evidence in the resume. Do not invent experience. If a responsibility has no matching bullet, score 15-35 and mark gap.
 - Responsibilities are the ground truth. Each responsibility must get its own scored entry (0-100).
-- Experience: compare years/seniority in resume vs job. If job says "3+ years" and resume shows ~2-3 years as Product Manager, score 65-75, etc. Extract years from resume dates.
+- Experience: compare years/seniority in resume vs job. If job says "3+ years" and resume shows ~2-3 years as Product Manager, score 65-75, etc. Extract years from resume dates. If domain is unrelated, score experience <= 20.
 - OverallMatch is weighted average of responsibility scores + experience (70% responsibilities, 30% experience).
-- Be honest but constructive. Example strong resume like IJAOLA (Moniepoint Senior PM, Norebase, Fidia, Sandbox) should score high on fintech product growth but maybe lower on pure enterprise B2B if not listed.
+- Be honest, rigorous, and constructive.
 - Return strict JSON only.
 
 Return JSON with exact structure:
@@ -61,6 +63,17 @@ Return JSON with exact structure:
   "interviewFocusAreas": ["<1>", "<2>", "<3>"]
 }`;
 
+// In-memory server cache to guarantee 100% deterministic consistency across requests
+const serverMatchCache = new Map<string, { result: JobMatchResult; responsibilities: string[]; extractedText: string }>();
+
+function buildServerMatchKey(parsedText: string, jobTitle: string, jobCompany: string, responsibilities: string[]): string {
+    const textSample = parsedText.slice(0, 2000).replace(/\s+/g, " ").trim();
+    const t = (jobTitle || "").toLowerCase().trim();
+    const c = (jobCompany || "").toLowerCase().trim();
+    const r = (responsibilities || []).map((s) => s.toLowerCase().trim()).join("|");
+    return `${t}:::${c}:::${r}:::${textSample.length}:::${textSample.slice(0, 80)}`;
+}
+
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
@@ -73,6 +86,8 @@ export async function POST(req: NextRequest) {
             jobDescription = "",
             jobResponsibilities = [],
             requiredExperience = "",
+            userRole = "",
+            candidateRole = "",
         } = body as {
             resumeText?: string;
             fileData?: string;
@@ -82,7 +97,11 @@ export async function POST(req: NextRequest) {
             jobDescription?: string;
             jobResponsibilities?: string[] | string;
             requiredExperience?: string;
+            userRole?: string;
+            candidateRole?: string;
         };
+
+        const effectiveUserRole = candidateRole || userRole || "";
 
         const inputToExtract = fileData || resumeText;
         let parsedText = await extractDocumentText(inputToExtract, resumeName);
@@ -112,9 +131,23 @@ export async function POST(req: NextRequest) {
         // cap 6
         responsibilities = responsibilities.slice(0, 6);
 
+        // Check server-side cache first to guarantee identical score on re-open or across modals
+        const cacheKey = buildServerMatchKey(parsedText, jobTitle, jobCompany, responsibilities);
+        if (serverMatchCache.has(cacheKey)) {
+            const cached = serverMatchCache.get(cacheKey)!;
+            return NextResponse.json({
+                success: true,
+                result: cached.result,
+                responsibilities: cached.responsibilities,
+                extractedText: cached.extractedText,
+                cached: true,
+            });
+        }
+
         const userPrompt = `TARGET JOB:
 Title: ${jobTitle}
 Company: ${jobCompany}
+Candidate Role/Domain: ${effectiveUserRole || "Inferred from resume"}
 Required experience: ${requiredExperience || "Not specified; infer from seniority"}
 Responsibilities (${responsibilities.length}):
 ${responsibilities.map((r, i) => `${i + 1}. ${r}`).join("\n")}
@@ -123,15 +156,31 @@ Full description: ${jobDescription.slice(0, 3000) || "(none)"}
 CANDIDATE RESUME:
 ${parsedText.slice(0, 10000)}`;
 
-        const result = await callJSON<JobMatchResult>({
-            system: JOB_MATCH_SYSTEM,
-            user: userPrompt,
-            maxTokens: 2200,
-            timeoutMs: 30000,
-        });
+        let result: JobMatchResult;
+        try {
+            result = await callJSON<JobMatchResult>({
+                system: JOB_MATCH_SYSTEM,
+                user: userPrompt,
+                maxTokens: 2200,
+                timeoutMs: 30000,
+                temperature: 0, // Deterministic matching
+            });
+        } catch (llmErr) {
+            console.warn("[api/resume/job-match] LLM call failed or quota exceeded, falling back to ATS match:", llmErr);
+            result = matchResumeToJob(
+                parsedText,
+                {
+                    title: jobTitle,
+                    company: jobCompany,
+                    description: jobDescription,
+                    responsibilities,
+                },
+                effectiveUserRole
+            );
+        }
 
         // Post-process guard: clamp scores and derive status if LLM missed it
-        result.overallMatch = Math.max(0, Math.min(100, Math.round(result.overallMatch ?? 55)));
+        result.overallMatch = Math.max(0, Math.min(100, Math.round(result.overallMatch ?? 25)));
         result.experienceMatch.score = Math.max(0, Math.min(100, Math.round(result.experienceMatch?.score ?? 60)));
         result.responsibilityMatches = (result.responsibilityMatches || []).slice(0, 6).map((r) => ({
             responsibility: r.responsibility,
@@ -149,6 +198,9 @@ ${parsedText.slice(0, 10000)}`;
                 status: "partial" as const,
             }));
         }
+
+        // Cache result before returning
+        serverMatchCache.set(cacheKey, { result, responsibilities, extractedText: parsedText });
 
         return NextResponse.json({ success: true, result, responsibilities, extractedText: parsedText });
     } catch (err) {

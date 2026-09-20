@@ -29,25 +29,19 @@ export function ChatsPanel({
     const [openedDmId, setOpenedDmId] = useState<string | null>(() => {
         if (typeof window !== "undefined") {
             const hasNew = localStorage.getItem("useladder_has_new_resume_dm") === "true";
-            if (hasNew) localStorage.removeItem("useladder_has_new_resume_dm");
-            try {
-                const allRaw = localStorage.getItem("useladder_all_resume_feedbacks");
-                if (allRaw) {
-                    const arr = JSON.parse(allRaw);
-                    if (Array.isArray(arr) && arr.length > 0 && (arr[0] as any).id) return `coach-resume-feedback-${(arr[0] as any).id}`;
-                }
-            } catch {}
-            if (hasNew) return "coach-resume-feedback";
-            if (localStorage.getItem("useladder_last_resume_feedback")) {
+            if (hasNew) {
+                localStorage.removeItem("useladder_has_new_resume_dm");
                 try {
-                    const raw = localStorage.getItem("useladder_last_resume_feedback");
-                    const p = raw ? JSON.parse(raw) : null;
-                    if (p?.id) return `coach-resume-feedback-${p.id}`;
+                    const allRaw = localStorage.getItem("useladder_all_resume_feedbacks");
+                    if (allRaw) {
+                        const arr = JSON.parse(allRaw);
+                        if (Array.isArray(arr) && arr.length > 0 && (arr[0] as any).id) return `coach-resume-feedback-${(arr[0] as any).id}`;
+                    }
                 } catch {}
                 return "coach-resume-feedback";
             }
         }
-        return "coach-interview-feedback";
+        return null;
     });
     const [showRoleBubble, setShowRoleBubble] = useState(true);
     const [lastFeedback] = useState<FeedbackReportData | null>(() => {
@@ -247,6 +241,15 @@ export function ChatsPanel({
 
     const dynamicUnreadCount = coachProfile.items.filter((item) => !readDmIds.has(item.id)).length;
 
+    // Collapsed: show 5 at a glance, rest via scroll (like recruiter jobPickList). Open: single DM takes entire section.
+    const visibleCoachItems = useMemo(() => {
+        if (openedDmId) {
+            const found = coachProfile.items.find((item) => item.id === openedDmId);
+            return found ? [found] : coachProfile.items;
+        }
+        return coachProfile.items;
+    }, [coachProfile.items, openedDmId]);
+
     return (
         <div className={styles.scheduledPanel}>
             {/* ── Interview Coach Identity Header ── */}
@@ -272,8 +275,8 @@ export function ChatsPanel({
                         )}
                     </button>
 
-                    {/* iMessage style blue bubble for the Interview Coach */}
-                    {showRoleBubble && (
+                    {/* iMessage style blue bubble – hidden when a DM is open so open DM takes entire space */}
+                    {showRoleBubble && !openedDmId && (
                         <div className={styles.imessageRoleBubble} role="status">
                             <div className={styles.imessageBubbleTail} />
                             <div className={styles.imessageBubbleContent}>
@@ -298,9 +301,16 @@ export function ChatsPanel({
                 </div>
             </div>
 
-            {/* ── Conversation Style DM Rows List ── */}
-            <div className={styles.conversationDmList}>
-                {coachProfile.items.map((dm) => (
+            {/* ── Conversation Style DM Rows List — collapsed shows 5 at a glance + scroll for rest (like recruiter), open takes entire section ── */}
+            <div
+                className={styles.conversationDmList}
+                style={
+                    openedDmId
+                        ? { maxHeight: "none", flex: 1, overflowY: "auto" }
+                        : { maxHeight: "382px", overflowY: "auto" }
+                }
+            >
+                {visibleCoachItems.map((dm) => (
                     <DmRow
                         key={dm.id}
                         dm={dm}

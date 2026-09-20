@@ -21,6 +21,7 @@ interface CallJSONOptions {
     model?: string;
     maxTokens?: number;
     timeoutMs?: number;
+    temperature?: number;
     /** mock payload used when USELADDER_ENGINE_MOCK=1 */
     mock?: unknown;
 }
@@ -116,7 +117,7 @@ export async function callJSON<T>(opts: CallJSONOptions): Promise<T> {
                             },
                         ],
                         generationConfig: {
-                            temperature: 0.2,
+                            temperature: opts.temperature !== undefined ? opts.temperature : 0.2,
                             maxOutputTokens: Math.max(opts.maxTokens ?? 2000, 2048),
                             responseMimeType: "application/json",
                         },
@@ -156,6 +157,7 @@ export async function callJSON<T>(opts: CallJSONOptions): Promise<T> {
             body: JSON.stringify({
                 model: opts.model || MODEL_FAST,
                 max_tokens: opts.maxTokens ?? 1000,
+                temperature: opts.temperature !== undefined ? opts.temperature : 0.2,
                 system: opts.system,
                 messages: [{ role: "user", content: opts.user }],
             }),

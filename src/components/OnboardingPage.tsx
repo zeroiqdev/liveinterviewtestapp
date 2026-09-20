@@ -32,6 +32,7 @@ export type Domain = string;
 const FALLBACK_ROLES = [
     { title: "Product Manager", domain: "Product & Design" },
     { title: "Product Designer", domain: "Product & Design" },
+    { title: "UI Designer", domain: "Product & Design" },
     { title: "Product Marketer", domain: "Product & Design" },
     { title: "Software Engineer", domain: "Software & Engineering" },
     { title: "Frontend Developer", domain: "Software & Engineering" },
@@ -107,7 +108,7 @@ export default function OnboardingPage() {
             if (userSession) {
                 const user = JSON.parse(userSession);
                 if (user.domain && user.role) {
-                    router.push("/dashboard");
+                    router.replace("/dashboard");
                     return;
                 }
             }
@@ -258,7 +259,7 @@ export default function OnboardingPage() {
             domain: domainVal,
             role: roleVal as InterviewRole,
         });
-        router.push("/dashboard");
+        router.replace("/dashboard");
     };
 
     const handleNext = () => {
@@ -288,16 +289,6 @@ export default function OnboardingPage() {
         <div className={styles.splitWrapper}>
             {/* ════════ LEFT HERO PANEL ════════ */}
             <div className={styles.leftHeroPanel}>
-                <div className={styles.leftLogoHeader}>
-                    <Image
-                        src="/useladder_logo.png"
-                        alt="useladder logo"
-                        width={115}
-                        height={38}
-                        className={styles.leftLogoImg}
-                        priority
-                    />
-                </div>
 
                 <div className={styles.leftHeroCenter}>
                     <h1 className={styles.welcomeHeading}>
@@ -307,7 +298,7 @@ export default function OnboardingPage() {
                                 <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z" />
                             </svg>
                         </span>
-                        <span>to useladder</span>
+                        <span>to onscript</span>
                     </h1>
                     <p className={styles.lockInSubtitle}>
                         Let’s lock in
@@ -319,17 +310,6 @@ export default function OnboardingPage() {
 
             {/* ════════ RIGHT CONTENT PANEL ════════ */}
             <div className={styles.rightContentPanel}>
-                {/* Mobile Logo */}
-                <div className={styles.mobileLogoHeader}>
-                    <Image
-                        src="/useladder_logo.png"
-                        alt="useladder logo"
-                        width={115}
-                        height={38}
-                        className={styles.leftLogoImg}
-                        priority
-                    />
-                </div>
 
                 {/* Square back arrow button */}
                 {step > 1 && (

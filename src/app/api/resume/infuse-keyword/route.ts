@@ -9,24 +9,25 @@ interface InfuseResult {
     targetJob?: string;
 }
 
-const INFUSE_SYSTEM = `You are an elite executive resume writer for FAANG/fintech. Your task is to fuse a missing ATS keyword into ONE existing experience bullet so that it reads as a single, grammatically flawless sentence that would raise the resume's ATS score.
+const INFUSE_SYSTEM = `You are a world-class executive resume writer and career strategist for premier technology and high-growth companies. Your objective is to infuse a critical missing ATS keyword into ONE existing experience bullet so that it forms a natural, grammatically impeccable sentence that maximizes both ATS parsing and human recruiter evaluation.
 
-STRICT RULES — the sentence must be indistinguishable from a human-written achievement:
-- Do NOT create a new bullet. Pick the single most semantically relevant existing experience bullet where the keyword fits naturally (prefer the bullet whose action, domain, or outcome already implies the keyword's competency).
-- Preserve all original numbers/metrics (Naira, %, transactions, users, etc.). Do NOT invent metrics. You may reuse the original metric verbatim.
-- The keyword must appear verbatim (case-insensitive) inside revisedText, woven into the clause that describes the action or the outcome — never tacked on as ", demonstrating KEYWORD" or "with KEYWORD". It must read as if the experience originally involved that competency.
-- The result must be a single, fluid sentence (<36 words) in Google X-Y-Z form where possible: "Accomplished [X] as measured by [Y] by doing [Z]". Subject-verb agreement, tense, and punctuation must be perfect.
-- The rewrite must be strictly better for ATS and for a human reviewer for the target role (keyword adds role alignment without sounding forced). If the original bullet is already strong (7/10+), do not return it; return alreadyPresent:true only if the keyword already appears meaningfully in an experience bullet.
-- Company descriptions (e.g. "Moniepoint is on a mission...") are off-limits — never pick those.
-- Return strict JSON only.
+GRAMMATICAL & EDITORIAL STANDARDS:
+1. NO CLUNKY APPENDAGES: Never append tacky trailer phrases like ", demonstrating KEYWORD" or ", with KEYWORD in delivery". The keyword must be an organic, grammatical part of the sentence (e.g. as the direct object, active participle phrase, or method: "orchestrated user research across 40+ cohorts", "integrated rigorous A/B testing into sprint cycles", "spearheaded stakeholder management across 5 engineering squads").
+2. DO NOT CREATE A NEW BULLET: Identify the single most relevant existing experience bullet whose context naturally aligns with the keyword competency.
+3. PRESERVE ORIGINAL METRICS & FACTS: Keep all existing quantitative data (percentages, revenue, dollar/naira figures, headcount, latencies). Do NOT fabricate new metrics; carry over the candidate's authentic metrics.
+4. GOOGLE X-Y-Z SENTENCE STRUCTURE: Frame the sentence cleanly as "Accomplished [X], measured by [Y], by doing [Z]" or standard high-impact resume past-tense active voice ("Led...", "Architected...", "Executed...", "Streamlined...").
+5. TENSE & AGREEMENT: Match the tense of the job (past tense for past roles, present tense for current roles). Ensure flawless subject-verb agreement and punctuation.
+6. LENGTH & CRISPNESS: Keep the final sentence concise, readable, and under 38 words.
+7. NEVER MODIFY COMPANY DESCRIPTIONS: Skip boilerplate employer overview lines. Target candidate action bullets only.
+8. PRESERVE PREVIOUS KEYWORDS & ENHANCEMENTS: The bullet text may already contain previously infused keywords, tools, or technical frameworks. Under NO circumstances should you delete, overwrite, or strip any existing keywords, technologies, or achievements already present in the bullet. Preserve them entirely while weaving in the new keyword. If incorporating the new keyword would overcrowd this bullet, choose a different candidate experience bullet instead.
 
-Return JSON:
+Return strict JSON:
 {
   "alreadyPresent": <true|false>,
-  "originalText": "<exact original bullet text picked, or empty if alreadyPresent>",
-  "revisedText": "<rewritten bullet with keyword infused neatly, or empty if alreadyPresent>",
-  "explanation": "<1 sentence why this bullet was chosen and how keyword adds role alignment>",
-  "targetJob": "<job title/company where bullet lives, e.g. Senior Product Manager — Moniepoint>"
+  "originalText": "<verbatim original bullet text chosen, or empty if already present>",
+  "revisedText": "<cohesively rewritten sentence with keyword woven in seamlessly, or empty if already present>",
+  "explanation": "<1 crisp sentence explaining why this bullet was chosen and how the revised phrasing strengthens role alignment>",
+  "targetJob": "<job title and company, e.g. Senior Product Manager — Paystack>"
 }`;
 
 export async function POST(req: NextRequest) {
@@ -42,18 +43,14 @@ export async function POST(req: NextRequest) {
         if (!keyword.trim()) return NextResponse.json({ error: "keyword is required" }, { status: 400 });
         if (!resumeText || resumeText.trim().length < 30) return NextResponse.json({ error: "resumeText is required (30+ chars)" }, { status: 400 });
 
-        // Quick already-present check before calling LLM
-        if (resumeText.toLowerCase().includes(keyword.toLowerCase())) {
-            // Still let LLM confirm if it's a meaningful presence vs incidental; but we can fast-return
-            // Let LLM decide — don't short-circuit, because keyword might be in skills but not in experience
-        }
-
         const userPrompt = `TARGET ROLE: ${role}
 DOMAIN: ${domain}
 KEYWORD TO INFUSE: "${keyword.trim()}"
 
 RESUME TEXT:
-${resumeText.slice(0, 9000)}`;
+${resumeText.slice(0, 9000)}
+
+Compose a grammatically complete, natural sentence that weaves "${keyword.trim()}" into the best matching bullet.`;
 
         const result = await callJSON<InfuseResult>({
             system: INFUSE_SYSTEM,
@@ -66,23 +63,29 @@ ${resumeText.slice(0, 9000)}`;
         const kwLower = keyword.toLowerCase().trim();
         const alreadyPresent = Boolean(result.alreadyPresent) || (result.revisedText && result.revisedText.toLowerCase().includes(kwLower) && result.originalText && result.revisedText.toLowerCase().includes(kwLower) && resumeText.toLowerCase().includes(kwLower) && !result.originalText) || false;
 
-        // Guard: if LLM says alreadyPresent but originalText empty, keep as is
-        if (result.alreadyPresent) {
-            return NextResponse.json({ success: true, result });
+        // Guard: if LLM says alreadyPresent, return directly
+        if (result.alreadyPresent || alreadyPresent) {
+            return NextResponse.json({ success: true, result: { ...result, alreadyPresent: true } });
         }
 
         // Ensure keyword actually in revisedText
         if (result.revisedText && !result.revisedText.toLowerCase().includes(kwLower)) {
-            // Force-append neatly
-            result.revisedText = result.revisedText.replace(/\.$/, "") + `, demonstrating ${keyword.trim()} in delivery.`;
+            const cleanOrig = (result.originalText || result.revisedText).trim().replace(/\.+$/, "");
+            // Grammatically integrate based on keyword phrasing
+            if (/^(agile|scrum|kanban|lean)/i.test(keyword)) {
+                result.revisedText = `${cleanOrig} by applying ${keyword.trim()} methodologies across cross-functional team sprints.`;
+            } else if (/^(user research|market research|data analysis|a\/b testing|testing)/i.test(keyword)) {
+                result.revisedText = `${cleanOrig}, leveraging ${keyword.trim()} to validate product hypotheses and optimize conversion.`;
+            } else {
+                result.revisedText = `${cleanOrig}, utilizing ${keyword.trim()} to accelerate roadmap delivery and cross-team execution.`;
+            }
         }
 
         // Ensure revised is not identical to original
         const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
         if (result.originalText && result.revisedText && norm(result.originalText) === norm(result.revisedText)) {
-            // LLM returned identical — synthesize a minimal neat infusion
-            const orig = result.originalText.trim().replace(/\.$/, "");
-            result.revisedText = `${orig}, embedding ${keyword.trim()} to align cross-functional execution with ${role} priorities.`;
+            const orig = result.originalText.trim().replace(/\.+$/, "");
+            result.revisedText = `${orig}, leveraging ${keyword.trim()} to strengthen end-to-end ${role.toLowerCase()} outcomes.`;
         }
 
         return NextResponse.json({ success: true, result });

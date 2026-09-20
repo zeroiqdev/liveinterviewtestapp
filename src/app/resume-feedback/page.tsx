@@ -1,7 +1,7 @@
 import ResumeFeedbackReport from "@/components/ResumeFeedbackReport";
 
 export const metadata = {
-    title: "Resume & CV Feedback | useladder",
+    title: "Resume & CV Feedback | onscript",
     description: "Detailed ATS performance audit, score breakdown, and in-line Google X-Y-Z document improver for your resume.",
 };
 

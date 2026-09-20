@@ -30,6 +30,9 @@ const DEFAULT_ROLES: RoleItem[] = [
     { id: "role_017", title: "Executive Assistant", domain: "Administrative & Support" },
     { id: "role_018", title: "Engineering — Oil & Gas", domain: "Engineering & Energy" },
     { id: "role_019", title: "HSE / Safety Officer", domain: "Engineering & Energy" },
+    { id: "role_020", title: "Product Designer", domain: "Product & Design" },
+    { id: "role_021", title: "Product Marketer", domain: "Product & Design" },
+    { id: "role_022", title: "Business Analyst", domain: "Business & Operations" },
 ];
 
 async function readRoles(): Promise<RoleItem[]> {

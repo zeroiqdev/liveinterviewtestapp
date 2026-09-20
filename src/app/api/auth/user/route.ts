@@ -45,6 +45,97 @@ export async function GET(req: NextRequest) {
     }
 }
 
+export async function PATCH(req: NextRequest) {
+    try {
+        await dbConnect();
+        const body = await req.json();
+        const { email, role, domain, seniority, portfolioUrl, linkedinUrl } = body;
+
+        if (!email) {
+            return NextResponse.json({ error: "Email is required" }, { status: 400 });
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+        const user = await User.findOne({ email: normalizedEmail });
+        if (!user) {
+            return NextResponse.json({ error: "User not found" }, { status: 404 });
+        }
+
+        if (role) {
+            user.role = role;
+            user.roleFamily = normalizeUserRoleFamily(role);
+        }
+        if (domain) user.domain = domain;
+        if (seniority) user.seniority = seniority;
+        if (portfolioUrl !== undefined) user.portfolioUrl = portfolioUrl;
+        if (linkedinUrl !== undefined) user.linkedinUrl = linkedinUrl;
+
+        await user.save();
+
+        return NextResponse.json({
+            success: true,
+            user: {
+                id: user._id.toString(),
+                email: user.email,
+                name: user.name,
+                avatar: user.avatar,
+                role: user.role,
+                domain: user.domain,
+                roleFamily: user.roleFamily,
+                seniority: user.seniority,
+                portfolioUrl: user.portfolioUrl || "",
+                linkedinUrl: user.linkedinUrl || "",
+                resumes: user.resumes,
+            },
+        });
+    } catch (err) {
+        console.error("[api/auth/user PATCH] Error:", err);
+        return NextResponse.json(
+            { error: err instanceof Error ? err.message : "Failed to update user" },
+            { status: 500 }
+        );
+    }
+}
+
+export async function DELETE(req: NextRequest) {
+    try {
+        await dbConnect();
+        const { searchParams } = new URL(req.url);
+        const email = searchParams.get("email");
+        const resumeId = searchParams.get("resumeId");
+
+        if (!email || !resumeId) {
+            return NextResponse.json({ error: "Email and resumeId query params required" }, { status: 400 });
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+        const user = await User.findOne({ email: normalizedEmail });
+        if (!user) {
+            return NextResponse.json({ error: "User not found" }, { status: 404 });
+        }
+
+        const beforeCount = user.resumes.length;
+        user.resumes = user.resumes.filter((r) => r.id !== resumeId);
+
+        if (user.resumes.length === beforeCount) {
+            return NextResponse.json({ error: "Resume not found" }, { status: 404 });
+        }
+
+        await user.save();
+
+        return NextResponse.json({
+            success: true,
+            resumes: user.resumes,
+        });
+    } catch (err) {
+        console.error("[api/auth/user DELETE] Error:", err);
+        return NextResponse.json(
+            { error: err instanceof Error ? err.message : "Failed to delete resume" },
+            { status: 500 }
+        );
+    }
+}
+
 export async function POST(req: NextRequest) {
     try {
         await dbConnect();

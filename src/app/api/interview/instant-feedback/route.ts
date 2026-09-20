@@ -18,16 +18,29 @@ CRITICAL COMMUNICATION STYLE:
 - Be concise, direct, and encouraging yet rigorous.
 - Never write "The candidate", "They", or "The applicant".
 
+MODEL ANSWER STYLE – SIMPLE CONVERSATIONAL TONE (STRICT):
+- modelAnswer MUST sound like a real human speaking out loud in an interview, not an essay or LLM.
+- Use first-person natural speech: "I...", "In my last role...", "We had this problem where..."
+- Keep it 2-3 short sentences, 40-60 words total. Plain English, no buzzword stuffing, no jargon overload, no markdown, no bullet points, no corporate fluff.
+- It should be something a candidate could literally say verbatim and sound confident and human.
+- BAD (LLM gibberish): "Leveraging synergistic paradigm shifts to architect scalable, robust, high-throughput distributed ecosystems..."
+- GOOD (conversational): "In my last role we had a checkout that kept failing under load. I broke it into smaller services and added a queue, which cut errors by about 30% and made releases much smoother."
+
+APOSTROPHE RULE (STRICT):
+- Do NOT use apostrophes (') anywhere – not in headline, not in modelAnswer, not in strengths or coachingTip.
+- Write out contractions: do not instead of don't, did not instead of didn't, I am instead of I am with apostrophe, cannot instead of can't, will not instead of won't.
+- This applies to every field you return.
+
 Return a JSON object with this exact structure:
 {
   "rating": "<'Strong' | 'Average' | 'Needs Work'>",
   "score": <number 0-100 representing readiness on this specific answer>,
-  "headline": "<1-sentence punchy assessment of their answer>",
+  "headline": "<1-sentence punchy assessment of their answer – no apostrophes>",
   "strengths": [
-    "<1-2 specific points they articulated well or good structural choices>"
+    "<1-2 specific points they articulated well or good structural choices – no apostrophes>"
   ],
-  "coachingTip": "<1-2 sentences of actionable advice: what was missing, what trade-off or metric they should have mentioned>",
-  "modelAnswer": "<A concise 2-3 sentence example of how a top 1% candidate answers this question>"
+  "coachingTip": "<1-2 sentences of actionable advice: what was missing, what trade-off or metric they should have mentioned – no apostrophes>",
+  "modelAnswer": "<2-3 sentence FIRST-PERSON spoken answer in simple conversational tone as described above – no apostrophes>"
 }`;
 
 function getFallbackInstantFeedback(question: string, answer: string): InstantQuestionFeedback {
@@ -36,22 +49,22 @@ function getFallbackInstantFeedback(question: string, answer: string): InstantQu
         return {
             rating: "Needs Work",
             score: 48,
-            headline: "Your response touched on the basics but lacked specific technical depth and concrete metrics.",
-            strengths: ["You addressed the core question promptly without excessive hesitation."],
-            coachingTip: "Structure your answer with the STAR framework. State the technical constraint, what decision you made, and quantify the resulting outcome.",
-            modelAnswer: "Lead with a direct executive summary of your approach, explain the architectural or prioritization trade-offs, and conclude with measurable impact (e.g. latency, users, or revenue).",
+            headline: "Your response touched on the basics but lacked specific detail.",
+            strengths: ["You got straight to the point without rambling."],
+            coachingTip: "Use STAR: say what the situation was, what you actually did, and what changed. Add one number if you can.",
+            modelAnswer: "In my last role we had a similar issue where the feature was slow to ship. I talked to the users, picked the simplest fix that unblocked us, and got it out in a week — that lifted activation by about 20%.",
         };
     }
     return {
         rating: "Strong",
         score: 86,
-        headline: "Structured answer with clear technical reasoning and domain awareness.",
+        headline: "Clear structure and good reasoning.",
         strengths: [
-            "Clear logical progression from problem discovery to execution.",
-            "Demonstrated good trade-off awareness rather than picking a solution reflexively.",
+            "You walked through the problem and your steps in order.",
+            "You showed you weighed options instead of jumping to one answer.",
         ],
-        coachingTip: "To make this answer exceptional, add one concrete metric (e.g. 'reduced latency by 35%' or 'saved 4 weeks of engineering effort') to anchor your impact.",
-        modelAnswer: "Articulate the system constraints upfront, state the alternative solutions evaluated, and conclude with the business outcome achieved.",
+        coachingTip: "Add one real number — like 'cut load time by a third' or 'saved us two weeks' — so the impact lands.",
+        modelAnswer: "We had a service that was slow at peak. I checked where time was spent, added a cache for the hot path and tightened the queries. It cut response time roughly in half and made on-call much quieter.",
     };
 }
 
@@ -84,13 +97,24 @@ CANDIDATE'S SPOKEN RESPONSE:
 
 Evaluate this answer and provide instantaneous, high-impact live coaching feedback addressed directly to the candidate.`;
 
-        const feedback = await callJSON<InstantQuestionFeedback>({
+        const rawFeedback = await callJSON<InstantQuestionFeedback>({
             system: INSTANT_FEEDBACK_SYSTEM_PROMPT,
             user: prompt,
             maxTokens: 1200,
             timeoutMs: 15000,
             mock: fallback,
         });
+
+        // Enforce no apostrophes in any field – fallback sanitization
+        const stripApostrophe = (s: string) => (s ? s.replace(/[‘’'`]/g, "").replace(/'/g, "") : s);
+        const feedback: InstantQuestionFeedback = {
+            rating: rawFeedback.rating,
+            score: rawFeedback.score,
+            headline: stripApostrophe(rawFeedback.headline),
+            strengths: (rawFeedback.strengths || []).map(stripApostrophe),
+            coachingTip: stripApostrophe(rawFeedback.coachingTip),
+            modelAnswer: stripApostrophe(rawFeedback.modelAnswer),
+        };
 
         return NextResponse.json({
             success: true,

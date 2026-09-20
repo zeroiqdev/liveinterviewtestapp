@@ -69,16 +69,12 @@ function DmRowComponent({ dm, isOpen, isUnread, onToggle, onPractice }: DmRowPro
                             </div>
                         ))}
 
-                        {/* Status / Mini Indicator Bubble with styled dots */}
+                        {/* Status / Mini Indicator Bubble */}
                         {dm.insight && (
                             <div className={styles.speechBubbleIndicator}>
-                                <div className={styles.indicatorDiamond} />
-                                <div className={styles.indicatorDotsGroup}>
-                                    <span className={styles.indicatorMiniDot} style={{ background: "#38BDF8" }} />
-                                    <span className={styles.indicatorMiniDot} style={{ background: "#10B981" }} />
-                                    <span className={styles.indicatorMiniDot} style={{ background: "#F97316" }} />
-                                </div>
-                                <span className={styles.indicatorText}>{dm.insight}</span>
+                                <span className={styles.indicatorText}>
+                                    {dm.insight.replace(/^(Coach Insight|Recruiter Insight|Recruiter Tip|Coach Tip|Insight):\s*/i, "")}
+                                </span>
                             </div>
                         )}
                     </div>
@@ -87,14 +83,17 @@ function DmRowComponent({ dm, isOpen, isUnread, onToggle, onPractice }: DmRowPro
                     {dm.actions && dm.actions.length > 0 && (
                         <div className={styles.conversationActionsRow}>
                             {dm.actions.map((act, i) => {
-                                const ActionIcon = act.icon;
+                                const isPractice = /practice|drill|mock/i.test(act.label);
+                                const ActionIcon = (isPractice || act.disabled) ? undefined : act.icon;
                                 return (
                                     <button
                                         key={i}
                                         type="button"
+                                        disabled={act.disabled}
                                         className={act.primary ? styles.conversationBtnPrimary : styles.conversationBtnSecondary}
                                         onClick={(e) => {
                                             e.stopPropagation();
+                                            if (act.disabled) return;
                                             if (act.onClick) {
                                                 act.onClick();
                                             } else if (onPractice) {

@@ -19,7 +19,6 @@ export function TinderCardDeck({ onPractice, userRole, userRoleFamily }: TinderC
     const [currentIndex, setCurrentIndex] = useState(0);
     const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
-    const [swipeDirection, setSwipeDirection] = useState<"left" | "right" | null>(null);
 
     const startPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
@@ -36,13 +35,11 @@ export function TinderCardDeck({ onPractice, userRole, userRoleFamily }: TinderC
     // Navigation both ways
     const handlePrev = useCallback(() => {
         setDragOffset({ x: 0, y: 0 });
-        setSwipeDirection(null);
         setCurrentIndex((prev) => (prev > 0 ? prev - 1 : totalCards - 1));
     }, [totalCards]);
 
     const handleNext = useCallback(() => {
         setDragOffset({ x: 0, y: 0 });
-        setSwipeDirection(null);
         setCurrentIndex((prev) => (prev < totalCards - 1 ? prev + 1 : 0));
     }, [totalCards]);
 
@@ -58,47 +55,27 @@ export function TinderCardDeck({ onPractice, userRole, userRoleFamily }: TinderC
         const dx = clientX - startPosRef.current.x;
         const dy = clientY - startPosRef.current.y;
         setDragOffset({ x: dx, y: dy });
-
-        if (dx > 45) {
-            setSwipeDirection("right");
-        } else if (dx < -45) {
-            setSwipeDirection("left");
-        } else {
-            setSwipeDirection(null);
-        }
     };
 
     const handleEnd = useCallback(() => {
         if (!isDragging) return;
         setIsDragging(false);
 
-        const threshold = 80;
+        const threshold = 60;
         if (dragOffset.x > threshold) {
-            // Swiped Right -> Practice
-            setSwipeDirection("right");
-            setTimeout(() => {
-                onPractice({ roundTitle: currentCard?.title ? currentCard.title.replace(/\n/g, " ") : "Interview" });
-                handleNext();
-                setDragOffset({ x: 0, y: 0 });
-                setSwipeDirection(null);
-            }, 180);
+            // Swiped Right -> Previous Card (does NOT route to interview page)
+            handlePrev();
         } else if (dragOffset.x < -threshold) {
-            // Swiped Left -> Next Card
-            setSwipeDirection("left");
-            setTimeout(() => {
-                handleNext();
-                setDragOffset({ x: 0, y: 0 });
-                setSwipeDirection(null);
-            }, 180);
+            // Swiped Left -> Next Card (does NOT reveal feedback page)
+            handleNext();
         } else {
             // Check if it was a simple tap without drag -> Open practice
             if (Math.abs(dragOffset.x) < 5 && Math.abs(dragOffset.y) < 5) {
                 onPractice({ roundTitle: currentCard?.title ? currentCard.title.replace(/\n/g, " ") : "Interview" });
             }
-            setDragOffset({ x: 0, y: 0 });
-            setSwipeDirection(null);
         }
-    }, [isDragging, dragOffset.x, dragOffset.y, onPractice, handleNext, currentCard?.title]);
+        setDragOffset({ x: 0, y: 0 });
+    }, [isDragging, dragOffset.x, dragOffset.y, onPractice, handleNext, handlePrev, currentCard?.title]);
 
 
     return (
@@ -197,23 +174,20 @@ export function TinderCardDeck({ onPractice, userRole, userRoleFamily }: TinderC
                             if (isDragging) handleEnd();
                         }}
                     >
-                        {/* Swipe Stamp Badges */}
-                        {swipeDirection === "right" && (
-                            <div className={`${styles.deckStampBadge} ${styles.deckStampPractice}`}>
-                                PRACTICE
-                            </div>
-                        )}
-                        {swipeDirection === "left" && (
-                            <div className={`${styles.deckStampBadge} ${styles.deckStampSkip}`}>
-                                NEXT
-                            </div>
-                        )}
-
                         {/* Card Content Top Header (matching desktop card design) */}
                         <div className={styles.deckCardTopContent}>
                             <div className={styles.deckCardHeaderRow}>
                                 <span className={styles.deckCardNumber}>{currentCard.number}</span>
-                                <div className={styles.deckPlayButton}>
+                                <div
+                                    className={styles.deckPlayButton}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onPractice({ roundTitle: currentCard?.title ? currentCard.title.replace(/\n/g, " ") : "Interview" });
+                                    }}
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-label={`Start practice for ${currentCard.title.replace(/\n/g, " ")}`}
+                                >
                                     <Play size={10} weight="fill" color="#4782F6" />
                                 </div>
                             </div>

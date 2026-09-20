@@ -93,5 +93,25 @@
     "id": "role_019",
     "title": "HSE / Safety Officer",
     "domain": "Engineering & Energy"
+  },
+  {
+    "id": "role_020",
+    "title": "Product Designer",
+    "domain": "Product & Design"
+  },
+  {
+    "id": "role_021",
+    "title": "Product Marketer",
+    "domain": "Product & Design"
+  },
+  {
+    "id": "role_022",
+    "title": "Business Analyst",
+    "domain": "Business & Operations"
+  },
+  {
+    "id": "role_023",
+    "title": "UI Designer",
+    "domain": "Product & Design"
   }
 ]

@@ -138,3 +138,109 @@ export function cleanJobTitle(rawTitle: string): string {
     return cleaned || decoded.trim();
 }
 
+/**
+ * Derives a consistent, canonical set of key responsibilities for a job item
+ * so both the Job Description modal and the Interview Setup modal use the exact same rubric.
+ */
+export function deriveJobResponsibilities(job: {
+    responsibilities?: string[];
+    description?: string;
+    title?: string;
+    roleFamily?: string;
+}): string[] {
+    if (Array.isArray(job.responsibilities) && job.responsibilities.length > 0) {
+        return job.responsibilities.map((r) => String(r).trim()).filter(Boolean);
+    }
+    if (job.description && job.description.trim().length > 20) {
+        let derived = job.description.split(/\n|•/).map((s) => s.trim()).filter((s) => s.length > 14);
+        if (derived.length <= 1) {
+            derived = job.description.split(/\. /).map((s) => s.trim()).filter((s) => s.length > 18).slice(0, 5);
+        }
+        if (derived.length > 0) return derived.slice(0, 5);
+    }
+    const r = (job.title || "").toLowerCase();
+    if (r.includes("product")) {
+        return [
+            "Define product strategy and roadmaps",
+            "Drive feature delivery from discovery to launch",
+            "Analyze user metrics and engagement",
+            "Align cross-functional stakeholders",
+        ];
+    }
+    if (r.includes("engineer") || r.includes("developer") || r.includes("swe")) {
+        return [
+            "Build scalable applications and services",
+            "Write clean maintainable code and unit tests",
+            "Optimize performance and latency",
+            "Collaborate with product and design",
+        ];
+    }
+    if (r.includes("design") || r.includes("ui") || r.includes("ux")) {
+        return [
+            "Design intuitive user journeys, wireframes and prototypes",
+            "Maintain and scale design system components",
+            "Conduct user research and usability audits",
+            "Partner with engineering on design specs",
+        ];
+    }
+    if (r.includes("devops") || r.includes("sre") || r.includes("cloud")) {
+        return [
+            "Build and maintain automated CI/CD pipelines",
+            "Manage containerized infrastructure on Kubernetes/Cloud",
+            "Ensure system reliability, uptime and monitoring",
+            "Enforce infrastructure security and scalability",
+        ];
+    }
+    return [
+        "Deliver key functional objectives and projects",
+        "Cross-functional collaboration and stakeholder alignment",
+        "Track performance metrics and operational standards",
+    ];
+}
+
+/**
+ * Stable client cache key generator for Resume <-> Role match results.
+ */
+export function getJobMatchCacheKey(
+    resumeText: string,
+    jobTitle: string,
+    jobCompany: string,
+    responsibilities: string[]
+): string {
+    const textSample = (resumeText || "").trim().slice(0, 2000).replace(/\s+/g, " ");
+    const t = (jobTitle || "").toLowerCase().trim();
+    const c = (jobCompany || "").toLowerCase().trim();
+    const r = (responsibilities || []).map((s) => s.toLowerCase().trim()).join("|");
+    return `${t}:::${c}:::${r}:::${textSample.length}:::${textSample.slice(0, 80)}`;
+}
+
+// In-memory client cache shared across modals during the session
+const clientMatchCache: Record<string, any> = {};
+
+export function getCachedJobMatch(key: string): any | null {
+    if (!key) return null;
+    if (clientMatchCache[key]) return clientMatchCache[key];
+    if (typeof window !== "undefined") {
+        try {
+            const stored = sessionStorage.getItem(`useladder_jm_${key}`);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                clientMatchCache[key] = parsed;
+                return parsed;
+            }
+        } catch {}
+    }
+    return null;
+}
+
+export function setCachedJobMatch(key: string, data: any): void {
+    if (!key || !data) return;
+    clientMatchCache[key] = data;
+    if (typeof window !== "undefined") {
+        try {
+            sessionStorage.setItem(`useladder_jm_${key}`, JSON.stringify(data));
+        } catch {}
+    }
+}
+
+

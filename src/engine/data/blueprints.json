@@ -900,6 +900,25 @@
           "maxFollowUps": 2,
           "minTimeSeconds": 240,
           "maxTimeSeconds": 600
+        },
+        {
+          "id": "technical_coding",
+          "label": "Technical Implementation & Live Coding",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "software_tech",
+            "category_in": [
+              "Technical Implementation",
+              "Algorithm/Data Structures"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 2,
+            "max": 3
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 240,
+          "maxTimeSeconds": 600
         }
       ]
     },
@@ -919,6 +938,25 @@
         "domainJudgmentNotes": "Probe for statistical validity, ML model evaluation metrics, bias/variance trade-offs, and feature engineering rationale."
       },
       "competencies": [
+        {
+          "id": "sql_analytics",
+          "label": "SQL & Analytics Technical Drill",
+          "priority": "required",
+          "questionPoolFilter": {
+            "role_family": "data_science",
+            "category_in": [
+              "SQL & Analytics",
+              "SQL/Analytics"
+            ]
+          },
+          "targetQuestionRange": {
+            "min": 2,
+            "max": 3
+          },
+          "maxFollowUps": 2,
+          "minTimeSeconds": 200,
+          "maxTimeSeconds": 500
+        },
         {
           "id": "statistics_ab_testing",
           "label": "Statistics & A/B Testing",

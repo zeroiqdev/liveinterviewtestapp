@@ -82,22 +82,40 @@ export function decodeHtmlEntities(text?: string): string {
 // ─── Role Overview Synthesizer ─────────────────────────────────────────
 
 export function generateRoleOverview(title: string, roleFamily?: string, company?: string, location?: string): string {
-    const cleanTitle = decodeHtmlEntities(title || "Software Engineer").trim();
-    const cleanCompany = decodeHtmlEntities(company || "the company").trim();
+    const cleanTitle = decodeHtmlEntities(title || "Professional").trim();
+    const cleanCompany = decodeHtmlEntities(company || "the organization").trim();
     const loc = location && location !== "Not specified" ? ` in ${location}` : "";
     const fam = roleFamily || classifyRoleFamily(cleanTitle);
 
     switch (fam) {
         case "frontend_developer":
             return `As a ${cleanTitle} at ${cleanCompany}${loc}, you will architect, build, and maintain highly responsive, accessible user interfaces and web applications. You will collaborate closely with product managers and designers to translate user workflows into performant client experiences, champion frontend performance optimization, and establish scalable design system component standards.`;
+        case "devops_sre":
+            return `As a ${cleanTitle} at ${cleanCompany}${loc}, you will architect, automate, and scale resilient cloud infrastructure, CI/CD deployment pipelines, and observability stacks. You will champion site reliability engineering (SRE) best practices, optimize container orchestration with Kubernetes, manage multi-region cloud networks, and ensure 99.99% system availability and security.`;
         case "backend_engineer":
             return `As a ${cleanTitle} at ${cleanCompany}${loc}, you will design, scale, and maintain high-throughput backend services, distributed systems, and core API infrastructures. You will implement robust data pipelines, optimize database performance, ensure high availability and security, and collaborate across engineering squads to power mission-critical product features.`;
         case "product_manager":
             return `As a ${cleanTitle} at ${cleanCompany}${loc}, you will lead cross-functional product strategy from discovery through delivery. You will define product roadmaps, conduct customer research, align engineering and design teams around high-impact OKRs, and leverage product analytics to drive user retention, adoption, and business growth.`;
+        case "ui_designer":
+            return `As a ${cleanTitle} at ${cleanCompany}${loc}, you will craft intuitive, accessible, and pixel-perfect user interfaces across web and mobile surfaces. You will architect robust design systems, establish design tokens and component guidelines in Figma, collaborate closely with frontend engineers during handoff, and elevate visual craft through typography, layout, micro-interactions, and visual hierarchy.`;
         case "product_designer":
             return `As a ${cleanTitle} at ${cleanCompany}${loc}, you will drive user experience and interface design across the product lifecycle. You will conduct user research and usability testing, build interactive prototypes, and partner closely with engineers to deliver intuitive, pixel-perfect digital experiences.`;
+        case "product_marketer":
+            return `As a ${cleanTitle} at ${cleanCompany}${loc}, you will spearhead go-to-market strategy, product positioning, and messaging. You will conduct competitive market intelligence, orchestrate cross-channel launch campaigns, and partner with sales and product teams to drive user acquisition, engagement, and market adoption.`;
         case "data_analyst":
             return `As a ${cleanTitle} at ${cleanCompany}${loc}, you will uncover data-driven insights to guide product and business decisions. You will build automated dashboards, develop predictive models, design A/B testing frameworks, and partner with leadership to translate complex data into actionable operational strategies.`;
+        case "business_analyst":
+            return `As a ${cleanTitle} at ${cleanCompany}${loc}, you will bridge the gap between business objectives and technology solutions. You will gather business requirements, evaluate workflows, formulate data-backed process improvements, and partner with cross-functional stakeholders to optimize operational efficiency.`;
+        case "banking_finance":
+            return `As a ${cleanTitle} at ${cleanCompany}${loc}, you will drive financial modeling, fiscal planning, and strategic investment analysis. You will manage financial reporting, conduct valuation and risk assessments, ensure regulatory compliance, and deliver actionable fiscal insights to executive decision-makers.`;
+        case "sales":
+            return `As a ${cleanTitle} at ${cleanCompany}${loc}, you will drive revenue growth and commercial pipeline expansion. You will identify target enterprise accounts, build strategic client relationships, conduct solution presentations, negotiate agreements, and consistently deliver against ambitious revenue milestones.`;
+        case "customer_service":
+            return `As a ${cleanTitle} at ${cleanCompany}${loc}, you will serve as the primary customer champion and brand ambassador. You will manage customer inquiries, troubleshoot issues with empathy and precision, improve service level agreements, and collaborate with operations to elevate overall client satisfaction.`;
+        case "virtual_assistant":
+            return `As a ${cleanTitle} at ${cleanCompany}${loc}, you will deliver high-level executive and operational administrative support. You will manage complex calendar schedules, coordinate correspondence and documentation, organize meetings, and streamline workflows to ensure smooth organizational operations.`;
+        case "oil_gas":
+            return `As a ${cleanTitle} at ${cleanCompany}${loc}, you will contribute to critical energy operations, technical maintenance, and HSE compliance protocols. You will oversee operational integrity, ensure adherence to stringent safety and environmental regulations, optimize field production workflows, and partner with multidisciplinary energy teams.`;
         default:
             return `As a ${cleanTitle} at ${cleanCompany}${loc}, you will play a pivotal role in driving core technical and operational initiatives. You will work alongside cross-functional teams to solve high-impact challenges, execute strategic priorities, and help scale the organization's technological and business impact.`;
     }
@@ -122,7 +140,7 @@ export async function scrapeGreenhouseJobs(url: string, companyName: string, bac
 
     try {
         const res = await fetch(apiUrl, {
-            headers: { "User-Agent": "UseLadder-CareerScraper/1.0" },
+            headers: { "User-Agent": "OnScript-CareerScraper/1.0" },
             signal: AbortSignal.timeout(15000),
             cache: "no-store" as RequestCache,
         });
@@ -174,7 +192,7 @@ export async function scrapeLeverJobs(url: string, companyName: string, backedBy
 
     try {
         const res = await fetch(apiUrl, {
-            headers: { "User-Agent": "UseLadder-CareerScraper/1.0" },
+            headers: { "User-Agent": "OnScript-CareerScraper/1.0" },
             signal: AbortSignal.timeout(15000),
             cache: "no-store" as RequestCache,
         });
@@ -228,7 +246,7 @@ export async function scrapeAshbyJobs(url: string, companyName: string, backedBy
 
     try {
         const res = await fetch(apiUrl, {
-            headers: { "User-Agent": "UseLadder-CareerScraper/1.0" },
+            headers: { "User-Agent": "OnScript-CareerScraper/1.0" },
             signal: AbortSignal.timeout(15000),
             cache: "no-store" as RequestCache,
         });
@@ -839,18 +857,50 @@ async function discoverPortfolioCompaniesFromHTML(vcUrl: string, _vcName: string
 
 // ─── Jobberman Nigeria Scraper ───────────────────────────────────────
 
+interface JobbermanCategory {
+    slug: string;
+    url: string;
+    department: string;
+}
+
+const JOBBERMAN_CATEGORIES: JobbermanCategory[] = [
+    { slug: "software-data", url: "https://www.jobberman.com/jobs/software-data", department: "Software Engineering & Data" },
+    { slug: "admin-office", url: "https://www.jobberman.com/jobs/admin-office", department: "Administrative & Office Support" },
+    { slug: "customer-service-support", url: "https://www.jobberman.com/jobs/customer-service-support", department: "Customer Service & Support" },
+    { slug: "sales", url: "https://www.jobberman.com/jobs/sales", department: "Sales & Commercial" },
+    { slug: "accounting-auditing-finance", url: "https://www.jobberman.com/jobs/accounting-auditing-finance", department: "Banking & Finance" },
+    { slug: "engineering", url: "https://www.jobberman.com/jobs/engineering", department: "Engineering & Energy" },
+    { slug: "product-project-management", url: "https://www.jobberman.com/jobs/product-project-management", department: "Product Management" },
+    { slug: "marketing-communications", url: "https://www.jobberman.com/jobs/marketing-communications", department: "Product Marketing" },
+    { slug: "information-technology-telecoms", url: "https://www.jobberman.com/jobs/information-technology-telecoms", department: "IT & Telecommunications" },
+];
+
 export async function scrapeJobbermanJobs(url: string, companyName: string): Promise<ScrapeResult> {
-    const targetUrls = [
-        url.includes("jobberman.com") ? url : "https://www.jobberman.com/jobs/software-data",
-        "https://www.jobberman.com/jobs/information-technology-telecoms"
-    ];
+    // If query in URL, scrape that search URL directly; otherwise match category or scrape all
+    let targetCategories: JobbermanCategory[];
+    if (url.includes("q=") || url.includes("?")) {
+        const qMatch = url.match(/[?&]q=([^&]+)/);
+        const queryLabel = qMatch ? decodeURIComponent(qMatch[1]) : "Search";
+        targetCategories = [{
+            slug: "search",
+            url: url,
+            department: queryLabel.toLowerCase().includes("devops") || queryLabel.toLowerCase().includes("cloud") || queryLabel.toLowerCase().includes("sre")
+                ? "DevOps & Infrastructure"
+                : "Technology & Services",
+        }];
+    } else {
+        targetCategories = JOBBERMAN_CATEGORIES.filter((c) => url.includes(c.slug));
+        if (targetCategories.length === 0) {
+            targetCategories = JOBBERMAN_CATEGORIES;
+        }
+    }
 
     const jobs: ScrapedJob[] = [];
     const seen = new Set<string>();
 
-    for (const targetUrl of targetUrls) {
+    for (const cat of targetCategories) {
         try {
-            const res = await fetch(targetUrl, {
+            const res = await fetch(cat.url, {
                 headers: {
                     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -862,97 +912,210 @@ export async function scrapeJobbermanJobs(url: string, companyName: string): Pro
             if (!res.ok) continue;
 
             const html = await res.text();
-            const linkMatches = [...html.matchAll(/<a[^>]*href="(https:\/\/www\.jobberman\.com\/listings\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)];
+            // Primary parse: match listing-title-link anchors and trailing card context
+            const cardRegex = /<a[^>]*href="(https:\/\/www\.jobberman\.com\/listings\/[^"]+)"[^>]*data-cy="listing-title-link"[^>]*>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/a>([\s\S]*?)(?=<a[^>]*data-cy="listing-title-link"|$)/gi;
+            let match: RegExpExecArray | null;
+            let foundInCat = 0;
 
-            for (const m of linkMatches) {
-                const jobUrl = m[1];
-                const text = m[2].replace(/<[^>]+>/g, "").trim().replace(/\s+/g, " ");
+            while ((match = cardRegex.exec(html)) !== null) {
+                const jobUrl = match[1];
+                const rawTitle = match[2];
+                const cardBody = match[3];
 
                 if (!jobUrl || seen.has(jobUrl)) continue;
-                if (!text || text.length < 4 || text.includes("Jobberman") || text.includes("View details")) continue;
+                const cleanTitle = decodeHtmlEntities(rawTitle.replace(/<[^>]+>/g, "").trim().replace(/\s+/g, " "));
+                if (!cleanTitle || cleanTitle.length < 3 || cleanTitle.includes("Jobberman") || cleanTitle.includes("View details")) continue;
 
                 seen.add(jobUrl);
 
-                // Attempt to infer location and company
-                let location = "Lagos, Nigeria";
-                if (html.includes("Remote")) location = "Lagos (Remote)";
+                // Extract company name if present in card
+                const compMatch = cardBody.match(/<p[^>]*class="[^"]*text-blue-700[^"]*"[^>]*>([\s\S]*?)<\/p>/);
+                let company = compMatch ? decodeHtmlEntities(compMatch[1].replace(/<[^>]+>/g, "").trim().replace(/\s+/g, " ")) : "";
+                if (!company || company.toLowerCase().includes("anonymous")) {
+                    company = "Jobberman Verified Employer";
+                }
+
+                // Extract location if present in card
+                const locMatch = cardBody.match(/<span[^>]*class="[^"]*bg-brand-secondary-100[^"]*"[^>]*>([\s\S]*?)<\/span>/);
+                let location = locMatch ? decodeHtmlEntities(locMatch[1].replace(/<[^>]+>/g, "").trim().replace(/\s+/g, " ")) : "Nigeria";
+                if (location.toLowerCase().includes("remote") || html.includes("Remote (Work From Home)")) {
+                    location = location.includes("Remote") ? location : `${location} (Remote)`;
+                }
 
                 jobs.push({
-                    title: text,
+                    title: cleanTitle,
                     url: jobUrl,
-                    company: "Jobberman Partner",
+                    company,
                     location,
-                    department: "Engineering / Tech",
+                    department: cat.department,
                     backedBy: "Jobberman Nigeria",
                     salaryRange: "Competitive (₦)",
                     datePosted: new Date().toISOString().split("T")[0],
                 });
+                foundInCat++;
+            }
+
+            // Fallback parse: broad anchor matching if card structure slightly shifted
+            if (foundInCat === 0) {
+                const linkMatches = [...html.matchAll(/<a[^>]*href="(https:\/\/www\.jobberman\.com\/listings\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)];
+                for (const m of linkMatches) {
+                    const jobUrl = m[1];
+                    const text = decodeHtmlEntities(m[2].replace(/<[^>]+>/g, "").trim().replace(/\s+/g, " "));
+
+                    if (!jobUrl || seen.has(jobUrl)) continue;
+                    if (!text || text.length < 4 || text.includes("Jobberman") || text.includes("View details")) continue;
+
+                    seen.add(jobUrl);
+
+                    let location = "Lagos, Nigeria";
+                    if (html.includes("Remote")) location = "Lagos (Remote)";
+
+                    jobs.push({
+                        title: text,
+                        url: jobUrl,
+                        company: "Jobberman Partner",
+                        location,
+                        department: cat.department,
+                        backedBy: "Jobberman Nigeria",
+                        salaryRange: "Competitive (₦)",
+                        datePosted: new Date().toISOString().split("T")[0],
+                    });
+                }
             }
         } catch {
             // Ignore single page failures
         }
     }
 
-    return { jobs: jobs.slice(0, 25), provider: "jobberman" };
+    return { jobs, provider: "jobberman" };
 }
 
 // ─── LinkedIn Nigeria Scraper (Guest API) ─────────────────────────────
 
+interface LinkedInRoleQuery {
+    query: string;
+    department: string;
+}
+
+const LINKEDIN_ROLE_QUERIES: LinkedInRoleQuery[] = [
+    // Tech & Engineering
+    { query: "Software Engineer", department: "Software Engineering" },
+    { query: "Frontend Developer", department: "Frontend Developer" },
+    { query: "Backend Engineer", department: "Backend Engineer" },
+    { query: "Full Stack Developer", department: "Software Engineering" },
+    { query: "DevOps Engineer", department: "DevOps / Infrastructure" },
+    { query: "Site Reliability Engineer", department: "DevOps / Infrastructure" },
+    { query: "Cloud Solutions Architect", department: "DevOps / Infrastructure" },
+    { query: "Cloud Engineer", department: "DevOps / Infrastructure" },
+    { query: "Infrastructure Engineer", department: "DevOps / Infrastructure" },
+    { query: "Platform Engineer", department: "DevOps / Infrastructure" },
+    { query: "Systems Administrator", department: "DevOps / Infrastructure" },
+
+    // Product & Design
+    { query: "Product Manager", department: "Product Management" },
+    { query: "Product Designer", department: "Product Design" },
+    { query: "UI Designer", department: "UI Design" },
+    { query: "UI UX Designer", department: "UI Design" },
+    { query: "Product Marketing Manager", department: "Product Marketing" },
+
+    // Data & Operations
+    { query: "Data Analyst", department: "Data & Analytics" },
+    { query: "Data Scientist", department: "Data Science" },
+    { query: "Business Analyst", department: "Business & Operations" },
+
+    // Admin & Support
+    { query: "Virtual Assistant", department: "Administrative & Support" },
+    { query: "Executive Assistant", department: "Administrative & Support" },
+    { query: "Customer Service Representative", department: "Customer Service & Support" },
+
+    // Commercial & Finance
+    { query: "Sales Representative", department: "Sales & Commercial" },
+    { query: "Account Executive", department: "Sales & Commercial" },
+    { query: "Financial Analyst", department: "Banking & Finance" },
+    { query: "Investment Banker", department: "Banking & Finance" },
+
+    // Energy & Safety
+    { query: "Oil and Gas Engineer", department: "Engineering — Oil & Gas" },
+    { query: "Petroleum Engineer", department: "Engineering — Oil & Gas" },
+    { query: "Safety Officer HSE", department: "HSE / Safety Officer" },
+    { query: "HSE Officer", department: "HSE / Safety Officer" },
+];
+
 export async function scrapeLinkedInNigeriaJobs(url: string, companyName: string): Promise<ScrapeResult> {
-    const roles = ["Software Engineer", "Product Manager", "Product Designer", "Data Analyst", "Frontend Developer", "Backend Engineer"];
+    // If a specific keyword was passed in the URL, extract it; otherwise query all role families
+    const kwMatch = url.match(/keywords=([^&]+)/);
+    let targetQueries: LinkedInRoleQuery[] = LINKEDIN_ROLE_QUERIES;
+    if (kwMatch && kwMatch[1]) {
+        const decoded = decodeURIComponent(kwMatch[1]).replace(/\+/g, " ").trim();
+        // If it's not the generic default or has specific intent, filter or query that keyword
+        if (decoded && decoded !== "Software Engineer" && decoded !== "jobs") {
+            const found = LINKEDIN_ROLE_QUERIES.find((q) => q.query.toLowerCase() === decoded.toLowerCase());
+            targetQueries = found ? [found] : [{ query: decoded, department: decoded }];
+        }
+    }
+
     const jobs: ScrapedJob[] = [];
     const seen = new Set<string>();
 
-    for (const role of roles) {
-        try {
-            const apiUrl = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=${encodeURIComponent(role)}&location=Nigeria&f_TPR=r604800`;
-            const res = await fetch(apiUrl, {
-                headers: {
-                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                },
-                signal: AbortSignal.timeout(10000),
-                cache: "no-store" as RequestCache,
-            });
+    // Chunk queries into concurrent groups of 4 for speed & reliability
+    const chunks: LinkedInRoleQuery[][] = [];
+    for (let i = 0; i < targetQueries.length; i += 4) {
+        chunks.push(targetQueries.slice(i, i + 4));
+    }
 
-            if (!res.ok) continue;
+    for (const chunk of chunks) {
+        await Promise.allSettled(
+            chunk.map(async ({ query, department }) => {
+                try {
+                    const apiUrl = `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=${encodeURIComponent(query)}&location=Nigeria&f_TPR=r2592000`;
+                    const res = await fetch(apiUrl, {
+                        headers: {
+                            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                        },
+                        signal: AbortSignal.timeout(10000),
+                        cache: "no-store" as RequestCache,
+                    });
 
-            const html = await res.text();
-            // Match card elements
-            const cardRegex = /<div class="base-card[\s\S]*?<\/div>\s*<\/li>/gi;
-            const cards = html.match(cardRegex) || [];
+                    if (!res.ok) return;
 
-            for (const card of cards) {
-                const urlMatch = card.match(/<a class="base-card__full-link[^"]*"\s+href="([^"]+)"/);
-                const titleMatch = card.match(/<h3 class="base-search-card__title">([\s\S]*?)<\/h3>/);
-                const companyMatch = card.match(/<h4 class="base-search-card__subtitle">([\s\S]*?)<\/h4>/);
-                const locationMatch = card.match(/<span class="job-search-card__location">([\s\S]*?)<\/span>/);
-                const timeMatch = card.match(/<time[^>]*datetime="([^"]+)"/);
+                    const html = await res.text();
+                    const cardRegex = /<div class="base-card[\s\S]*?<\/div>\s*<\/li>/gi;
+                    const cards = html.match(cardRegex) || [];
 
-                if (!urlMatch || !titleMatch) continue;
+                    for (const card of cards) {
+                        const urlMatch = card.match(/<a class="base-card__full-link[^"]*"\s+href="([^"]+)"/);
+                        const titleMatch = card.match(/<h3 class="base-search-card__title">([\s\S]*?)<\/h3>/);
+                        const companyMatch = card.match(/<h4 class="base-search-card__subtitle">([\s\S]*?)<\/h4>/);
+                        const locationMatch = card.match(/<span class="job-search-card__location">([\s\S]*?)<\/span>/);
+                        const timeMatch = card.match(/<time[^>]*datetime="([^"]+)"/);
 
-                const jobUrl = urlMatch[1].split("?")[0];
-                if (seen.has(jobUrl)) continue;
-                seen.add(jobUrl);
+                        if (!urlMatch || !titleMatch) continue;
 
-                const title = titleMatch[1].replace(/<[^>]+>/g, "").trim();
-                const comp = companyMatch ? companyMatch[1].replace(/<[^>]+>/g, "").trim() : "Tech Employer";
-                const loc = locationMatch ? locationMatch[1].replace(/<[^>]+>/g, "").trim() : "Lagos, Nigeria";
-                const datePosted = timeMatch ? timeMatch[1] : new Date().toISOString().split("T")[0];
+                        const jobUrl = urlMatch[1].split("?")[0];
+                        if (seen.has(jobUrl)) continue;
+                        seen.add(jobUrl);
 
-                jobs.push({
-                    title,
-                    url: jobUrl,
-                    company: comp,
-                    location: loc,
-                    department: role,
-                    backedBy: "LinkedIn Nigeria",
-                    datePosted,
-                });
-            }
-        } catch {
-            // Ignore role failure
-        }
+                        const title = decodeHtmlEntities(titleMatch[1].replace(/<[^>]+>/g, "").trim());
+                        const comp = companyMatch ? decodeHtmlEntities(companyMatch[1].replace(/<[^>]+>/g, "").trim()) : "Tech Employer";
+                        const loc = locationMatch ? decodeHtmlEntities(locationMatch[1].replace(/<[^>]+>/g, "").trim()) : "Lagos, Nigeria";
+                        const datePosted = timeMatch ? timeMatch[1] : new Date().toISOString().split("T")[0];
+
+                        jobs.push({
+                            title,
+                            url: jobUrl,
+                            company: comp,
+                            location: loc,
+                            department,
+                            backedBy: "LinkedIn Nigeria",
+                            datePosted,
+                        });
+                    }
+                } catch {
+                    // Ignore single query failures
+                }
+            })
+        );
     }
 
     return { jobs, provider: "linkedin" };
@@ -1189,27 +1352,189 @@ export function classifyRoleFamily(title: string, department?: string): string {
         return "general";
     }
 
-    // 1. Product Designer & UI/UX (use word boundaries, do NOT substring match "ui" in "recruiting")
+    // 1. Oil & Gas / Energy & HSE (must be evaluated BEFORE generic "engineer")
+    const isSalesOrTalentPipeline =
+        text.includes("sales pipeline") ||
+        text.includes("talent pipeline") ||
+        text.includes("hiring pipeline") ||
+        text.includes("outbound") ||
+        text.includes("sales development") ||
+        text.includes("sdr") ||
+        text.includes("bdr");
+
     if (
-        text.includes("design") ||
-        text.includes("ui/ux") ||
-        text.includes("ui-ux") ||
+        !isSalesOrTalentPipeline &&
+        (text.includes("oil & gas") ||
+        text.includes("oil and gas") ||
+        text.includes("petroleum") ||
+        text.includes("drilling") ||
+        text.includes("reservoir") ||
+        (text.includes("pipeline") && !text.includes("sales") && !text.includes("talent")) ||
+        text.includes("subsea") ||
+        text.includes("geoscientist") ||
+        text.includes("geologist") ||
+        text.includes("hse") ||
+        text.includes("safety officer") ||
+        text.includes("solids control") ||
+        text.includes("offshore") ||
+        text.includes("refinery") ||
+        text.includes("upstream") ||
+        text.includes("downstream") ||
+        text.includes("engineering — oil") ||
+        text.includes("engineering - oil"))
+    ) {
+        return "oil_gas";
+    }
+
+    // 2. Virtual Assistant & Administrative Support
+    if (
+        text.includes("virtual assistant") ||
+        text.includes("executive assistant") ||
+        text.includes("administrative assistant") ||
+        text.includes("administrative coordinator") ||
+        text.includes("administrative business partner") ||
+        text.includes("administrative officer") ||
+        text.includes("office assistant") ||
+        text.includes("personal assistant") ||
+        text.includes("admin assistant") ||
+        text.includes("secretary") ||
+        text.includes("office administrator") ||
+        text.includes("data entry")
+    ) {
+        return "virtual_assistant";
+    }
+
+    // 3. Customer Service & Support
+    if (
+        text.includes("customer service") ||
+        text.includes("customer support") ||
+        text.includes("call centre") ||
+        text.includes("call center") ||
+        text.includes("customer experience") ||
+        text.includes("client support") ||
+        text.includes("client relations") ||
+        text.includes("customer care") ||
+        text.includes("helpdesk") ||
+        text.includes("appointment setter") ||
+        text.includes("cold caller")
+    ) {
+        return "customer_service";
+    }
+
+    // 4. Banking & Finance
+    if (
+        text.includes("investment banker") ||
+        text.includes("investment banking") ||
+        text.includes("financial analyst") ||
+        text.includes("finance analyst") ||
+        text.includes("fp&a") ||
+        text.includes("banking & finance") ||
+        text.includes("banking and finance") ||
+        text.includes("banking") ||
+        text.includes("accountant") ||
+        text.includes("accounting") ||
+        text.includes("auditor") ||
+        text.includes("auditing") ||
+        text.includes("treasury") ||
+        text.includes("credit risk") ||
+        (text.includes("finance") && !text.includes("engineer"))
+    ) {
+        return "banking_finance";
+    }
+
+    // 5. Sales & Business Development
+    if (
+        text.includes("business development") ||
+        text.includes("account executive") ||
+        text.includes("sales representative") ||
+        text.includes("sales executive") ||
+        text.includes("direct sales") ||
+        text.includes("field sales") ||
+        text.includes("bizdev") ||
+        text.includes("biz dev") ||
+        (text.includes("sales") && !text.includes("salesforce"))
+    ) {
+        return "sales";
+    }
+
+    // 6. Business Analyst
+    if (
+        text.includes("business analyst") ||
+        text.includes("business analysis") ||
+        text.includes("functional analyst") ||
+        text.includes("business operations") ||
+        text.includes("business strategy") ||
+        text.includes("operations analyst") ||
+        text.includes("erp specialist")
+    ) {
+        return "business_analyst";
+    }
+
+    // 7. Product Marketer
+    if (
+        text.includes("product marketer") ||
+        text.includes("product marketing") ||
+        text.includes("growth marketing") ||
+        text.includes("growth manager") ||
+        text.includes("brand and marketing") ||
+        text.includes("marketing manager") ||
+        text.includes("digital marketing") ||
+        text.includes("marketing communication")
+    ) {
+        return "product_marketer";
+    }
+
+    // 8a. UI Designer (visual UI, design systems, interface design)
+    const isNonDigitalDesign =
+        text.includes("food designer") ||
+        text.includes("fashion designer") ||
+        text.includes("interior designer") ||
+        text.includes("floral designer");
+
+    if (
+        !isNonDigitalDesign &&
+        (text.includes("ui designer") ||
+        text.includes("ui design") ||
+        text.includes("ui/ux designer") ||
+        text.includes("ui-ux designer") ||
+        text.includes("ui / ux designer") ||
+        text.includes("user interface designer") ||
+        text.includes("visual designer") ||
+        text.includes("design system") ||
+        text.includes("design systems") ||
+        text.includes("interaction designer"))
+    ) {
+        return "ui_designer";
+    }
+
+    // 8b. Product Designer & UX
+    if (
+        !isNonDigitalDesign &&
+        (text.includes("product design") ||
+        text.includes("product designer") ||
+        text.includes("ux designer") ||
+        text.includes("ux researcher") ||
         text.includes("ux/") ||
         text.includes("/ux") ||
-        /\bui\b/i.test(text) ||
         /\bux\b/i.test(text) ||
-        text.includes("visual designer") ||
-        text.includes("product design") ||
-        text.includes("ux researcher") ||
-        text.includes("design system") ||
-        text.includes("interaction designer")
+        text.includes("design"))
     ) {
         return "product_designer";
     }
 
-    // 2. Product Manager (PM)
+    // 9. Product Manager (PM)
+    const isPhysicalPM =
+        text.includes("construction") ||
+        text.includes("facilities") ||
+        text.includes("civil") ||
+        text.includes("mechanical") ||
+        text.includes("hardware") ||
+        text.includes("land development");
+
     if (
-        text.includes("product manager") ||
+        !isPhysicalPM &&
+        (text.includes("product manager") ||
+        text.includes("product management") ||
         text.includes("product lead") ||
         text.includes("program manager") ||
         text.includes("product owner") ||
@@ -1219,50 +1544,14 @@ export function classifyRoleFamily(title: string, department?: string): string {
         text.includes("director of product") ||
         text.includes("head of product") ||
         text.includes("vp of product") ||
-        text.includes("cpo")
+        text.includes("cpo") ||
+        text.includes("scrum master") ||
+        text.includes("project manager"))
     ) {
         return "product_manager";
     }
 
-    // 3. Frontend Developer & Fullstack
-    if (
-        text.includes("frontend") ||
-        text.includes("front-end") ||
-        text.includes("fullstack") ||
-        text.includes("full-stack") ||
-        text.includes("full stack") ||
-        text.includes("react") ||
-        text.includes("vue") ||
-        text.includes("angular") ||
-        text.includes("web developer") ||
-        text.includes("javascript developer")
-    ) {
-        return "frontend_developer";
-    }
-
-    // 4. Backend & Systems Infrastructure
-    if (
-        text.includes("backend") ||
-        text.includes("back-end") ||
-        text.includes("server") ||
-        text.includes("infrastructure") ||
-        text.includes("platform") ||
-        text.includes("golang") ||
-        text.includes("python") ||
-        text.includes("java") ||
-        text.includes("rust") ||
-        text.includes("node") ||
-        text.includes("devops") ||
-        text.includes("sre") ||
-        text.includes("reliability") ||
-        text.includes("cloud engineer") ||
-        text.includes("software engineer") ||
-        text.includes("systems engineer")
-    ) {
-        return "backend_engineer";
-    }
-
-    // 5. Data Analyst & Scientist
+    // 10. Data Analyst & Scientist
     if (
         text.includes("data analyst") ||
         text.includes("data scientist") ||
@@ -1270,10 +1559,87 @@ export function classifyRoleFamily(title: string, department?: string): string {
         text.includes("bi engineer") ||
         text.includes("machine learning") ||
         text.includes("ai engineer") ||
+        text.includes("data engineer") ||
         /\bml\b/i.test(text) ||
         /\bdata\b/i.test(text)
     ) {
         return "data_analyst";
+    }
+
+    // 11. Frontend Developer & Mobile
+    if (
+        text.includes("frontend") ||
+        text.includes("front-end") ||
+        text.includes("react") ||
+        text.includes("vue") ||
+        text.includes("angular") ||
+        text.includes("web developer") ||
+        text.includes("javascript developer") ||
+        text.includes("android") ||
+        text.includes("ios") ||
+        text.includes("mobile developer") ||
+        text.includes("mobile engineer") ||
+        text.includes("flutter") ||
+        text.includes("swift") ||
+        text.includes("kotlin") ||
+        text.includes("ui engineer")
+    ) {
+        return "frontend_developer";
+    }
+
+    // 12. DevOps, SRE, Cloud & Platform Infrastructure (must be evaluated BEFORE generic backend_engineer)
+    const isPhysicalInfra =
+        text.includes("civil") ||
+        text.includes("construction") ||
+        text.includes("facilities") ||
+        text.includes("structural") ||
+        text.includes("mechanical") ||
+        text.includes("land development") ||
+        text.includes("hardware");
+
+    if (
+        !isPhysicalInfra &&
+        (text.includes("devops") ||
+        text.includes("sre") ||
+        text.includes("site reliability") ||
+        text.includes("cloud") ||
+        text.includes("infrastructure") ||
+        text.includes("platform engineer") ||
+        text.includes("kubernetes") ||
+        text.includes("system administrator") ||
+        text.includes("systems administrator") ||
+        text.includes("linux administrator") ||
+        text.includes("server administrator") ||
+        text.includes("devsecops") ||
+        text.includes("ci/cd") ||
+        text.includes("reliability engineer") ||
+        text.includes("release engineer") ||
+        text.includes("solutions architect"))
+    ) {
+        return "devops_sre";
+    }
+
+    // 13. Backend & Systems Infrastructure
+    if (
+        text.includes("backend") ||
+        text.includes("back-end") ||
+        text.includes("fullstack") ||
+        text.includes("full-stack") ||
+        text.includes("full stack") ||
+        text.includes("server") ||
+        text.includes("golang") ||
+        text.includes("python") ||
+        text.includes("java") ||
+        text.includes("rust") ||
+        text.includes("node") ||
+        text.includes("software engineer") ||
+        text.includes("systems engineer") ||
+        text.includes("programmer") ||
+        text.includes("architect") ||
+        text.includes("developer") ||
+        text.includes("engineer")
+    ) {
+        return "backend_engineer";
     }
 
     return "general";

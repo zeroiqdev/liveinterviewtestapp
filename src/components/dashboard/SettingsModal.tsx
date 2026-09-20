@@ -14,13 +14,13 @@ import {
     Globe,
     ArrowSquareOut,
     ArrowUpRight,
-    Sparkle,
-    User,
+    Trash,
 } from "@phosphor-icons/react";
 import styles from "../dashboard.module.css";
 import { COACH_AVATAR, RECRUITER_AVATAR } from "./constants";
 import type { ResumeScanResult } from "@/app/api/resume/scan/route";
-import { CareerNarrativeStudio } from "./CareerNarrativeStudio";
+import { DeleteConfirmModal } from "./DeleteConfirmModal";
+import { normalizeUserRoleFamily } from "@/utils/locationDetector";
 
 export interface StoredResumeItem {
     id: string;
@@ -28,7 +28,7 @@ export interface StoredResumeItem {
     data?: string;
     rawText?: string;
     updatedAt?: string;
-    source?: "uploaded" | "narrative_studio";
+    source?: "uploaded";
     score?: number;
 }
 
@@ -49,6 +49,7 @@ interface RoleOption {
 const FALLBACK_ROLES: RoleOption[] = [
     { role: "Product Manager", domain: "Product & Design" },
     { role: "Product Designer", domain: "Product & Design" },
+    { role: "UI Designer", domain: "Product & Design" },
     { role: "Product Marketer", domain: "Product & Design" },
     { role: "Software Engineer", domain: "Software & Engineering" },
     { role: "Frontend Developer", domain: "Software & Engineering" },
@@ -100,9 +101,10 @@ export function SettingsModal({
     const [isScanning, setIsScanning] = useState(false);
     const [scanError, setScanError] = useState<string | null>(null);
 
-    // Portfolio link & Navigation tab state
+    // Portfolio link state
     const [portfolioUrl, setPortfolioUrl] = useState<string>("");
-    const [activeTab, setActiveTab] = useState<"credentials" | "narrative">("credentials");
+    const [deletingResumeId, setDeletingResumeId] = useState<string | null>(null);
+    const [resumeToDelete, setResumeToDelete] = useState<StoredResumeItem | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const roleDropdownRef = useRef<HTMLDivElement>(null);
@@ -217,6 +219,41 @@ export function SettingsModal({
             });
     }, []);
 
+    // Keep Saved Resumes in sync when resume is improved elsewhere (Resume Feedback → ATS score live)
+    useEffect(() => {
+        const syncFromStorage = () => {
+            try {
+                const raw = localStorage.getItem("useladder_user");
+                if (!raw) return;
+                const parsed = JSON.parse(raw);
+                if (parsed.resumes && Array.isArray(parsed.resumes) && parsed.resumes.length > 0) {
+                    const list: StoredResumeItem[] = parsed.resumes.map((r: any, idx: number) => ({
+                        id: r.id || `resume_${idx}`,
+                        name: r.name || `Resume_${idx + 1}.pdf`,
+                        data: r.data || "",
+                        rawText: r.rawText || r.data || "",
+                        updatedAt: r.updatedAt ? new Date(r.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "",
+                        source: r.source || "uploaded",
+                        score: r.score,
+                    }));
+                    setSavedResumes(list);
+                    // keep selected in sync if its score changed
+                    const selId = parsed.selectedResumeId || selectedResumeId;
+                    const sel = list.find((r) => r.id === selId);
+                    if (sel) {
+                        setSelectedResumeId(sel.id);
+                        setResumeName(sel.name);
+                        if (sel.rawText) setResumeText(sel.rawText);
+                    }
+                }
+            } catch {}
+        };
+        window.addEventListener("useladder_resume_scanned", syncFromStorage);
+        // also sync when modal opens (covers improve without close/reopen)
+        if (isOpen) syncFromStorage();
+        return () => window.removeEventListener("useladder_resume_scanned", syncFromStorage);
+    }, [isOpen, selectedResumeId]);
+
     // Close dropdowns on outside click
     useEffect(() => {
         function handleClickOutside(e: MouseEvent) {
@@ -325,6 +362,113 @@ export function SettingsModal({
                 window.dispatchEvent(new Event("useladder_resume_scanned"));
             } catch {}
         }
+    };
+
+    const handleDeleteResume = (resumeId: string) => {
+        const target = savedResumes.find((r) => r.id === resumeId);
+        if (!target) return;
+        setResumeToDelete(target);
+    };
+
+    const handleConfirmDelete = async () => {
+        const resumeId = resumeToDelete?.id;
+        const target = resumeToDelete;
+        if (!resumeId || !target) return;
+
+        setDeletingResumeId(resumeId);
+        try {
+            const updatedList = savedResumes.filter((r) => r.id !== resumeId);
+            setSavedResumes(updatedList);
+
+            // Update selection if deleted resume was selected
+            if (selectedResumeId === resumeId) {
+                if (updatedList.length > 0) {
+                    const next = updatedList[0];
+                    setSelectedResumeId(next.id);
+                    setResumeName(next.name);
+                    setResumeText(next.rawText || next.data || "");
+                    setIsUploadingNew(false);
+                } else {
+                    setSelectedResumeId("");
+                    setResumeName("");
+                    setResumeText("");
+                    setIsUploadingNew(true);
+                }
+            }
+
+            // Sync localStorage: useladder_user
+            try {
+                const raw = localStorage.getItem("useladder_user");
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed.resumes)) {
+                        parsed.resumes = (parsed.resumes as any[]).filter((r: any) => (r.id || r._id) !== resumeId);
+                    }
+                    if (parsed.selectedResumeId === resumeId) {
+                        parsed.selectedResumeId = updatedList[0]?.id || "";
+                    }
+                    if (parsed.resume && (parsed.resume.id === resumeId || parsed.resume._id === resumeId)) {
+                        parsed.resume = updatedList[0] || null;
+                        if (!parsed.resume) delete parsed.resume;
+                    }
+                    // If no resumes left, clean up legacy keys
+                    if (!parsed.resumes || parsed.resumes.length === 0) {
+                        delete parsed.resumes;
+                        delete parsed.selectedResumeId;
+                        delete parsed.resume;
+                    }
+                    localStorage.setItem("useladder_user", JSON.stringify(parsed));
+                }
+            } catch (e) {
+                console.error("Failed to update localStorage after delete:", e);
+            }
+
+            // Clean feedback caches tied to this resume
+            try {
+                const lastRaw = localStorage.getItem("useladder_last_resume_feedback");
+                if (lastRaw) {
+                    const last = JSON.parse(lastRaw);
+                    if (last.id === resumeId || last.resumeName === target.name) {
+                        localStorage.removeItem("useladder_last_resume_feedback");
+                    }
+                }
+            } catch {}
+            try {
+                const allRaw = localStorage.getItem("useladder_all_resume_feedbacks");
+                if (allRaw) {
+                    const all = JSON.parse(allRaw);
+                    if (Array.isArray(all)) {
+                        const filtered = all.filter((f: any) => f.id !== resumeId && f.resumeName !== target.name);
+                        localStorage.setItem("useladder_all_resume_feedbacks", JSON.stringify(filtered));
+                    }
+                }
+            } catch {}
+
+            window.dispatchEvent(new Event("useladder_resume_scanned"));
+
+            // Sync with backend
+            if (userEmail) {
+                try {
+                    const res = await fetch(`/api/auth/user?email=${encodeURIComponent(userEmail)}&resumeId=${encodeURIComponent(resumeId)}`, {
+                        method: "DELETE",
+                    });
+                    if (!res.ok) {
+                        const data = await res.json().catch(() => ({}));
+                        console.warn("Backend delete failed:", data.error);
+                    }
+                } catch (err) {
+                    console.warn("Backend delete error:", err);
+                }
+            }
+        } finally {
+            setDeletingResumeId(null);
+            setResumeToDelete(null);
+        }
+    };
+
+    const handleCancelDelete = () => {
+        if (deletingResumeId) return;
+        setResumeToDelete(null);
     };
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -660,6 +804,8 @@ export function SettingsModal({
             try {
                 const parsed = JSON.parse(raw);
                 parsed.role = selectedRole;
+                parsed.roleFamily = normalizeUserRoleFamily(selectedRole);
+                parsed.specialization = selectedRole;
                 parsed.domain = selectedDomain;
                 parsed.portfolioUrl = portfolioUrl;
                 if (selectedResumeId) {
@@ -690,36 +836,6 @@ export function SettingsModal({
                     </button>
                 </div>
 
-                {/* ── Sub Navigation Tabs: Profile & CV vs Career Narrative Studio ── */}
-                <div className={styles.settingsSubNav}>
-                    <button
-                        type="button"
-                        className={`${styles.settingsSubNavTab} ${activeTab === "credentials" ? styles.settingsSubNavTabActive : ""}`}
-                        onClick={() => setActiveTab("credentials")}
-                    >
-                        <User size={15} weight={activeTab === "credentials" ? "fill" : "regular"} />
-                        Profile & CV
-                    </button>
-                    <button
-                        type="button"
-                        className={`${styles.settingsSubNavTab} ${activeTab === "narrative" ? styles.settingsSubNavTabActive : ""}`}
-                        onClick={() => setActiveTab("narrative")}
-                    >
-                        <Sparkle size={15} weight={activeTab === "narrative" ? "fill" : "regular"} color={activeTab === "narrative" ? "#2563EB" : undefined} />
-                        Career Narrative Studio
-                    </button>
-                </div>
-
-                {activeTab === "narrative" ? (
-                    <CareerNarrativeStudio
-                        currentRole={selectedRole}
-                        targetRole={selectedRole}
-                        resumeText={resumeText}
-                        resumeName={resumeName}
-                        userEmail={userEmail}
-                    />
-                ) : (
-                    <>
                 {/* ── Timeline Body ── */}
                 <div className={styles.settingsTimelineBody}>
                     <div className={styles.timelineSectionWrap}>
@@ -809,13 +925,6 @@ export function SettingsModal({
                                                 )}
                                             </div>
                                         )}
-
-                                        {roleSavedSuccess && (
-                                            <div className={styles.activeRoleNotice}>
-                                                <CheckCircle size={15} weight="fill" />
-                                                Target role updated to {selectedRole}! All dashboard jobs & interviews aligned.
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -878,24 +987,41 @@ export function SettingsModal({
                                                                 <div className={styles.resumeOptionTextGroup}>
                                                                     <span className={styles.resumeOptionName}>{resume.name}</span>
                                                                     <div className={styles.resumeOptionSub}>
-                                                                        {resume.source === "narrative_studio" ? (
-                                                                            <span style={{ color: "#2563EB" }}>Tailored in Studio</span>
-                                                                        ) : (
-                                                                            <span>Uploaded Resume</span>
-                                                                        )}
-                                                                        {resume.updatedAt && <span>• {resume.updatedAt}</span>}
-                                                                        {typeof resume.score === "number" && (
-                                                                            <span style={{ color: "#16A34A", fontWeight: 600 }}>• {resume.score}/100</span>
-                                                                        )}
+                                                                        <span>Uploaded Resume</span>
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                            <div className={styles.resumeOptionCheck}>
-                                                                {isSelected ? (
-                                                                    <CheckCircle size={18} weight="fill" color="#2563EB" />
-                                                                ) : (
-                                                                    <div style={{ width: 16, height: 16, borderRadius: "50%", border: "1px solid #CBD5E1" }} />
-                                                                )}
+                                                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleDeleteResume(resume.id);
+                                                                    }}
+                                                                    disabled={deletingResumeId === resume.id}
+                                                                    aria-label={`Delete ${resume.name}`}
+                                                                    title="Delete resume"
+                                                                    style={{
+                                                                        background: "#FFF1F2",
+                                                                        border: "1px solid #FECDD3",
+                                                                        borderRadius: 6,
+                                                                        padding: "4px 6px",
+                                                                        cursor: deletingResumeId === resume.id ? "not-allowed" : "pointer",
+                                                                        opacity: deletingResumeId === resume.id ? 0.6 : 1,
+                                                                        display: "flex",
+                                                                        alignItems: "center",
+                                                                        justifyContent: "center",
+                                                                    }}
+                                                                >
+                                                                    <Trash size={14} weight="bold" color="#DC2626" />
+                                                                </button>
+                                                                <div className={styles.resumeOptionCheck}>
+                                                                    {isSelected ? (
+                                                                        <CheckCircle size={18} weight="fill" color="#2563EB" />
+                                                                    ) : (
+                                                                        <div style={{ width: 16, height: 16, borderRadius: "50%", border: "1px solid #CBD5E1" }} />
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     );
@@ -1002,8 +1128,6 @@ export function SettingsModal({
                         </div>
                     </div>
                 </div>
-                </>
-                )}
 
                 {/* ── Modal Footer with Save Button ── */}
                 <div className={styles.settingsModalFooter}>
@@ -1033,6 +1157,14 @@ export function SettingsModal({
                     </div>
                 </div>
             </div>
+
+            <DeleteConfirmModal
+                isOpen={!!resumeToDelete}
+                resumeName={resumeToDelete?.name || ""}
+                isDeleting={!!deletingResumeId}
+                onCancel={handleCancelDelete}
+                onConfirm={handleConfirmDelete}
+            />
         </div>
     );
 }

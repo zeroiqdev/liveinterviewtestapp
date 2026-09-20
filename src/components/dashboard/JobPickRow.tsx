@@ -9,9 +9,11 @@ interface JobPickRowProps {
     job: JobItem;
     onOpen: (job: JobItem) => void;
     onPractice: () => void;
+    matchScore?: number;
+    matchResumeName?: string;
 }
 
-function JobPickRowComponent({ job, onOpen, onPractice }: JobPickRowProps) {
+function JobPickRowComponent({ job, onOpen, onPractice, matchScore, matchResumeName }: JobPickRowProps) {
     const metaString = formatJobMeta(job);
     return (
         <div

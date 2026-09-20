@@ -7,6 +7,11 @@ import { useMediaRecorder } from "../hooks/useMediaRecorder";
 import { useTtsAudio } from "../hooks/useTtsAudio";
 import { Play, Pause, Square, Microphone, ArrowsOut, DownloadSimple, CheckCircle, Clock } from "@phosphor-icons/react";
 
+function stripBold(text: string): string {
+    if (!text) return text;
+    return text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*\*/g, "");
+}
+
 export default function VideoSession() {
     const { settings, setStatus, setInterviewBlob } = useInterview();
     const { previewStream, startRecording, stopRecording, isRecording, mediaBlob } = useMediaRecorder();
@@ -31,7 +36,7 @@ export default function VideoSession() {
         // Dynamic import to avoid server-side issues if any
         import("../utils/questionMatcher").then(({ getQuestionsForSession }) => {
             const q = getQuestionsForSession(settings.role, settings.experience, settings.industry);
-            setQuestions(q);
+            setQuestions(q.map(stripBold));
             setLoadingQuestions(false);
         });
     }, [settings]);
@@ -75,12 +80,13 @@ export default function VideoSession() {
     }, [isTimerActive, timeLeft]);
 
     const speakQuestion = (text: string) => {
+        const clean = stripBold(text);
         setIsTimerActive(false);
         setTimeLeft(60);
-        setCurrentQuestion(text);
-        addTranscript(text, 'AI');
+        setCurrentQuestion(clean);
+        addTranscript(clean, 'AI');
 
-        playTts(text, {
+        playTts(clean, {
             persona: "recruiter",
             onStart: () => {
                 setIsTimerActive(false);

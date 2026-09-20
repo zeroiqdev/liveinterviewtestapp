@@ -31,7 +31,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }, []);
 
     const userName = user?.name || (user?.email ? user.email.split("@")[0] : "User");
-    const userEmail = user?.email || "hello@useladder.com";
+    const userEmail = user?.email || "hello@onscript.com";
     const initials = userName.slice(0, 2).toUpperCase();
 
     if (pathname === "/" || pathname === "/onboarding" || pathname === "/login" || pathname === "/dashboard" || pathname === "/interview" || pathname === "/feedback" || pathname === "/admin" || pathname === "/jobs" || pathname === "/resume-feedback" || pathname.startsWith("/resume-feedback")) {
@@ -51,9 +51,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {/* Sidebar */}
             <aside className="w-64 bg-white border-r border-gray-200 flex flex-col fixed h-full z-10 hidden md:flex">
                 {/* Logo */}
-                <div className="p-6 flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-[#4782F6] flex items-center justify-center text-white font-bold">L</div>
-                    <span className="text-xl font-bold text-gray-900 tracking-tight">useladder</span>
+                <div className="p-6 flex items-center gap-2.5">
+                    <div className="w-8 h-8 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <img
+                            src="https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png"
+                            alt="onscript"
+                            className="w-full h-full object-contain"
+                            style={{ transform: "scale(1.65) translateY(-1px)" }}
+                        />
+                    </div>
+                    <span className="text-xl font-normal text-gray-900 tracking-tight" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400 }}>onscript</span>
                 </div>
 
                 {/* Navigation */}

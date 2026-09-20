@@ -25,6 +25,11 @@ import type {
     SessionDoc,
 } from "./types";
 
+function stripBold(text: string | null): string | null {
+    if (!text) return text;
+    return text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*\*/g, "");
+}
+
 interface SelectionResult {
     choice: "question_id" | "parked_topic";
     questionId: string | null;
@@ -131,7 +136,8 @@ Rules:
 - A parked topic that fits this section well outranks a generic pool question.
 - Otherwise pick from the pool list using the candidate's profile and the conversation so far — same pool, different question per candidate.
 - Never pick a question id that is not in the pool list. For parked_topic, questionText must be your own natural phrasing anchored to the topic.
-- Do not repeat ground already covered in the running notes.`;
+- Do not repeat ground already covered in the running notes.
+- Never use ** for bold. Plain text only, no markdown.`;
 
     const user = `Current section: ${competencyLabel}
 
@@ -170,7 +176,7 @@ ${candidates.map((q) => `- ${q.id} — ${q.question}`).join("\n")}`;
                 choice: "parked_topic",
                 questionId: null,
                 parkedIndex: raw.parkedIndex,
-                questionText: raw.questionText,
+                questionText: stripBold(raw.questionText),
                 reason: raw.reason || "resurfaced parked topic",
             };
         }
@@ -181,7 +187,7 @@ ${candidates.map((q) => `- ${q.id} — ${q.question}`).join("\n")}`;
                 choice: "question_id",
                 questionId: picked.id,
                 parkedIndex: null,
-                questionText: picked.question,
+                questionText: stripBold(picked.question),
                 reason: raw.reason || "selector pick",
             };
         }
@@ -194,7 +200,7 @@ ${candidates.map((q) => `- ${q.id} — ${q.question}`).join("\n")}`;
                 choice: "parked_topic",
                 questionId: null,
                 parkedIndex: i,
-                questionText: `Earlier you mentioned "${session.parkingLot[i].topicSummary}" — walk me through that.`,
+                questionText: stripBold(`Earlier you mentioned "${session.parkingLot[i].topicSummary}" — walk me through that.`),
                 reason: "fallback: parked topic",
             };
         }
@@ -203,7 +209,7 @@ ${candidates.map((q) => `- ${q.id} — ${q.question}`).join("\n")}`;
             choice: "question_id",
             questionId: first?.id ?? null,
             parkedIndex: null,
-            questionText: first?.question ?? null,
+            questionText: stripBold(first?.question ?? null),
             reason: "fallback: first unasked pool question",
         };
     }
@@ -220,7 +226,7 @@ function mockSelection(
             choice: "parked_topic",
             questionId: null,
             parkedIndex: i,
-            questionText: `Earlier you mentioned "${session.parkingLot[i].topicSummary}" — walk me through that.`,
+            questionText: stripBold(`Earlier you mentioned "${session.parkingLot[i].topicSummary}" — walk me through that.`),
             reason: "mock: parked topic",
         };
     }
@@ -228,7 +234,7 @@ function mockSelection(
         choice: "question_id",
         questionId: candidates[0]?.id ?? null,
         parkedIndex: null,
-        questionText: candidates[0]?.question ?? null,
+        questionText: stripBold(candidates[0]?.question ?? null),
         reason: "mock: first pool question",
     };
 }

@@ -20,7 +20,7 @@ function ModuleCardItemComponent({ card, onSelect }: { card: ModuleCard; onSelec
                 <div className={styles.moduleCardHeaderRow}>
                     <span className={styles.moduleCardNumber}>{card.number}</span>
                     <div className={styles.cardPlayButton}>
-                        <Play size={10} weight="fill" color="#4782F6" />
+                        <Play size={10} weight="fill" color="#4782F6" style={{ transform: 'translateX(1px)' }} />
                     </div>
                 </div>
                 <span className={styles.moduleCardTitle}>{card.title.split('\n').map((line, i) => (

@@ -9,7 +9,7 @@ import { probeJobApplicationStatus } from "@/services/jobProbeService";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const MAX_POSTING_AGE_DAYS = 7;
+const MAX_POSTING_AGE_DAYS = 14;
 
 const JOBS_FILE_PATH = path.join(process.cwd(), "src", "engine", "data", "jobs.json");
 const SOURCES_FILE_PATH = path.join(process.cwd(), "src", "engine", "data", "scraperSources.json");
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
             .toISOString()
             .split("T")[0];
 
-        // 0. Storage Purge: Hard delete any jobs older than 7 days or marked expired
+        // 0. Storage Purge: Hard delete any jobs older than 14 days or marked expired
         existingJobs = existingJobs.filter(
             (j) => (j.status || "active") === "active" && (!j.datePosted || j.datePosted >= cutoffDate)
         );
@@ -124,7 +124,7 @@ export async function POST(req: Request) {
                         return datePosted >= cutoffDate;
                     });
 
-                    const isStructuredAts = ["greenhouse", "ashby", "lever", "wellfound", "vc_portfolio"].includes(result.provider);
+                    const isStructuredAts = ["greenhouse", "ashby", "lever", "wellfound", "vc_portfolio", "linkedin", "jobberman"].includes(result.provider);
 
                     if (isStructuredAts) {
                         for (const scraped of validCandidates) {
@@ -250,7 +250,7 @@ export async function POST(req: Request) {
             }
         }
 
-        // Save updated jobs (strictly active and within 7-day TTL)
+        // Save updated jobs (strictly active and within 14-day TTL)
         const updatedJobs = [...allNewJobs, ...existingJobs].filter(
             (j) => (j.status || "active") === "active" && (!j.datePosted || j.datePosted >= cutoffDate)
         );

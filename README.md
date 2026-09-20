@@ -1,6 +1,6 @@
-# useladder — AI-Powered Interview Training Platform
+# onscript — AI-Powered Interview Training Platform
 
-useladder is an intelligent AI interview simulation and coaching platform. It helps job seekers practice realistic live technical and behavioral interviews with tailored AI interviewers, dynamic follow-up questioning, real-time speech evaluation, and curated role matches.
+onscript is an intelligent AI interview simulation and coaching platform. It helps job seekers practice realistic live technical and behavioral interviews with tailored AI interviewers, dynamic follow-up questioning, real-time speech evaluation, and curated role matches.
 
 ---
 
