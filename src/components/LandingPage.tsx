@@ -319,7 +319,7 @@ export default function LandingPage() {
                     <div className={styles.heroOverlay} aria-hidden="true" />
                     <div className={styles.heroInner}>
                         <h1 className={styles.heroTitle}>
-                            <span className={styles.heroNoWrap}>Big career moves</span><br className={styles.heroDesktopBr} />
+                            <span className={styles.heroNoWrap}>Big career moves</span> <br className={styles.heroDesktopBr} />
                             <span>start with showing up prepared.</span>
                         </h1>
                     </div>

@@ -110,9 +110,8 @@
     min-height: calc(92vh - 32px);
     min-height: calc(92dvh - 32px);
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: flex-end;
+    align-items: flex-end;
+    justify-content: flex-start;
     background: #000000;
     overflow: hidden;
     text-align: left;
@@ -154,16 +153,19 @@
     z-index: 1;
 }
 .heroInner {
-    position: relative;
+    position: absolute;
+    left: clamp(1.25rem, 2.5vw, 2.5rem);
+    right: auto;
+    bottom: clamp(1.75rem, 3vw, 2.5rem);
     z-index: 2;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     justify-content: flex-end;
-    max-width: 1040px;
+    max-width: 640px;
     margin: 0;
-    padding: clamp(2rem, 5vw, 4.5rem);
-    width: 100%;
+    padding: 0;
+    width: auto;
     box-sizing: border-box;
 }
 .heroEyebrow { display: none; }
@@ -200,7 +202,7 @@
 .scrollIndicator {
     position: absolute;
     right: 1.5rem;
-    bottom: 1.5rem;
+    bottom: 2.5rem;
     z-index: 3;
     display: inline-flex;
     align-items: center;
@@ -251,7 +253,7 @@
 @media (max-width: 640px) {
     .scrollIndicator {
         right: 1rem;
-        bottom: 1rem;
+        bottom: 1.75rem;
         gap: 0.6rem;
     }
     .scrollText {
@@ -261,6 +263,10 @@
         width: 28px;
         height: 28px;
     }
+    .heroFrame { align-items: center; justify-content: center; }
+    .heroInner { padding: 1.75rem 1.15rem 3rem; max-width: 100%; align-items: flex-start; justify-content: center; transform: translateY(14px); }
+    .scrollText { display: none !important; }
+    .heroTitle { text-shadow: 0 2px 20px rgba(0,0,0,0.45); }
 }
 .heroCtas { display: flex; gap: 0.85rem; flex-wrap: wrap; justify-content: center; margin-top: 0.5rem; }
 .heroBtnPrimary {
@@ -344,9 +350,10 @@
 .heroInterviewRowBold {
     display: inline-flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.85rem;
     flex-wrap: wrap;
     vertical-align: middle;
+    row-gap: 0.85rem;
 }
 
 .heroInlineImgBold {
@@ -2902,14 +2909,19 @@
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     background: #FFFFFF;
     color: #4782F6;
-    padding: 0.82rem 1.55rem;
+    padding: 0.82rem 1.35rem;
     border-radius: 12px;
-    font-size: 0.88rem;
+    font-size: 0.86rem;
     font-weight: 500;
     text-decoration: none;
     letter-spacing: -0.01em;
     transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease, color 0.15s ease;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+    max-width: 100%;
+    box-sizing: border-box;
+    white-space: nowrap;
+    flex-shrink: 1;
+    min-width: 0;
 }
 
 .twoWaysActionBtn:hover {
@@ -3990,10 +4002,74 @@
 
 @media (max-width: 480px) {
     .cleanFooterColumns {
-        flex-direction: column;
-        gap: 2.25rem;
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 1.25rem 1rem !important;
+        flex-direction: row !important;
     }
     .cleanFooterBottom {
         padding-top: 1.5rem;
     }
+}
+
+/* ── HeroBold mobile: prevent “movesStart” jam & scale down ── */
+@media (max-width: 640px) {
+    .heroTitleBold { font-size: clamp(2rem, 9vw, 3.2rem); line-height: 0.9; }
+    .heroInterviewRowBold { gap: 0.75rem; }
+    .heroBtnBold { margin-left: 0.15rem; }
+}
+@media (max-width: 400px) {
+    .heroTitleBold { font-size: clamp(1.7rem, 8.5vw, 2.4rem); }
+}
+
+/* ── Additional Mobile Polish (640 / 480) ── */
+@media (max-width: 640px) {
+    .page { overflow-x: clip; }
+    .announcementBar { font-size: 0.75rem; padding: 0.5rem 0.85rem; gap: 0.4rem; }
+    .announcementPill { font-size: 0.62rem; }
+    .navInner { padding: 0.65rem 1rem 0.4rem; gap: 0.6rem; }
+    .logo { gap: 0.65rem; font-size: 0.95rem; }
+    .logoMark { width: 22px; height: 22px; }
+    .navLogin { display: none; }
+    .navCta { padding: 0.5rem 0.85rem; font-size: 0.8rem; }
+    .hero { padding: 0.35rem 0.6rem 0.6rem; }
+    .heroFrame { min-height: calc(68vh - 24px); min-height: calc(68dvh - 24px); border-radius: 0 0 14px 14px; }
+    .heroInner { left: 1rem; right: 4.5rem; bottom: 1.75rem; padding: 0; max-width: none; }
+    .heroTitle { font-size: clamp(1.55rem, 6.5vw, 2.05rem); line-height: 1.1; letter-spacing: -0.025em; word-break: break-word; hyphens: auto; text-wrap: balance; overflow-wrap: anywhere; }
+    .heroNoWrap { white-space: normal; word-break: break-word; }
+    .logoBar { padding: 1.75rem 1rem 1.5rem; }
+    .logoBarRow { gap: 1rem 1.25rem; }
+    .logoBarRow img { height: 20px; }
+    .statCardSection { padding: 1.5rem 1rem; }
+    .statCardInner { gap: 0.6rem; }
+    .splitSection, .splitSectionAlt { padding: 2.25rem 1rem; }
+    .eyebrow { font-size: 0.7rem; }
+    .splitTitle { font-size: 1.55rem; }
+    .stackSection { padding: 2.5rem 1rem; border-radius: 16px; margin: 0 0.6rem; width: auto; }
+    .provenSection { padding: 2.5rem 0 2.5rem; }
+    .provenTrack { padding: 0 1rem; gap: 12px; }
+    .provenCard { flex: 0 0 78vw; min-width: 0; max-width: 320px; height: 340px; padding: 1.5rem 1.25rem 1.15rem; border-radius: 16px; }
+    .provenBody { font-size: 1.05rem; }
+    .provenFooter { padding: 1rem 1rem 0.25rem; flex-direction: column; align-items: flex-start; }
+    .provenArrows { align-self: flex-end; }
+    .customersSection { padding: 2rem 1rem 2.5rem; }
+    .finalCta { padding: 2.75rem 1rem; }
+    .finalCtaInner h2 { font-size: 1.65rem; }
+    .footer { padding: 2rem 1rem 1.25rem; }
+    .footerGrid { grid-template-columns: 1fr 1fr !important; gap: 1.5rem 1rem; }
+    .footerBottom { flex-direction: column; align-items: flex-start; }
+    .cleanFooterColumns { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 1.5rem 1rem !important; flex-direction: row !important; }
+    .cleanFooter { padding: 2.5rem 1rem 2rem; }
+    .twoWaysGrid { gap: 1.25rem; }
+    .twoWaysExpandedCard { padding: 1.5rem 1.25rem 1.25rem; border-radius: 20px; }
+    .twoWaysCardFooter { gap: 0.85rem; }
+    .twoWaysActionBtn { font-size: 0.82rem; padding: 0.7rem 1.1rem; white-space: nowrap; }
+    .twoWaysAvatarCoin { width: 36px; height: 36px; }
+}
+
+@media (max-width: 380px) {
+    .announcementBar span:nth-child(2) { display: none; }
+    .navCta { padding: 0.45rem 0.75rem; font-size: 0.78rem; }
+    .heroInner { padding: 1.4rem 1rem; }
+    .provenCard { flex-basis: 84vw; height: 320px; }
 }
