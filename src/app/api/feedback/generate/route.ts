@@ -52,8 +52,7 @@ export interface FeedbackReportData {
     }>;
     responsibilityAlignment?: ResponsibilityAlignment;
 }
-import { sanitizeReportData, sanitizeToSecondPerson } from "@/lib/feedbackSanitizer";
-export { sanitizeToSecondPerson };
+import { sanitizeReportData } from "@/lib/feedbackSanitizer";
 
 
 const SYSTEM_PROMPT = `You are an elite, objective technical interview evaluator and executive hiring coach.

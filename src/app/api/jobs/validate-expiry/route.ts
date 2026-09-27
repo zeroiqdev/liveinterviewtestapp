@@ -21,7 +21,7 @@ const CLOSED_POSTING_SIGNALS = [
 /**
  * Validates whether a specific job URL is still live or if the employer took it down.
  */
-export async function checkJobHealth(url: string): Promise<{ isLive: boolean; reason?: string }> {
+async function checkJobHealth(url: string): Promise<{ isLive: boolean; reason?: string }> {
     if (!url || url === "#" || !url.startsWith("http")) {
         return { isLive: true };
     }
