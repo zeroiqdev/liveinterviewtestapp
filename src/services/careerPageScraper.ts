@@ -140,7 +140,7 @@ export async function scrapeGreenhouseJobs(url: string, companyName: string, bac
 
     try {
         const res = await fetch(apiUrl, {
-            headers: { "User-Agent": "OnScript-CareerScraper/1.0" },
+            headers: { "User-Agent": "GetPrepped-CareerScraper/1.0" },
             signal: AbortSignal.timeout(15000),
             cache: "no-store" as RequestCache,
         });
@@ -192,7 +192,7 @@ export async function scrapeLeverJobs(url: string, companyName: string, backedBy
 
     try {
         const res = await fetch(apiUrl, {
-            headers: { "User-Agent": "OnScript-CareerScraper/1.0" },
+            headers: { "User-Agent": "GetPrepped-CareerScraper/1.0" },
             signal: AbortSignal.timeout(15000),
             cache: "no-store" as RequestCache,
         });
@@ -225,17 +225,21 @@ export async function scrapeLeverJobs(url: string, companyName: string, backedBy
 interface AshbyJobPosting {
     id: string;
     title: string;
-    jobUrl: string;
-    location: string;
+    jobUrl?: string;
+    applyUrl?: string;
+    location?: string;
+    department?: string;
     departmentName?: string;
+    team?: string;
     teamName?: string;
     publishedDate?: string;
     publishedAt?: string;
 }
 
 interface AshbyApiResponse {
-    success: boolean;
-    results: AshbyJobPosting[];
+    success?: boolean;
+    results?: AshbyJobPosting[];
+    jobs?: AshbyJobPosting[];
 }
 
 export async function scrapeAshbyJobs(url: string, companyName: string, backedBy?: string): Promise<ScrapeResult> {
@@ -246,7 +250,7 @@ export async function scrapeAshbyJobs(url: string, companyName: string, backedBy
 
     try {
         const res = await fetch(apiUrl, {
-            headers: { "User-Agent": "OnScript-CareerScraper/1.0" },
+            headers: { "User-Agent": "GetPrepped-CareerScraper/1.0" },
             signal: AbortSignal.timeout(15000),
             cache: "no-store" as RequestCache,
         });
@@ -256,16 +260,16 @@ export async function scrapeAshbyJobs(url: string, companyName: string, backedBy
         }
 
         const data: AshbyApiResponse = await res.json();
-        const postings = data.results || [];
+        const postings = data.jobs || data.results || [];
 
         const jobs: ScrapedJob[] = postings.map((p) => {
             const rawDate = p.publishedAt || p.publishedDate;
             const datePosted = rawDate ? rawDate.split("T")[0] : new Date().toISOString().split("T")[0];
             return {
                 title: p.title,
-                url: p.jobUrl || `https://jobs.ashbyhq.com/${slug}/${p.id}`,
+                url: p.jobUrl || p.applyUrl || `https://jobs.ashbyhq.com/${slug}/${p.id}`,
                 location: p.location || "Not specified",
-                department: p.departmentName || p.teamName || "",
+                department: p.department || p.departmentName || p.team || p.teamName || "",
                 company: companyName,
                 backedBy,
                 datePosted,

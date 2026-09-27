@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
                 linkedinUrl: user.linkedinUrl || "",
                 resumes: user.resumes,
                 provider: user.provider,
+                onboarded: Boolean(user.role && user.domain),
             },
         });
     } catch (err) {
@@ -140,7 +141,7 @@ export async function POST(req: NextRequest) {
     try {
         await dbConnect();
         const body = await req.json();
-        const { email, role, domain, seniority, name, avatar, resume, portfolioUrl, linkedinUrl } = body;
+        const { email, role, domain, seniority, experienceInRole, password, name, avatar, resume, portfolioUrl, linkedinUrl } = body;
 
         if (!email) {
             return NextResponse.json({ error: "Email is required" }, { status: 400 });
@@ -159,6 +160,8 @@ export async function POST(req: NextRequest) {
                 domain: domain || "Software & Engineering",
                 roleFamily: normalizeUserRoleFamily(roleVal),
                 seniority: seniority || "professional",
+                experienceInRole: experienceInRole || seniority || "professional",
+                password: password || "",
                 portfolioUrl: portfolioUrl || "",
                 linkedinUrl: linkedinUrl || "",
                 resumes: resume ? [resume] : [],
@@ -170,6 +173,8 @@ export async function POST(req: NextRequest) {
             }
             if (domain) user.domain = domain;
             if (seniority) user.seniority = seniority;
+            if (experienceInRole) user.experienceInRole = experienceInRole;
+            if (password) user.password = password;
             if (name) user.name = name;
             if (avatar) user.avatar = avatar;
             if (portfolioUrl !== undefined) user.portfolioUrl = portfolioUrl;
@@ -199,9 +204,11 @@ export async function POST(req: NextRequest) {
                 domain: user.domain,
                 roleFamily: user.roleFamily,
                 seniority: user.seniority,
+                experienceInRole: user.experienceInRole,
                 portfolioUrl: user.portfolioUrl || "",
                 linkedinUrl: user.linkedinUrl || "",
                 resumes: user.resumes,
+                onboarded: true,
             },
         });
     } catch (err) {

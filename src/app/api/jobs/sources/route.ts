@@ -1,33 +1,22 @@
 import { NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
 import { detectATSProvider } from "@/services/careerPageScraper";
+import {
+    getSources,
+    addSource,
+    updateSource,
+    deleteSource,
+} from "@/lib/jobStorage";
 
 export interface ScraperSource {
     id: string;
     url: string;
     companyName: string;
-    sourceType: "career_page" | "vc_portfolio";
+    sourceType: "career_page" | "vc_portfolio" | "job_board";
     atsProvider: string;
     enabled: boolean;
     lastScraped: string | null;
     lastJobCount: number;
     dateAdded: string;
-}
-
-const SOURCES_FILE_PATH = path.join(process.cwd(), "src", "engine", "data", "scraperSources.json");
-
-async function readSources(): Promise<ScraperSource[]> {
-    try {
-        const data = await fs.readFile(SOURCES_FILE_PATH, "utf-8");
-        return JSON.parse(data);
-    } catch {
-        return [];
-    }
-}
-
-async function saveSources(sources: ScraperSource[]) {
-    await fs.writeFile(SOURCES_FILE_PATH, JSON.stringify(sources, null, 2), "utf-8");
 }
 
 /**
@@ -59,7 +48,7 @@ function guessCompanyName(url: string): string {
 // ─── GET: List all scraper sources ────────────────────────────────────
 
 export async function GET() {
-    const sources = await readSources();
+    const sources = await getSources();
     return NextResponse.json({ sources, totalCount: sources.length });
 }
 
@@ -81,7 +70,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Invalid URL format." }, { status: 400 });
         }
 
-        const sources = await readSources();
+        const sources = await getSources();
 
         // Check for duplicate URL
         if (sources.some((s) => s.url.toLowerCase() === url.toLowerCase())) {
@@ -103,8 +92,7 @@ export async function POST(req: Request) {
             dateAdded: new Date().toISOString().split("T")[0],
         };
 
-        sources.push(newSource);
-        await saveSources(sources);
+        await addSource(newSource);
 
         return NextResponse.json({ success: true, source: newSource }, { status: 201 });
     } catch (err: unknown) {
@@ -124,20 +112,18 @@ export async function PUT(req: Request) {
             return NextResponse.json({ error: "Source ID is required." }, { status: 400 });
         }
 
-        const sources = await readSources();
-        const index = sources.findIndex((s) => s.id === id);
+        const updates: Partial<ScraperSource> = {};
+        if (companyName !== undefined) updates.companyName = companyName.trim();
+        if (sourceType !== undefined) updates.sourceType = sourceType;
+        if (enabled !== undefined) updates.enabled = enabled;
 
-        if (index === -1) {
+        const updated = await updateSource(id, updates);
+
+        if (!updated) {
             return NextResponse.json({ error: "Source not found." }, { status: 404 });
         }
 
-        if (companyName !== undefined) sources[index].companyName = companyName.trim();
-        if (sourceType !== undefined) sources[index].sourceType = sourceType;
-        if (enabled !== undefined) sources[index].enabled = enabled;
-
-        await saveSources(sources);
-
-        return NextResponse.json({ success: true, source: sources[index] });
+        return NextResponse.json({ success: true, source: updated });
     } catch (err: unknown) {
         const error = err instanceof Error ? err.message : "Internal Error";
         return NextResponse.json({ error }, { status: 500 });
@@ -155,15 +141,7 @@ export async function DELETE(req: Request) {
             return NextResponse.json({ error: "ID parameter is required." }, { status: 400 });
         }
 
-        let sources = await readSources();
-        const before = sources.length;
-        sources = sources.filter((s) => s.id !== id);
-
-        if (sources.length === before) {
-            return NextResponse.json({ error: "Source not found." }, { status: 404 });
-        }
-
-        await saveSources(sources);
+        await deleteSource(id);
 
         return NextResponse.json({ success: true, message: "Source removed successfully." });
     } catch (err: unknown) {

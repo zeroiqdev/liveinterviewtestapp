@@ -116,6 +116,8 @@ export async function POST(req: NextRequest) {
             roleFamily: user.roleFamily,
             seniority: user.seniority,
             experienceInRole: user.experienceInRole,
+            portfolioUrl: user.portfolioUrl || "",
+            linkedinUrl: user.linkedinUrl || "",
             resumes: user.resumes,
             onboarded: Boolean(user.role && user.domain),
             provider: "google",

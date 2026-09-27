@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
+import { getQuestions, saveQuestion, deleteQuestion } from "@/lib/adminStorage";
 
 export interface QuestionItem {
     id: string;
@@ -12,44 +11,13 @@ export interface QuestionItem {
     source?: string;
 }
 
-const QUESTIONS_FILE_PATH = path.join(process.cwd(), "src", "engine", "data", "questionBank.json");
-
-async function readQuestions(): Promise<QuestionItem[]> {
-    try {
-        const data = await fs.readFile(QUESTIONS_FILE_PATH, "utf-8");
-        return JSON.parse(data);
-    } catch {
-        return [];
-    }
-}
-
-async function saveQuestions(questions: QuestionItem[]) {
-    await fs.writeFile(QUESTIONS_FILE_PATH, JSON.stringify(questions, null, 2), "utf-8");
-}
-
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const roleFamily = searchParams.get("role_family");
     const category = searchParams.get("category");
     const search = searchParams.get("search");
 
-    let questions = await readQuestions();
-
-    if (roleFamily && roleFamily !== "all") {
-        questions = questions.filter((q) => q.role_family === roleFamily);
-    }
-    if (category && category !== "all") {
-        questions = questions.filter((q) => q.category === category);
-    }
-    if (search) {
-        const q = search.toLowerCase();
-        questions = questions.filter(
-            (item) =>
-                item.question.toLowerCase().includes(q) ||
-                item.role_family.toLowerCase().includes(q) ||
-                item.category.toLowerCase().includes(q)
-        );
-    }
+    const questions = await getQuestions({ roleFamily, category, search });
 
     return NextResponse.json({ questions, totalCount: questions.length });
 }
@@ -66,7 +34,6 @@ export async function POST(req: Request) {
             );
         }
 
-        const questions = await readQuestions();
         const prefix = role_family.slice(0, 3).toLowerCase();
         const newQuestion: QuestionItem = {
             id: `${prefix}_${Date.now()}`,
@@ -78,8 +45,7 @@ export async function POST(req: Request) {
             source: "admin_added",
         };
 
-        questions.unshift(newQuestion);
-        await saveQuestions(questions);
+        await saveQuestion(newQuestion);
 
         return NextResponse.json({ success: true, question: newQuestion }, { status: 201 });
     } catch (err: unknown) {
@@ -100,25 +66,26 @@ export async function PUT(req: Request) {
             );
         }
 
-        const questions = await readQuestions();
-        const index = questions.findIndex((q) => q.id === id);
+        const existingList = await getQuestions();
+        const existing = existingList.find((q) => q.id === id);
 
-        if (index === -1) {
+        if (!existing) {
             return NextResponse.json({ error: "Question not found." }, { status: 404 });
         }
 
-        questions[index] = {
-            ...questions[index],
+        const updated: QuestionItem = {
+            id,
             role_family: role_family.trim(),
-            sub_type: sub_type?.trim() || questions[index].sub_type || "all_roles",
+            sub_type: sub_type?.trim() || existing.sub_type || "all_roles",
             question: question.trim(),
             category: category.trim(),
-            applies_to_all: applies_to_all !== undefined ? Boolean(applies_to_all) : questions[index].applies_to_all,
+            applies_to_all: applies_to_all !== undefined ? Boolean(applies_to_all) : existing.applies_to_all,
+            source: existing.source,
         };
 
-        await saveQuestions(questions);
+        await saveQuestion(updated);
 
-        return NextResponse.json({ success: true, question: questions[index] });
+        return NextResponse.json({ success: true, question: updated });
     } catch (err: unknown) {
         const error = err instanceof Error ? err.message : "Internal Error";
         return NextResponse.json({ error }, { status: 500 });
@@ -134,9 +101,7 @@ export async function DELETE(req: Request) {
             return NextResponse.json({ error: "ID parameter is required." }, { status: 400 });
         }
 
-        let questions = await readQuestions();
-        questions = questions.filter((q) => q.id !== id);
-        await saveQuestions(questions);
+        await deleteQuestion(id);
 
         return NextResponse.json({ success: true, message: "Question deleted successfully." });
     } catch (err: unknown) {

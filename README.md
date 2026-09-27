@@ -1,6 +1,6 @@
-# onscript — AI-Powered Interview Training Platform
+# get prepped — AI-Powered Interview Training Platform
 
-onscript is an intelligent AI interview simulation and coaching platform. It helps job seekers practice realistic live technical and behavioral interviews with tailored AI interviewers, dynamic follow-up questioning, real-time speech evaluation, and curated role matches.
+get prepped is an intelligent AI interview simulation and coaching platform. It helps job seekers practice realistic live technical and behavioral interviews with tailored AI interviewers, dynamic follow-up questioning, real-time speech evaluation, and curated role matches.
 
 ---
 

@@ -1,0 +1,461 @@
+.page {
+    background-color: #FFFFFF;
+    color: #0F172A;
+    min-height: 100vh;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Top Navigation (Identical to Landing Page) ── */
+.nav {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: #FFFFFF;
+    border-bottom: none;
+}
+
+.navInner {
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 0.75rem clamp(1rem, 1.8vw, 1.5rem) 0.45rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    box-sizing: border-box;
+}
+
+.logo {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.85rem;
+    text-decoration: none;
+    color: #141414;
+    font-size: 1.02rem;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.logoMark {
+    width: 25px;
+    height: 25px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: visible;
+    flex-shrink: 0;
+    transform: translateY(1px);
+}
+
+.logoImg {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    transform: scale(1.32);
+}
+
+.logoType {
+    font-size: 1.02rem;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    white-space: nowrap;
+    display: inline-block;
+    color: #141414;
+}
+
+.navLinks {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    font-size: 0.85rem;
+    font-weight: 400;
+}
+
+.navLink {
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: #475569;
+    transition: color 0.15s ease;
+}
+
+.navLink:hover {
+    color: #141414;
+}
+
+.navLinkActive {
+    color: #141414;
+    font-weight: 400;
+}
+
+.navActions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.navCta {
+    background: #4782F6;
+    color: #FFFFFF;
+    padding: 0.55rem 1.1rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 400;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    transition: background 0.15s ease;
+}
+
+.navCta:hover {
+    background: #3B71E8;
+}
+
+/* ── Main Section ── */
+.pricingMain {
+    flex: 1;
+    max-width: 1240px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 4.5rem 1.75rem 6.5rem 1.75rem;
+    box-sizing: border-box;
+}
+
+/* ── Header ── */
+.pricingHeader {
+    text-align: center;
+    margin-bottom: 4rem;
+}
+
+.pricingTitle {
+    font-size: clamp(2.5rem, 4.5vw, 3.75rem);
+    font-weight: 600;
+    line-height: 1.15;
+    letter-spacing: -0.035em;
+    color: #0A0D12;
+    margin: 0;
+}
+
+/* ── Pricing Grid ── */
+.pricingGrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    position: relative;
+}
+
+/* ── Pricing Column ── */
+.pricingCol {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 0 2.5rem;
+    position: relative;
+    box-sizing: border-box;
+}
+
+.pricingCol:not(:last-child) {
+    border-right: 1px solid #E5E7EB;
+}
+
+.pricingCol:first-child {
+    padding-left: 0;
+}
+
+.pricingCol:last-child {
+    padding-right: 0;
+}
+
+/* ── Card Content ── */
+.cardTop {
+    display: flex;
+    flex-direction: column;
+}
+
+.tierHeader {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 2rem;
+    min-height: 4.25rem;
+}
+
+.tierTitleRow {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.tierName {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #0A0D12;
+    letter-spacing: -0.015em;
+}
+
+.tierDesc {
+    font-size: 0.95rem;
+    font-weight: 400;
+    color: #64748B;
+    line-height: 1.45;
+}
+
+/* Light blue discount label */
+.saveBadgeBlue {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.16rem 0.52rem;
+    background: #EFF6FF;
+    color: #2563EB;
+    border: 1px solid rgba(37, 99, 235, 0.22);
+    border-radius: 9999px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    vertical-align: middle;
+}
+
+/* ── Price Row ── */
+.priceRow {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 2.25rem;
+}
+
+.priceAmount {
+    font-size: clamp(2.75rem, 3.8vw, 3.5rem);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    color: #0A0D12;
+    line-height: 1;
+}
+
+.pricePeriod {
+    font-size: 1rem;
+    font-weight: 400;
+    color: #94A3B8;
+    margin-left: 0.35rem;
+}
+
+/* ── Flexible Price Row (Price beside Stepper) ── */
+.priceRowFlexible {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 2.25rem;
+    min-height: 3.5rem;
+    flex-wrap: wrap;
+}
+
+.priceRowFlexible .priceAmount {
+    font-size: clamp(2.15rem, 2.9vw, 2.75rem);
+    font-variant-numeric: tabular-nums;
+}
+
+.stepperContainer {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 9999px;
+    padding: 3px 5px;
+}
+
+.stepperBtn {
+    width: 26px;
+    height: 26px;
+    border-radius: 9999px;
+    border: 1px solid #E2E8F0;
+    background: #FFFFFF;
+    color: #0F172A;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    line-height: 1;
+    transition: all 0.15s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.stepperBtn:hover:not(:disabled) {
+    background: #F1F5F9;
+    border-color: #CBD5E1;
+}
+
+.stepperBtn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.stepperDisplay {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #0F172A;
+    min-width: 66px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+    padding: 0 0.2rem;
+}
+
+/* ── Feature List ── */
+.featureList {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 3rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.15rem;
+}
+
+/* Reduced font weight on value props */
+.featureItem {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    font-size: 0.94rem;
+    color: #475569;
+    font-weight: 400;
+    line-height: 1.45;
+    letter-spacing: -0.01em;
+}
+
+/* First bullet with plus icon */
+.featureItemPrimary {
+    color: #0F172A;
+    font-weight: 400;
+}
+
+/* Icons matching screenshot */
+.checkIconWrap {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #F1F3F5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.checkSvg {
+    width: 11px;
+    height: 11px;
+    color: #475569;
+}
+
+.plusIconWrap {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #8E95A5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.plusSvg {
+    width: 11px;
+    height: 11px;
+    color: #FFFFFF;
+}
+
+/* ── Action Buttons ── */
+.cardBottom {
+    margin-top: auto;
+    padding-top: 1rem;
+}
+
+.btnDefault {
+    display: block;
+    width: 100%;
+    padding: 0.85rem 1.5rem;
+    background: #F1F3F5;
+    color: #0A0D12;
+    text-align: center;
+    border-radius: 12px;
+    font-size: 0.98rem;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    text-decoration: none;
+    transition: background 0.15s ease, transform 0.15s ease;
+    box-sizing: border-box;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.btnDefault:hover {
+    background: #E5E7EB;
+    transform: translateY(-1px);
+}
+
+/* Light blue primary button matching get prepped signature blue */
+.btnPrimary {
+    display: block;
+    width: 100%;
+    padding: 0.85rem 1.5rem;
+    background: #4782F6;
+    color: #FFFFFF;
+    text-align: center;
+    border-radius: 12px;
+    font-size: 0.98rem;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    text-decoration: none;
+    transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+    box-sizing: border-box;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.btnPrimary:hover {
+    background: #3B71E8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(71, 130, 246, 0.25);
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+    .pricingGrid {
+        grid-template-columns: 1fr;
+        gap: 3.5rem;
+    }
+
+    .pricingCol {
+        padding: 0;
+        border-right: none !important;
+        border-bottom: 1px solid #E5E7EB;
+        padding-bottom: 3.5rem;
+    }
+
+    .pricingCol:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    .tierHeader {
+        min-height: auto;
+    }
+}
+
+@media (max-width: 640px) {
+    .pricingMain {
+        padding: 3.5rem 1.25rem 5rem 1.25rem;
+    }
+
+    .navLinks {
+        display: none;
+    }
+}

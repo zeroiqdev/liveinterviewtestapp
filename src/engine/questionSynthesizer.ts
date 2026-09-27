@@ -171,7 +171,7 @@ Every question MUST evaluate past behavior, conflict resolution, dealing with am
         typeGuideline = `INTERVIEW TYPE: ${interviewType}. Align questions directly to the technical and operational responsibilities of ${role}.`;
     }
 
-    const systemPrompt = `You are a Principal Interview Architect at OnScript AI. Your job is to generate rigorous, authentic, deeply realistic interview questions.
+    const systemPrompt = `You are a Principal Interview Architect at Get Prepped AI. Your job is to generate rigorous, authentic, deeply realistic interview questions.
 
 Rules:
 1. STRICT TYPE ALIGNMENT: Questions must perfectly match the requested interview type (${interviewType}).
@@ -398,16 +398,9 @@ function shuffleArray<T>(array: T[]): T[] {
 
 async function persistQuestionsSafely(newQuestions: BankQuestion[]): Promise<void> {
     try {
-        const qbPath = path.join(process.cwd(), "src", "engine", "data", "questionBank.json");
-        if (!fs.existsSync(qbPath)) return;
-        const raw = await fs.promises.readFile(qbPath, "utf-8");
-        const current: BankQuestion[] = JSON.parse(raw);
-        const existingIds = new Set(current.map((q) => q.id));
-
-        const toAdd = newQuestions.filter((q) => !existingIds.has(q.id));
-        if (toAdd.length > 0) {
-            current.push(...toAdd);
-            await fs.promises.writeFile(qbPath, JSON.stringify(current, null, 2), "utf-8");
+        const { saveQuestion } = await import("@/lib/adminStorage");
+        for (const q of newQuestions) {
+            await saveQuestion(q as any);
         }
     } catch {
         // Safe failover

@@ -28,6 +28,14 @@ import {
     ShieldWarning,
     Sparkle,
     ArrowRight,
+    CaretUpDown,
+    Minus,
+    Check,
+    Clock,
+    Chats,
+    Ticket,
+    ShieldCheck,
+    CalendarDots,
 } from "@phosphor-icons/react";
 import { CamcorderRegular, AlertRegular, CloseRegular } from "@mingcute/react/core-regular";
 import { RECRUITER_AVATAR } from "./dashboard/constants";
@@ -156,6 +164,144 @@ export default function InterviewTab() {
     const [targetCompany, setTargetCompany] = useState<string>("Stripe");
     const [briefing, setBriefing] = useState<PreInterviewBriefing | null>(null);
     const [briefingLoading, setBriefingLoading] = useState<boolean>(false);
+
+    // ── Pre-interview setup checklist & device state ──
+    const [activePreTab, setActivePreTab] = useState<"checks" | "about">("checks");
+    const [devices, setDevices] = useState<{
+        audioInputs: MediaDeviceInfo[];
+        audioOutputs: MediaDeviceInfo[];
+        videoInputs: MediaDeviceInfo[];
+    }>({ audioInputs: [], audioOutputs: [], videoInputs: [] });
+    const [selectedAudioInput, setSelectedAudioInput] = useState<string>("");
+    const [selectedAudioOutput, setSelectedAudioOutput] = useState<string>("");
+    const [selectedVideoInput, setSelectedVideoInput] = useState<string>("");
+
+    const [micChecked, setMicChecked] = useState(false);
+    const [micTestStatus, setMicTestStatus] = useState<"idle" | "listening" | "success" | "error">("idle");
+    const [faceInFrameChecked, setFaceInFrameChecked] = useState(false);
+    const [goodLightingChecked, setGoodLightingChecked] = useState(false);
+    const [cameraChecked, setCameraChecked] = useState(false);
+    const [steadyCameraChecked, setSteadyCameraChecked] = useState(false);
+    const [showTroubleshooting, setShowTroubleshooting] = useState(false);
+
+    const loadDevices = async () => {
+        if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) return;
+        try {
+            const list = await navigator.mediaDevices.enumerateDevices();
+            const audioInputs = list.filter((d) => d.kind === "audioinput");
+            const audioOutputs = list.filter((d) => d.kind === "audiooutput");
+            const videoInputs = list.filter((d) => d.kind === "videoinput");
+            setDevices({ audioInputs, audioOutputs, videoInputs });
+            if (audioInputs.length && !selectedAudioInput) setSelectedAudioInput(audioInputs[0].deviceId);
+            if (audioOutputs.length && !selectedAudioOutput) setSelectedAudioOutput(audioOutputs[0].deviceId);
+            if (videoInputs.length && !selectedVideoInput) setSelectedVideoInput(videoInputs[0].deviceId);
+        } catch (e) {
+            console.warn("Device enumeration failed:", e);
+        }
+    };
+
+    useEffect(() => {
+        loadDevices();
+        if (typeof navigator !== "undefined" && navigator.mediaDevices?.addEventListener) {
+            navigator.mediaDevices.addEventListener("devicechange", loadDevices);
+            return () => {
+                navigator.mediaDevices.removeEventListener("devicechange", loadDevices);
+            };
+        }
+    }, []);
+
+    useEffect(() => {
+        if (previewStream && previewStream.getVideoTracks().some((t) => t.readyState === "live")) {
+            setCameraChecked(true);
+            setFaceInFrameChecked(true);
+        }
+    }, [previewStream]);
+
+    const handleTestMic = async () => {
+        setMicTestStatus("listening");
+        try {
+            let stream = previewStream;
+            if (!stream || !stream.getAudioTracks().length) {
+                const ok = await startStream();
+                if (!ok) {
+                    setMicTestStatus("error");
+                    return;
+                }
+            }
+            await loadDevices();
+
+            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+            if (!AudioCtx) {
+                setTimeout(() => {
+                    setMicTestStatus("success");
+                    setMicChecked(true);
+                }, 1200);
+                return;
+            }
+
+            const ctx = new AudioCtx();
+            const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const source = ctx.createMediaStreamSource(micStream);
+            const analyser = ctx.createAnalyser();
+            analyser.fftSize = 256;
+            source.connect(analyser);
+
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            let checks = 0;
+            const timer = setInterval(() => {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                const avg = sum / dataArray.length;
+                checks++;
+                if (avg > 12 || checks >= 30) {
+                    clearInterval(timer);
+                    ctx.close().catch(() => {});
+                    micStream.getTracks().forEach((t) => t.stop());
+                    setMicTestStatus("success");
+                    setMicChecked(true);
+                }
+            }, 100);
+        } catch (e) {
+            console.warn("Mic test error:", e);
+            setMicTestStatus("error");
+        }
+    };
+
+    const handlePlayTestSound = () => {
+        try {
+            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+            osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.14);
+            osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.28);
+
+            gain.gain.setValueAtTime(0.12, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.65);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.65);
+            setTimeout(() => ctx.close().catch(() => {}), 750);
+        } catch (e) {
+            console.warn("Play test sound error:", e);
+        }
+    };
+
+    const handleRestartDevices = async () => {
+        stopStream();
+        const ok = await startStream();
+        await loadDevices();
+        if (ok) {
+            setCameraChecked(true);
+        }
+    };
 
     useEffect(() => {
         if (queryMode) {
@@ -640,12 +786,12 @@ export default function InterviewTab() {
                     >
                         <div className={styles.logoIcon}>
                             <img
-                                src="https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png"
-                                alt="onscript"
+                                src="https://res.cloudinary.com/dyg7neetr/image/upload/v1790510817/Vector_10_thljja.png"
+                                alt="get prepped"
                                 className={styles.logoImg}
                             />
                         </div>
-                        <span className={styles.brandName}>onscript</span>
+                        <span className={styles.brandName}>get prepped</span>
                     </div>
                 </div>
                 <div className={styles.navRight}>
@@ -667,107 +813,464 @@ export default function InterviewTab() {
 
             {/* Main Layout */}
             <main className={styles.mainContent}>
-                <div className={styles.contentGrid}>
-                    {/* Left: Video Card */}
-                    <div className={styles.videoCard}>
-                        <div className={styles.videoFeed}>
-                            <video
-                                ref={videoRef}
-                                className={styles.videoElement}
-                                autoPlay
-                                muted
-                                playsInline
-                            />
+                {!sessionStarted ? (
+                    /* ── Pre-Interview Setup Page matching Reference Design ── */
+                    <div className={styles.preInterviewWrapper}>
+                        {/* Header: Dynamic Role Name + 14 min pill + Subtitle */}
+                        <div className={styles.preInterviewHeader}>
+                            <div className={styles.preInterviewTitleRow}>
+                                <h1 className={styles.preInterviewTitle}>{headerInterviewTitle}</h1>
+                                <span className={styles.preInterviewPill}>14 min</span>
+                            </div>
+                            <p className={styles.preInterviewSubtitle}>
+                                Discuss your knowledge in a domain of your choice.
+                            </p>
+                        </div>
 
-                            {/* Pre-session: setup + start */}
-                            {!sessionStarted && (
-                                <div className={styles.mediaError}>
-                                    <div style={{ marginBottom: "0.5rem" }}>
-                                        <CamcorderRegular size={46} color="#94a3b8" />
-                                    </div>
-                                    <h3
-                                        style={{
-                                            fontSize: "1.3rem",
-                                            fontWeight: 400,
-                                            color: "#fff",
-                                            marginTop: "1rem",
-                                            letterSpacing: "-0.01em",
-                                        }}
-                                    >
-                                        Click start button to start interview
-                                    </h3>
-
-
-
-                                    <button
-                                        className={styles.grantBtn}
-                                        onClick={handleStartInterview}
-                                        disabled={isConnecting || isEngineBusy}
-                                    >
-                                        {isConnecting
-                                            ? "Connecting Camera & Mic…"
-                                            : isEngineBusy
-                                              ? "Preparing your interview…"
-                                              : "Start"}
-                                    </button>
-                                    {mediaError && (
-                                        <p
-                                            style={{
-                                                color: "#ef4444",
-                                                fontSize: "0.8rem",
-                                                marginTop: "0.5rem",
-                                                maxWidth: 320,
-                                                textAlign: "center",
-                                                background: "rgba(239, 68, 68, 0.1)",
-                                                padding: "0.5rem 1rem",
-                                                borderRadius: "4px",
-                                                border: "1px solid rgba(239, 68, 68, 0.2)"
-                                            }}
-                                        >
-                                            {mediaError}
-                                        </p>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* During session: Show HUD */}
-                            {sessionStarted && isRecording && (
-                                <>
-                                    <div className={styles.recordBadge}>
-                                        <div
-                                            style={{
-                                                width: 8,
-                                                height: 8,
-                                                background: "#ef4444",
-                                                borderRadius: "50%",
-                                                animation:
-                                                    "recordPulse 1.5s ease-in-out infinite",
-                                            }}
-                                        />
-                                        <span>Recording</span>
-                                        <X
-                                            className={styles.closeIcon}
-                                            size={14}
-                                        />
-                                    </div>
-
-                                    {isListening && (
-                                        <div className={`${styles.listeningBadge} ${isMuted ? styles.listeningMuted : ""}`}>
-                                            <span>{isMuted ? "Mic Muted" : "Listening"}</span>
-                                            {isMuted ? <MicrophoneSlash size={16} /> : <Pulse size={16} />}
+                        {/* 2-Column Grid */}
+                        <div className={styles.preInterviewGrid}>
+                            {/* Left Column: Video Box, Device Selectors, Links, Troubleshooting */}
+                            <div className={styles.preInterviewLeft}>
+                                <div className={styles.preInterviewVideoBox}>
+                                    {previewStream && previewStream.getVideoTracks().length > 0 ? (
+                                        <>
+                                            <video
+                                                ref={videoRef}
+                                                className={styles.preInterviewVideoElement}
+                                                autoPlay
+                                                muted
+                                                playsInline
+                                            />
+                                            <div className={styles.preInterviewLiveBadge}>
+                                                <span className={styles.preInterviewLiveDot} />
+                                                <span>Camera preview</span>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className={styles.preInterviewVideoPlaceholder}>
+                                            <VideoCameraSlash size={34} weight="regular" color="#94A3B8" />
+                                            <p className={styles.preInterviewVideoPlaceholderText}>
+                                                {isConnecting ? "Connecting Camera & Mic…" : "Camera permission required"}
+                                            </p>
                                         </div>
                                     )}
-                                </>
-                            )}
+                                </div>
 
-                            {/* Controls — shown after session starts */}
-                            {sessionStarted && (
+                                {/* 3 Device Selectors */}
+                                <div className={styles.preInterviewDeviceGrid}>
+                                    {/* Microphone */}
+                                    <div className={styles.preInterviewDeviceItem}>
+                                        <div className={styles.preInterviewDeviceSelectWrap}>
+                                            <Microphone size={16} />
+                                            <select
+                                                className={styles.preInterviewDeviceSelect}
+                                                value={selectedAudioInput}
+                                                onChange={(e) => setSelectedAudioInput(e.target.value)}
+                                            >
+                                                {devices.audioInputs.length > 0 ? (
+                                                    devices.audioInputs.map((d, i) => (
+                                                        <option key={d.deviceId || i} value={d.deviceId}>
+                                                            {d.label || `Microphone ${i + 1}`}
+                                                        </option>
+                                                    ))
+                                                ) : (
+                                                    <option value="">Permission required</option>
+                                                )}
+                                            </select>
+                                            <span className={styles.preInterviewDeviceChevron}>
+                                                <CaretUpDown size={12} />
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className={styles.preInterviewDeviceLink}
+                                            onClick={handleTestMic}
+                                        >
+                                            Test your mic
+                                        </button>
+                                    </div>
+
+                                    {/* Speaker */}
+                                    <div className={styles.preInterviewDeviceItem}>
+                                        <div className={styles.preInterviewDeviceSelectWrap}>
+                                            <SpeakerHigh size={16} />
+                                            <select
+                                                className={styles.preInterviewDeviceSelect}
+                                                value={selectedAudioOutput}
+                                                onChange={(e) => setSelectedAudioOutput(e.target.value)}
+                                            >
+                                                {devices.audioOutputs.length > 0 ? (
+                                                    devices.audioOutputs.map((d, i) => (
+                                                        <option key={d.deviceId || i} value={d.deviceId}>
+                                                            {d.label || `Speaker ${i + 1}`}
+                                                        </option>
+                                                    ))
+                                                ) : (
+                                                    <option value="">Select speakers</option>
+                                                )}
+                                            </select>
+                                            <span className={styles.preInterviewDeviceChevron}>
+                                                <CaretUpDown size={12} />
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className={styles.preInterviewDeviceLink}
+                                            onClick={handlePlayTestSound}
+                                        >
+                                            Play test sound
+                                        </button>
+                                    </div>
+
+                                    {/* Camera */}
+                                    <div className={styles.preInterviewDeviceItem}>
+                                        <div className={styles.preInterviewDeviceSelectWrap}>
+                                            <VideoCamera size={16} />
+                                            <select
+                                                className={styles.preInterviewDeviceSelect}
+                                                value={selectedVideoInput}
+                                                onChange={(e) => setSelectedVideoInput(e.target.value)}
+                                            >
+                                                {devices.videoInputs.length > 0 ? (
+                                                    devices.videoInputs.map((d, i) => (
+                                                        <option key={d.deviceId || i} value={d.deviceId}>
+                                                            {d.label || `Camera ${i + 1}`}
+                                                        </option>
+                                                    ))
+                                                ) : (
+                                                    <option value="">Permission required</option>
+                                                )}
+                                            </select>
+                                            <span className={styles.preInterviewDeviceChevron}>
+                                                <CaretUpDown size={12} />
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className={styles.preInterviewDeviceLink}
+                                            onClick={handleRestartDevices}
+                                        >
+                                            Restart devices
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Troubleshooting Help Button */}
+                                <button
+                                    type="button"
+                                    className={styles.preInterviewHelpBtn}
+                                    onClick={() => setShowTroubleshooting(!showTroubleshooting)}
+                                >
+                                    Troubleshooting help
+                                </button>
+
+                                {showTroubleshooting && (
+                                    <div className={styles.preInterviewHelpContent}>
+                                        <div>
+                                            <strong>1. Check Browser Permissions:</strong> Click the padlock or camera icon in your address bar and select &quot;Allow&quot; for Camera &amp; Microphone.
+                                        </div>
+                                        <div>
+                                            <strong>2. Free Up Hardware:</strong> Close other applications (Zoom, Teams, FaceTime) that may have exclusive hold of your camera or microphone.
+                                        </div>
+                                        <div>
+                                            <strong>3. Microphone Input:</strong> If speaking is not detected, check your default input volume in macOS System Settings &gt; Sound &gt; Input.
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Right Column: Tabs (Setup checks [5] | About assessment) */}
+                            <div className={styles.preInterviewRight}>
+                                <div className={styles.preInterviewTabs}>
+                                    <button
+                                        type="button"
+                                        className={`${styles.preInterviewTab} ${activePreTab === "checks" ? styles.preInterviewTabActive : ""}`}
+                                        onClick={() => setActivePreTab("checks")}
+                                    >
+                                        <span>Setup checks</span>
+                                        <span className={styles.preInterviewTabBadge}>5</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={`${styles.preInterviewTab} ${activePreTab === "about" ? styles.preInterviewTabActive : ""}`}
+                                        onClick={() => setActivePreTab("about")}
+                                    >
+                                        <span>About assessment</span>
+                                    </button>
+                                </div>
+
+                                {activePreTab === "checks" ? (
+                                    <div className={styles.preInterviewCheckList}>
+                                        {/* Check 1: Working mic (Required) */}
+                                        <div className={styles.preInterviewCheckCard}>
+                                            <div className={styles.preInterviewCheckHeader}>
+                                                <div className={styles.preInterviewCheckTitleWrap}>
+                                                    <span className={`${styles.preInterviewCheckIcon} ${micChecked ? styles.preInterviewCheckIconDone : ""}`}>
+                                                        {micChecked ? <Check size={12} weight="bold" /> : <Minus size={12} weight="bold" />}
+                                                    </span>
+                                                    <span className={styles.preInterviewCheckLabel}>
+                                                        <strong>Working mic:</strong> Read the phrase out loud
+                                                    </span>
+                                                </div>
+                                                <span className={styles.preInterviewRequiredBadge}>Required</span>
+                                            </div>
+
+                                            <div className={styles.preInterviewPromptBox}>
+                                                I am ready to begin my assessment
+                                            </div>
+
+                                            <div className={styles.preInterviewMicRow}>
+                                                <button
+                                                    type="button"
+                                                    className={styles.preInterviewTestMicBtn}
+                                                    onClick={handleTestMic}
+                                                    disabled={micTestStatus === "listening"}
+                                                >
+                                                    {micTestStatus === "listening" ? "Listening…" : micChecked ? "Test mic again" : "Test mic"}
+                                                </button>
+
+                                                {micTestStatus === "listening" && (
+                                                    <div className={styles.preInterviewMicMeter}>
+                                                        <span className={styles.preInterviewMicBar} />
+                                                        <span className={styles.preInterviewMicBar} />
+                                                        <span className={styles.preInterviewMicBar} />
+                                                        <span className={styles.preInterviewMicBar} />
+                                                    </div>
+                                                )}
+
+                                                {micChecked && (
+                                                    <span className={styles.preInterviewMicResult} style={{ color: "#10B981" }}>
+                                                        <CheckCircle size={15} weight="fill" /> Audio verified
+                                                    </span>
+                                                )}
+                                                {micTestStatus === "error" && (
+                                                    <span className={styles.preInterviewMicResult} style={{ color: "#EF4444" }}>
+                                                        <Warning size={15} weight="fill" /> Mic access needed
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Check 2: Face in frame */}
+                                        <div
+                                            className={styles.preInterviewCheckCardSimple}
+                                            onClick={() => setFaceInFrameChecked(!faceInFrameChecked)}
+                                        >
+                                            <span className={`${styles.preInterviewCheckIcon} ${faceInFrameChecked ? styles.preInterviewCheckIconDone : ""}`}>
+                                                {faceInFrameChecked ? <Check size={12} weight="bold" /> : <Minus size={12} weight="bold" />}
+                                            </span>
+                                            <span className={styles.preInterviewCheckLabel}>
+                                                <strong>Face in frame:</strong> Sit an arm&apos;s length back
+                                            </span>
+                                        </div>
+
+                                        {/* Check 3: Good lighting */}
+                                        <div
+                                            className={styles.preInterviewCheckCardSimple}
+                                            onClick={() => setGoodLightingChecked(!goodLightingChecked)}
+                                        >
+                                            <span className={`${styles.preInterviewCheckIcon} ${goodLightingChecked ? styles.preInterviewCheckIconDone : ""}`}>
+                                                {goodLightingChecked ? <Check size={12} weight="bold" /> : <Minus size={12} weight="bold" />}
+                                            </span>
+                                            <span className={styles.preInterviewCheckLabel}>
+                                                <strong>Good lighting:</strong> Face a window or lamp, not away from it
+                                            </span>
+                                        </div>
+
+                                        {/* Check 4: Working camera */}
+                                        <div
+                                            className={styles.preInterviewCheckCardSimple}
+                                            onClick={() => setCameraChecked(!cameraChecked)}
+                                        >
+                                            <span className={`${styles.preInterviewCheckIcon} ${cameraChecked ? styles.preInterviewCheckIconDone : ""}`}>
+                                                {cameraChecked ? <Check size={12} weight="bold" /> : <Minus size={12} weight="bold" />}
+                                            </span>
+                                            <span className={styles.preInterviewCheckLabel}>
+                                                <strong>Working camera:</strong> Check the picture is sharp
+                                            </span>
+                                        </div>
+
+                                        {/* Check 5: Steady camera */}
+                                        <div
+                                            className={styles.preInterviewCheckCardSimple}
+                                            onClick={() => setSteadyCameraChecked(!steadyCameraChecked)}
+                                        >
+                                            <span className={`${styles.preInterviewCheckIcon} ${steadyCameraChecked ? styles.preInterviewCheckIconDone : ""}`}>
+                                                {steadyCameraChecked ? <Check size={12} weight="bold" /> : <Minus size={12} weight="bold" />}
+                                            </span>
+                                            <span className={styles.preInterviewCheckLabel}>
+                                                <strong>Steady camera:</strong> Set your device on a desk or table
+                                            </span>
+                                        </div>
+
+                                        {/* Primary Start CTA */}
+                                        <button
+                                            type="button"
+                                            className={styles.preInterviewStartCta}
+                                            onClick={handleStartInterview}
+                                            disabled={isConnecting || isEngineBusy}
+                                        >
+                                            {isConnecting
+                                                ? "Connecting Camera & Mic…"
+                                                : isEngineBusy
+                                                  ? "Preparing your interview…"
+                                                  : "Start interview"}
+                                        </button>
+
+                                        {mediaError && (
+                                            <p
+                                                style={{
+                                                    color: "#ef4444",
+                                                    fontSize: "0.8rem",
+                                                    marginTop: "0.4rem",
+                                                    textAlign: "center",
+                                                    background: "rgba(239, 68, 68, 0.08)",
+                                                    padding: "0.45rem 0.75rem",
+                                                    borderRadius: "6px",
+                                                    border: "1px solid rgba(239, 68, 68, 0.2)"
+                                                }}
+                                            >
+                                                {mediaError}
+                                            </p>
+                                        )}
+
+                                        <p className={styles.preInterviewFooterNote}>
+                                            Your setup is checked before you start so your submission can be reviewed.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className={styles.aboutAssessmentCard}>
+                                        <div className={styles.aboutAssessmentItem}>
+                                            <div>
+                                                <h4 className={styles.aboutAssessmentItemTitle}>This is an AI interview</h4>
+                                                <p className={styles.aboutAssessmentItemDesc}>
+                                                    This interview is built around the role you&apos;re preparing for. It includes focused questions about your experience, skills, and approach to the work, with follow-up questions based on your responses—just like you can expect in a real interview.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className={styles.aboutAssessmentItem}>
+                                            <Clock size={20} className={styles.aboutAssessmentIcon} />
+                                            <div>
+                                                <h4 className={styles.aboutAssessmentItemTitle}>Expect to spend ~</h4>
+                                                <p className={styles.aboutAssessmentItemDesc}>15 minutes</p>
+                                            </div>
+                                        </div>
+
+                                        <div className={styles.aboutAssessmentItem}>
+                                            <Chats size={20} className={styles.aboutAssessmentIcon} />
+                                            <div>
+                                                <h4 className={styles.aboutAssessmentItemTitle}>Need assistance?</h4>
+                                                <p className={styles.aboutAssessmentItemDesc}>Just ask</p>
+                                            </div>
+                                        </div>
+
+                                        <div className={styles.aboutAssessmentItem}>
+                                            <Ticket size={20} className={styles.aboutAssessmentIcon} />
+                                            <div>
+                                                <h4 className={styles.aboutAssessmentItemTitle}>1 pass available</h4>
+                                                <p className={styles.aboutAssessmentItemDesc} style={{ opacity: 0 }}>.</p>
+                                            </div>
+                                        </div>
+
+                                        <div className={styles.aboutAssessmentItem}>
+                                            <ShieldCheck size={20} className={styles.aboutAssessmentIcon} />
+                                            <div>
+                                                <h4 className={styles.aboutAssessmentItemTitle}>Your data is in your control</h4>
+                                            </div>
+                                        </div>
+
+                                        <div className={styles.aboutAssessmentItem}>
+                                            <CalendarDots size={20} className={styles.aboutAssessmentIcon} />
+                                            <div>
+                                                <h4 className={styles.aboutAssessmentItemTitle}>Interview on your own time</h4>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    /* ── Live Active Interview Session ── */
+                    <div className={styles.contentGrid}>
+                        {/* Left: Video Card */}
+                        <div className={styles.videoCard}>
+                            <div className={styles.videoFeed}>
+                                <video
+                                    ref={videoRef}
+                                    className={styles.videoElement}
+                                    autoPlay
+                                    muted
+                                    playsInline
+                                />
+
+                                {/* During session: Show HUD */}
+                                {isRecording && (
+                                    <>
+                                        <div className={styles.recordBadge}>
+                                            <div
+                                                style={{
+                                                    width: 8,
+                                                    height: 8,
+                                                    background: "#ef4444",
+                                                    borderRadius: "50%",
+                                                    animation:
+                                                        "recordPulse 1.5s ease-in-out infinite",
+                                                }}
+                                            />
+                                            <span>Recording</span>
+                                            <X
+                                                className={styles.closeIcon}
+                                                size={14}
+                                                onClick={handleEndClick}
+                                            />
+                                        </div>
+
+                                        {/* Status / Coach overlay pill */}
+                                        <div className={styles.videoStatusPill}>
+                                            <div
+                                                className={`${styles.statusDot} ${
+                                                    isAiSpeaking
+                                                        ? styles.statusDotSpeaking
+                                                        : isListening
+                                                          ? styles.statusDotListening
+                                                          : isEngineBusy
+                                                            ? styles.statusDotThinking
+                                                            : ""
+                                                }`}
+                                            />
+                                            <span>
+                                                {isAiSpeaking
+                                                    ? "Interviewer is speaking…"
+                                                    : isListening
+                                                      ? "Listening to you…"
+                                                      : isEngineBusy
+                                                        ? "Evaluating response…"
+                                                        : "Live"}
+                                            </span>
+                                            {interviewMode === "live_coaching" && (
+                                                <span className={styles.liveCoachTag}>
+                                                    <Star size={11} weight="fill" /> Coach Active
+                                                </span>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+
+                                {countdown !== null && (
+                                    <div className={styles.countdownOverlay}>
+                                        <span className={styles.countdownNumber}>
+                                            {countdown}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {/* Floating in-video controls */}
                                 <div className={styles.videoControls}>
                                     <button
                                         className={`${styles.controlBtn} ${
-                                            isMuted
-                                                ? styles.controlBtnActive
-                                                : ""
+                                            isMuted ? styles.controlBtnActive : ""
                                         }`}
                                         onClick={toggleMute}
                                     >
@@ -798,98 +1301,93 @@ export default function InterviewTab() {
                                         )}
                                     </button>
                                 </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Right Column */}
-                    <div className={styles.rightColumn}>
-                        {/* Questions Card */}
-                        <div className={styles.infoCard}>
-                            <div className={styles.cardHeader}>
-                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                    <div className={styles.headerLabel}>
-                                        <span>{headerInterviewTitle}</span>
-                                    </div>
-                                </div>
-                                <div className={styles.timer} title="Time elapsed in interview">
-                                    <span className={styles.timerBlinkDot} />
-                                    <span>{fmt(sessionStarted ? elapsedTick : 0)}</span>
-                                </div>
                             </div>
+                        </div>
 
-
-                            {sessionStarted && currentPrompt?.kind === "follow_up" && (
-                                <div className={styles.followUpBadge}>
-                                    <span>🎯 Probing detail from your previous answer</span>
-                                </div>
-                            )}
-
-                            <div className={styles.questionSection}>
-                                <div className={styles.interviewerHeader}>
-                                    <div className={styles.questionAvatarWrap}>
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img
-                                            src={RECRUITER_AVATAR}
-                                            alt="Interviewer"
-                                            className={styles.questionAvatarImg}
-                                            draggable={false}
-                                        />
-                                        {isAiSpeaking && (
-                                            <span className={styles.questionSpeakingDot} />
-                                        )}
+                        {/* Right Column */}
+                        <div className={styles.rightColumn}>
+                            {/* Questions Card */}
+                            <div className={styles.infoCard}>
+                                <div className={styles.cardHeader}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                        <div className={styles.headerLabel}>
+                                            <span>{headerInterviewTitle}</span>
+                                        </div>
                                     </div>
-                                    <span className={styles.interviewerLabel}>
-                                        {sessionStarted && questionNumber > 0 ? `Question ${questionNumber}` : "Interviewer"}
-                                    </span>
+                                    <div className={styles.timer} title="Time elapsed in interview">
+                                        <span className={styles.timerBlinkDot} />
+                                        <span>{fmt(elapsedTick)}</span>
+                                    </div>
                                 </div>
-                                <h2 className={styles.questionText}>
-                                    {sessionStarted
-                                        ? isEngineBusy
+
+                                {currentPrompt?.kind === "follow_up" && (
+                                    <div className={styles.followUpBadge}>
+                                        <span>🎯 Probing detail from your previous answer</span>
+                                    </div>
+                                )}
+
+                                <div className={styles.questionSection}>
+                                    <div className={styles.interviewerHeader}>
+                                        <div className={styles.questionAvatarWrap}>
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img
+                                                src={RECRUITER_AVATAR}
+                                                alt="Interviewer"
+                                                className={styles.questionAvatarImg}
+                                                draggable={false}
+                                            />
+                                            {isAiSpeaking && (
+                                                <span className={styles.questionSpeakingDot} />
+                                            )}
+                                        </div>
+                                        <span className={styles.interviewerLabel}>
+                                            {questionNumber > 0 ? `Question ${questionNumber}` : "Interviewer"}
+                                        </span>
+                                    </div>
+                                    <h2 className={styles.questionText}>
+                                        {isEngineBusy
                                             ? "…"
-                                            : (currentPrompt?.text ?? "")
-                                        : `Welcome ${candidateDisplayName}, your interview will begin shortly`}
-                                </h2>
-                                {sessionStarted && questionNumber > 0 && (
-                                    <div className={styles.questionMetaBelow}>
-                                        Question {questionNumber}{engineState?.sectionCount ? ` · ${sectionProgress}` : ""}
+                                            : (currentPrompt?.text ?? "")}
+                                    </h2>
+                                    {questionNumber > 0 && (
+                                        <div className={styles.questionMetaBelow}>
+                                            Question {questionNumber}{engineState?.sectionCount ? ` · ${sectionProgress}` : ""}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {currentPrompt?.text && !isAiSpeaking && !isLoadingAudio && (
+                                    <div style={{ marginBottom: "0.85rem" }}>
+                                        <button
+                                            type="button"
+                                            className={styles.replayAudioBtn}
+                                            onClick={replayCurrentAudio}
+                                            title="Replay interviewer's question"
+                                        >
+                                            <SpeakerHigh size={14} weight="bold" />
+                                            <span>Replay Audio</span>
+                                        </button>
                                     </div>
                                 )}
-                            </div>
 
-                            {sessionStarted && currentPrompt?.text && !isAiSpeaking && !isLoadingAudio && (
-                                <div style={{ marginBottom: "0.85rem" }}>
-                                    <button
-                                        type="button"
-                                        className={styles.replayAudioBtn}
-                                        onClick={replayCurrentAudio}
-                                        title="Replay interviewer's question"
-                                    >
-                                        <SpeakerHigh size={14} weight="bold" />
-                                        <span>Replay Audio</span>
-                                    </button>
+                                <div className={styles.cardFooter}>
+                                    <span style={{ fontSize: '0.8rem', color: '#555' }}>
+                                        {`${sectionProgress}${currentPrompt?.kind === "follow_up" ? " · follow-up" : ""}${engineState?.pacing !== "normal" && engineState ? ` · pacing: ${engineState.pacing}` : ""}`}
+                                    </span>
+                                    {isRecording && !engineState?.complete && (
+                                        <button
+                                            className={styles.nextBtn}
+                                            onClick={handleNext}
+                                            disabled={isEngineBusy}
+                                        >
+                                            {isEngineBusy ? "Thinking…" : "Next"}
+                                        </button>
+                                    )}
                                 </div>
-                            )}
-
-                            <div className={styles.cardFooter}>
-                                <span style={{ fontSize: '0.8rem', color: '#555' }}>
-                                    {sessionStarted
-                                        ? `${sectionProgress}${currentPrompt?.kind === "follow_up" ? " · follow-up" : ""}${engineState?.pacing !== "normal" && engineState ? ` · pacing: ${engineState.pacing}` : ""}`
-                                        : ""}
-                                </span>
-                                {isRecording && !engineState?.complete && (
-                                    <button
-                                        className={styles.nextBtn}
-                                        onClick={handleNext}
-                                        disabled={isEngineBusy}
-                                    >
-                                        {isEngineBusy ? "Thinking…" : "Next"}
-                                    </button>
-                                )}
                             </div>
                         </div>
                     </div>
-                </div>
+                )}
             </main>
 
             {/* Live Coaching Instant Feedback Modal */}

@@ -1,44 +1,18 @@
 import { NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
 import type { JobItem } from "../route";
 import type { ScraperSource } from "../sources/route";
 import { scrapeCareerPage, classifyRoleFamily, generateRoleOverview } from "@/services/careerPageScraper";
 import { probeJobApplicationStatus } from "@/services/jobProbeService";
+import {
+    getSources,
+    getAllJobs,
+    commitScraperSourceResult,
+} from "@/lib/jobStorage";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const MAX_POSTING_AGE_DAYS = 14;
-
-const JOBS_FILE_PATH = path.join(process.cwd(), "src", "engine", "data", "jobs.json");
-const SOURCES_FILE_PATH = path.join(process.cwd(), "src", "engine", "data", "scraperSources.json");
-
-async function readJobs(): Promise<JobItem[]> {
-    try {
-        const data = await fs.readFile(JOBS_FILE_PATH, "utf-8");
-        return JSON.parse(data);
-    } catch {
-        return [];
-    }
-}
-
-async function saveJobs(jobs: JobItem[]) {
-    await fs.writeFile(JOBS_FILE_PATH, JSON.stringify(jobs, null, 2), "utf-8");
-}
-
-async function readSources(): Promise<ScraperSource[]> {
-    try {
-        const data = await fs.readFile(SOURCES_FILE_PATH, "utf-8");
-        return JSON.parse(data);
-    } catch {
-        return [];
-    }
-}
-
-async function saveSources(sources: ScraperSource[]) {
-    await fs.writeFile(SOURCES_FILE_PATH, JSON.stringify(sources, null, 2), "utf-8");
-}
 
 interface SourceResult {
     sourceId: string;
@@ -61,18 +35,17 @@ export async function POST(req: Request) {
         const { searchParams } = new URL(req.url);
         const singleSourceId = searchParams.get("sourceId");
 
-        const sources = await readSources();
-        let existingJobs = await readJobs();
+        const sources = await getSources();
+        let existingJobs = await getAllJobs();
 
         const cutoffDate = new Date(Date.now() - MAX_POSTING_AGE_DAYS * 24 * 60 * 60 * 1000)
             .toISOString()
             .split("T")[0];
 
-        // 0. Storage Purge: Hard delete any jobs older than 14 days or marked expired
+        // 0. Deduplication lookup set
         existingJobs = existingJobs.filter(
             (j) => (j.status || "active") === "active" && (!j.datePosted || j.datePosted >= cutoffDate)
         );
-
         const existingUrls = new Set(existingJobs.map((j) => j.url.toLowerCase()));
 
         // Determine which sources to scrape
@@ -117,6 +90,7 @@ export async function POST(req: Request) {
                     );
 
                     let newCount = 0;
+                    const sourceNewJobs: JobItem[] = [];
                     const validCandidates = result.jobs.filter((scraped) => {
                         const jobUrl = scraped.url.toLowerCase();
                         if (existingUrls.has(jobUrl)) return false;
@@ -124,7 +98,15 @@ export async function POST(req: Request) {
                         return datePosted >= cutoffDate;
                     });
 
-                    const isStructuredAts = ["greenhouse", "ashby", "lever", "wellfound", "vc_portfolio", "linkedin", "jobberman"].includes(result.provider);
+                    const isStructuredAts = [
+                        "greenhouse",
+                        "ashby",
+                        "lever",
+                        "wellfound",
+                        "vc_portfolio",
+                        "linkedin",
+                        "jobberman",
+                    ].includes(result.provider);
 
                     if (isStructuredAts) {
                         for (const scraped of validCandidates) {
@@ -132,9 +114,15 @@ export async function POST(req: Request) {
                             if (existingUrls.has(jobUrl)) continue;
 
                             const roleFam = classifyRoleFamily(scraped.title, scraped.department);
-                            const description = (scraped.description && !scraped.description.startsWith("Portfolio company of"))
-                                ? scraped.description
-                                : generateRoleOverview(scraped.title, roleFam, scraped.company || source.companyName, scraped.location);
+                            const description =
+                                scraped.description && !scraped.description.startsWith("Portfolio company of")
+                                    ? scraped.description
+                                    : generateRoleOverview(
+                                          scraped.title,
+                                          roleFam,
+                                          scraped.company || source.companyName,
+                                          scraped.location
+                                      );
 
                             const jobItem: JobItem = {
                                 id: `scrape_${source.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -152,6 +140,7 @@ export async function POST(req: Request) {
                                 status: "active",
                             };
 
+                            sourceNewJobs.push(jobItem);
                             allNewJobs.push(jobItem);
                             existingUrls.add(jobUrl);
                             newCount++;
@@ -175,9 +164,15 @@ export async function POST(req: Request) {
                                 if (existingUrls.has(jobUrl)) continue;
 
                                 const roleFam = classifyRoleFamily(scraped.title, scraped.department);
-                                const description = (scraped.description && !scraped.description.startsWith("Portfolio company of"))
-                                    ? scraped.description
-                                    : generateRoleOverview(scraped.title, roleFam, scraped.company || source.companyName, scraped.location);
+                                const description =
+                                    scraped.description && !scraped.description.startsWith("Portfolio company of")
+                                        ? scraped.description
+                                        : generateRoleOverview(
+                                              scraped.title,
+                                              roleFam,
+                                              scraped.company || source.companyName,
+                                              scraped.location
+                                          );
 
                                 const jobItem: JobItem = {
                                     id: `scrape_${source.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -195,6 +190,7 @@ export async function POST(req: Request) {
                                     status: "active",
                                 };
 
+                                sourceNewJobs.push(jobItem);
                                 allNewJobs.push(jobItem);
                                 existingUrls.add(jobUrl);
                                 newCount++;
@@ -202,26 +198,15 @@ export async function POST(req: Request) {
                         }
                     }
 
-                    // Delta Reconciliation (Hard Purge): Delete previous jobs from this source that are no longer on their live board
-                    const freshLiveUrls = new Set(result.jobs.map((j) => j.url.toLowerCase()));
-                    if (result.jobs.length > 0) {
-                        existingJobs = existingJobs.filter((existingJob) => {
-                            const isFromThisSource =
-                                existingJob.company?.toLowerCase() === source.companyName.toLowerCase() ||
-                                existingJob.id.startsWith(`scrape_${source.id}`);
-                            if (isFromThisSource && !freshLiveUrls.has(existingJob.url.toLowerCase())) {
-                                return false; // Purge from database
-                            }
-                            return true;
-                        });
-                    }
-
-                    // Update source metadata
-                    const sourceIdx = sources.findIndex((s) => s.id === source.id);
-                    if (sourceIdx !== -1) {
-                        sources[sourceIdx].lastScraped = new Date().toISOString();
-                        sources[sourceIdx].lastJobCount = result.jobs.length;
-                    }
+                    // Reconcile and commit this source's results to persistent storage
+                    await commitScraperSourceResult({
+                        sourceId: source.id,
+                        companyName: source.companyName,
+                        newJobs: sourceNewJobs,
+                        liveBoardUrls: result.jobs.map((j) => j.url.toLowerCase()),
+                        jobsFoundCount: result.jobs.length,
+                        cutoffDate,
+                    });
 
                     return {
                         sourceId: source.id,
@@ -250,21 +235,15 @@ export async function POST(req: Request) {
             }
         }
 
-        // Save updated jobs (strictly active and within 14-day TTL)
-        const updatedJobs = [...allNewJobs, ...existingJobs].filter(
-            (j) => (j.status || "active") === "active" && (!j.datePosted || j.datePosted >= cutoffDate)
-        );
-        await saveJobs(updatedJobs);
-        await saveSources(sources);
-
         const totalNewJobs = allNewJobs.length;
         const totalJobsFound = results.reduce((sum, r) => sum + r.jobsFound, 0);
+        const latestJobs = await getAllJobs();
 
         return NextResponse.json({
             success: true,
             scrapedCount: totalNewJobs,
             totalJobsFound,
-            totalJobs: updatedJobs.length,
+            totalJobs: latestJobs.length,
             sourcesScraped: targetSources.length,
             message: `Scraped ${targetSources.length} source(s): found ${totalJobsFound} total jobs, ${totalNewJobs} new.`,
             results,

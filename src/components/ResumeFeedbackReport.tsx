@@ -1550,12 +1550,12 @@ export default function ResumeFeedbackReport({
                 <div className={styles.logo}>
                     <div className={styles.logoIcon}>
                         <img
-                            src="https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png"
-                            alt="onscript"
+                            src="https://res.cloudinary.com/dyg7neetr/image/upload/v1790510817/Vector_10_thljja.png"
+                            alt="get prepped"
                             className={styles.logoImg}
                         />
                     </div>
-                    <span className={styles.brandName}>onscript</span>
+                    <span className={styles.brandName}>get prepped</span>
                 </div>
                 <div className={styles.navActions}>
                     <input

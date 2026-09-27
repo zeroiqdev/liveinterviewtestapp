@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import {
     MagnifyingGlass,
     Check,
@@ -194,7 +195,25 @@ export default function OnboardingPage() {
         }
     };
 
-    const finish = () => {
+    const [submitting, setSubmitting] = useState(false);
+    const [googleAuthLoading, setGoogleAuthLoading] = useState(false);
+
+    // Load Google Identity Services script
+    useEffect(() => {
+        const scriptId = "google-gsi-client";
+        if (!document.getElementById(scriptId)) {
+            const script = document.createElement("script");
+            script.id = scriptId;
+            script.src = "https://accounts.google.com/gsi/client";
+            script.async = true;
+            script.defer = true;
+            document.body.appendChild(script);
+        }
+    }, []);
+
+    const finish = async () => {
+        if (submitting) return;
+        setSubmitting(true);
         const domainVal = selectedRole?.domain || "Software & Engineering";
         const roleVal = selectedRole?.role || "Software Engineer";
 
@@ -218,7 +237,7 @@ export default function OnboardingPage() {
         }
 
         const roleFamily = normalizeUserRoleFamily(roleVal);
-        const userProfile = {
+        let userProfile = {
             id: existing.id || `usr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
             email: email.trim(),
             name: fullName.trim(),
@@ -234,26 +253,45 @@ export default function OnboardingPage() {
             ...(selectedResumeId ? { selectedResumeId } : {}),
             onboarded: true,
         };
-        localStorage.setItem("useladder_user", JSON.stringify(userProfile));
 
-        // Persist credentials & profile to MongoDB
-        fetch("/api/auth/user", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                email: userProfile.email,
-                name: userProfile.name,
-                role: userProfile.role,
-                domain: userProfile.domain,
-                seniority: userProfile.seniority,
-                resume: selectedResumeId && cvData && cvName ? {
-                    id: selectedResumeId,
-                    name: cvName,
-                    rawText: cleanResumeText,
-                    score: 80,
-                } : undefined,
-            }),
-        }).catch((err) => console.warn("Could not sync user to DB:", err));
+        // Persist credentials & profile to MongoDB before continuing
+        try {
+            const res = await fetch("/api/auth/user", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    email: userProfile.email,
+                    name: userProfile.name,
+                    role: userProfile.role,
+                    domain: userProfile.domain,
+                    seniority: userProfile.seniority,
+                    experienceInRole: userProfile.experienceInRole,
+                    password: password.trim(),
+                    portfolioUrl: userProfile.portfolioUrl,
+                    linkedinUrl: userProfile.linkedinUrl,
+                    resume: selectedResumeId && cvData && cvName ? {
+                        id: selectedResumeId,
+                        name: cvName,
+                        rawText: cleanResumeText,
+                        score: 80,
+                    } : undefined,
+                }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.user) {
+                    userProfile = {
+                        ...userProfile,
+                        ...data.user,
+                        onboarded: true,
+                    };
+                }
+            }
+        } catch (err) {
+            console.warn("Could not sync user to DB:", err);
+        }
+
+        localStorage.setItem("useladder_user", JSON.stringify(userProfile));
 
         updateSettings({
             domain: domainVal,
@@ -271,12 +309,68 @@ export default function OnboardingPage() {
         }
     };
 
-    const handleGoogleLogin = () => {
-        const dummyName = fullName.trim() || "Allen";
-        const dummyEmail = email.trim() || "user@example.com";
-        setFullName(dummyName);
-        setEmail(dummyEmail);
-        setStep(2);
+    const handleGoogleLogin = async () => {
+        const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+
+        if (clientId && window.google?.accounts?.oauth2) {
+            setGoogleAuthLoading(true);
+            try {
+                const tokenClient = window.google.accounts.oauth2.initTokenClient({
+                    client_id: clientId,
+                    scope: "email profile openid",
+                    callback: async (tokenRes: any) => {
+                        setGoogleAuthLoading(false);
+                        if (tokenRes.error) {
+                            console.warn("Google GIS auth canceled/failed:", tokenRes.error);
+                            return;
+                        }
+                        try {
+                            const userinfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+                                headers: { Authorization: `Bearer ${tokenRes.access_token}` },
+                            });
+                            if (!userinfoRes.ok) throw new Error("Could not retrieve profile from Google");
+                            const userinfo = await userinfoRes.json();
+                            const gEmail = (userinfo.email || "").toLowerCase().trim();
+                            const gName = userinfo.name || userinfo.given_name || gEmail.split("@")[0];
+
+                            setFullName(gName);
+                            setEmail(gEmail);
+
+                            // Check if this Google user is already fully onboarded in MongoDB
+                            const checkRes = await fetch(`/api/auth/user?email=${encodeURIComponent(gEmail)}`);
+                            if (checkRes.ok) {
+                                const checkData = await checkRes.json();
+                                if (checkData.user && checkData.user.role && checkData.user.domain) {
+                                    localStorage.setItem("useladder_user", JSON.stringify(checkData.user));
+                                    router.replace("/dashboard");
+                                    return;
+                                }
+                            }
+
+                            // Advance to role selection with Google verified credentials
+                            setStep(2);
+                        } catch (err) {
+                            console.warn("Google userinfo fetch failed:", err);
+                            setStep(2);
+                        }
+                    },
+                });
+                tokenClient.requestAccessToken({ prompt: "select_account" });
+                return;
+            } catch (err) {
+                setGoogleAuthLoading(false);
+                console.warn("GIS oauth2 init failed:", err);
+            }
+        }
+
+        // Fallback if client ID is not configured or in test mode
+        if (email.trim() || fullName.trim()) {
+            setStep(2);
+        } else {
+            setFullName("Candidate");
+            setEmail("candidate@example.com");
+            setStep(2);
+        }
     };
 
     const handleBack = () => {
@@ -298,7 +392,7 @@ export default function OnboardingPage() {
                                 <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z" />
                             </svg>
                         </span>
-                        <span>to onscript</span>
+                        <span>to get prepped</span>
                     </h1>
                     <p className={styles.lockInSubtitle}>
                         Let’s lock in
@@ -433,6 +527,13 @@ export default function OnboardingPage() {
                                 Continue
                             </button>
                         </form>
+
+                        <p className={styles.switchAuthPrompt}>
+                            Already have an account?{" "}
+                            <Link href="/login" className={styles.switchAuthLink}>
+                                Sign in
+                            </Link>
+                        </p>
                     </>
                 )}
 

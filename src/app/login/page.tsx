@@ -45,6 +45,7 @@ declare global {
 
 export default function LoginPage() {
     const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
     const [authLoading, setAuthLoading] = useState<"google" | "email" | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const router = useRouter();
@@ -86,29 +87,12 @@ export default function LoginPage() {
         setErrorMessage(null);
 
         try {
-            // First check if user exists in database
-            const userRes = await fetch(`/api/auth/user?email=${encodeURIComponent(trimmedEmail)}`);
-            if (userRes.ok) {
-                const userData = await userRes.json();
-                if (userData.user) {
-                    localStorage.setItem("useladder_user", JSON.stringify(userData.user));
-                    if (userData.user.role && userData.user.domain) {
-                        router.replace("/dashboard");
-                        return;
-                    } else {
-                        router.replace("/onboarding");
-                        return;
-                    }
-                }
-            }
-
-            // If not found directly, create / authenticate via google/email auth endpoint
-            const res = await fetch("/api/auth/google", {
+            const res = await fetch("/api/auth/login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     email: trimmedEmail,
-                    provider: "email",
+                    password: password.trim(),
                 }),
             });
 
@@ -263,7 +247,7 @@ export default function LoginPage() {
 
                 {/* Form Header */}
                 <div className={styles.formHeader}>
-                    <h2 className={styles.formMainTitle}>Log in to onscript</h2>
+                    <h2 className={styles.formMainTitle}>Log in to get prepped</h2>
                     <p className={styles.formSubTitle}>Enter your details to access your dashboard</p>
                 </div>
 
@@ -319,6 +303,18 @@ export default function LoginPage() {
                             onChange={(e) => setEmail(e.target.value)}
                             autoComplete="email"
                             required
+                        />
+                    </div>
+
+                    <div className={styles.inputGroup}>
+                        <label className={styles.inputLabel}>Password</label>
+                        <input
+                            type="password"
+                            className={styles.formInput}
+                            placeholder="••••••••"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            autoComplete="current-password"
                         />
                     </div>
 

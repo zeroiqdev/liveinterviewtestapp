@@ -649,9 +649,9 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
             avatar: COACH_AVATAR,
             time: "Just now",
             isOnline: true,
-            badgeLabel: "Welcome to Onscript",
+            badgeLabel: "Welcome to Get Prepped",
             messages: [
-                `Welcome to Onscript, ${displayRole} — I'm your Interview Coach, here to help you ace your next interview.`,
+                `Welcome to Get Prepped, ${displayRole} — I'm your Interview Coach, here to help you ace your next interview.`,
                 `Upload your resume to get an ATS audit, or start a mock interview to get personalized STAR and domain coaching. When you're ready for targeted product sense tips, your coach will share them here.`,
             ],
             insight: `Structure each behavioral response by separating the problem context from your direct actions, then anchor with a measurable outcome.`,

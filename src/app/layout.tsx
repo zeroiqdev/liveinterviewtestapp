@@ -15,18 +15,22 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-    title: "onscript - AI Interview Training",
+    title: "get prepped - AI Interview Training",
     description: "Comprehensive Interview Test Role-Play Training for Success",
     icons: {
-        icon: "https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png",
-        shortcut: "https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png",
-        apple: "https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png",
+        icon: [
+            { url: "https://res.cloudinary.com/dyg7neetr/image/upload/v1790510817/Vector_10_thljja.png", type: "image/png" },
+            { url: "/icon.png", type: "image/png" },
+            { url: "/favicon.ico" },
+        ],
+        shortcut: "https://res.cloudinary.com/dyg7neetr/image/upload/v1790510817/Vector_10_thljja.png",
+        apple: "https://res.cloudinary.com/dyg7neetr/image/upload/v1790510817/Vector_10_thljja.png",
     },
     manifest: "/manifest.json",
     appleWebApp: {
         capable: true,
         statusBarStyle: "black-translucent",
-        title: "onscript",
+        title: "get prepped",
     },
 };
 

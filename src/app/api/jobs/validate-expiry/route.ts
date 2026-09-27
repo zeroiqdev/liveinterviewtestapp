@@ -1,22 +1,6 @@
 import { NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
 import type { JobItem } from "../route";
-
-const JOBS_FILE_PATH = path.join(process.cwd(), "src", "engine", "data", "jobs.json");
-
-async function readJobs(): Promise<JobItem[]> {
-    try {
-        const data = await fs.readFile(JOBS_FILE_PATH, "utf-8");
-        return JSON.parse(data);
-    } catch {
-        return [];
-    }
-}
-
-async function saveJobs(jobs: JobItem[]) {
-    await fs.writeFile(JOBS_FILE_PATH, JSON.stringify(jobs, null, 2), "utf-8");
-}
+import { getAllJobs, updateJob } from "@/lib/jobStorage";
 
 const CLOSED_POSTING_SIGNALS = [
     "no longer accepting applications",
@@ -108,7 +92,7 @@ export async function POST(req: Request) {
         const checkAll = searchParams.get("checkAll") === "true";
         const limit = checkAll ? 200 : limitParam ? parseInt(limitParam) : 40;
 
-        const jobs = await readJobs();
+        const jobs = await getAllJobs();
         const activeJobs = jobs.filter((j) => (j.status || "active") === "active");
 
         if (activeJobs.length === 0) {
@@ -138,12 +122,9 @@ export async function POST(req: Request) {
             for (const r of batchResults) {
                 if (r.status === "fulfilled") {
                     const { job, health } = r.value;
-                    const jobIndex = jobs.findIndex((j) => j.id === job.id);
-                    if (jobIndex !== -1) {
-                        if (!health.isLive) {
-                            jobs[jobIndex].status = "expired";
-                            expiredFound++;
-                        }
+                    if (!health.isLive) {
+                        await updateJob(job.id, { status: "expired" });
+                        expiredFound++;
                     }
                     details.push({
                         id: job.id,
@@ -156,13 +137,13 @@ export async function POST(req: Request) {
             }
         }
 
-        await saveJobs(jobs);
+        const remainingActiveJobs = await getAllJobs();
 
         return NextResponse.json({
             success: true,
             checkedCount: targetJobs.length,
             expiredFound,
-            activeCount: jobs.filter((j) => (j.status || "active") === "active").length,
+            activeCount: remainingActiveJobs.filter((j) => (j.status || "active") === "active").length,
             message: `Validated ${targetJobs.length} active roles: detected and marked ${expiredFound} expired posting(s).`,
             details,
         });

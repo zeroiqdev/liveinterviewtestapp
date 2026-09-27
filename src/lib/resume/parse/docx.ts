@@ -272,7 +272,7 @@ export async function parseDocx(opts: DocxWalkOpts): Promise<{ doc: ResumeDoc; a
       currentExpItem.bullets.push(bullet);
       anchorMap[bid] = { paragraphIndex, runRange: [0, rt.length - 1] };
     } else {
-      // project subheader like "Onscript - Mock Interview Platform" (preserve order, not a bullet)
+      // project subheader like "Get Prepped - Mock Interview Platform" (preserve order, not a bullet)
       const looksLikeProject = /^[A-Z][A-Za-z0-9&]*\s*[-–—]\s*[A-Z].{3,60}$/.test(text) && text.length < 70;
       if (looksLikeProject && currentExpItem) {
         const bid = newId("b");

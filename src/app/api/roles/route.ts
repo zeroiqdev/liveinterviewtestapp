@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
+import { getRoles, saveRole, deleteRole } from "@/lib/adminStorage";
 
 export interface RoleItem {
     id: string;
@@ -8,48 +7,8 @@ export interface RoleItem {
     domain: string;
 }
 
-const ROLES_FILE_PATH = path.join(process.cwd(), "src", "engine", "data", "roles.json");
-
-const DEFAULT_ROLES: RoleItem[] = [
-    { id: "role_001", title: "Software Engineer", domain: "Software & Engineering" },
-    { id: "role_002", title: "Frontend Developer", domain: "Software & Engineering" },
-    { id: "role_003", title: "Backend Engineer", domain: "Software & Engineering" },
-    { id: "role_004", title: "Full Stack Developer", domain: "Software & Engineering" },
-    { id: "role_005", title: "DevOps / SRE", domain: "Software & Engineering" },
-    { id: "role_006", title: "Cloud Solutions Architect", domain: "Software & Engineering" },
-    { id: "role_007", title: "Product Manager", domain: "Product & Strategy" },
-    { id: "role_008", title: "Data Scientist", domain: "Data & Analytics" },
-    { id: "role_009", title: "Data Analyst", domain: "Data & Analytics" },
-    { id: "role_010", title: "Banking & Finance", domain: "Banking & Finance" },
-    { id: "role_011", title: "Investment Banker", domain: "Banking & Finance" },
-    { id: "role_012", title: "Financial Analyst", domain: "Banking & Finance" },
-    { id: "role_013", title: "Sales & Business Development", domain: "Sales & Commercial" },
-    { id: "role_014", title: "Account Executive", domain: "Sales & Commercial" },
-    { id: "role_015", title: "Customer Service Representative", domain: "Customer Service & Support" },
-    { id: "role_016", title: "Virtual Assistant", domain: "Administrative & Support" },
-    { id: "role_017", title: "Executive Assistant", domain: "Administrative & Support" },
-    { id: "role_018", title: "Engineering — Oil & Gas", domain: "Engineering & Energy" },
-    { id: "role_019", title: "HSE / Safety Officer", domain: "Engineering & Energy" },
-    { id: "role_020", title: "Product Designer", domain: "Product & Design" },
-    { id: "role_021", title: "Product Marketer", domain: "Product & Design" },
-    { id: "role_022", title: "Business Analyst", domain: "Business & Operations" },
-];
-
-async function readRoles(): Promise<RoleItem[]> {
-    try {
-        const data = await fs.readFile(ROLES_FILE_PATH, "utf-8");
-        return JSON.parse(data);
-    } catch {
-        return DEFAULT_ROLES;
-    }
-}
-
-async function saveRoles(roles: RoleItem[]) {
-    await fs.writeFile(ROLES_FILE_PATH, JSON.stringify(roles, null, 2), "utf-8");
-}
-
 export async function GET() {
-    const roles = await readRoles();
+    const roles = await getRoles();
     return NextResponse.json({ roles });
 }
 
@@ -62,7 +21,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Title and Domain are required." }, { status: 400 });
         }
 
-        const roles = await readRoles();
+        const roles = await getRoles();
         const maxNum = roles.reduce((max, r) => {
             const match = r.id.match(/^role_(\d+)$/);
             if (match) {
@@ -79,8 +38,7 @@ export async function POST(req: Request) {
             domain: domain.trim(),
         };
 
-        roles.push(newRole);
-        await saveRoles(roles);
+        await saveRole(newRole);
 
         return NextResponse.json({ success: true, role: newRole }, { status: 201 });
     } catch (err: unknown) {
@@ -98,17 +56,17 @@ export async function PUT(req: Request) {
             return NextResponse.json({ error: "ID, Title, and Domain are required." }, { status: 400 });
         }
 
-        const roles = await readRoles();
-        const index = roles.findIndex((r) => r.id === id);
+        const roles = await getRoles();
+        const existing = roles.find((r) => r.id === id);
 
-        if (index === -1) {
+        if (!existing) {
             return NextResponse.json({ error: "Role not found." }, { status: 404 });
         }
 
-        roles[index] = { id, title: title.trim(), domain: domain.trim() };
-        await saveRoles(roles);
+        const updatedRole: RoleItem = { id, title: title.trim(), domain: domain.trim() };
+        await saveRole(updatedRole);
 
-        return NextResponse.json({ success: true, role: roles[index] });
+        return NextResponse.json({ success: true, role: updatedRole });
     } catch (err: unknown) {
         const error = err instanceof Error ? err.message : "Internal Error";
         return NextResponse.json({ error }, { status: 500 });
@@ -124,9 +82,7 @@ export async function DELETE(req: Request) {
             return NextResponse.json({ error: "ID parameter is required." }, { status: 400 });
         }
 
-        let roles = await readRoles();
-        roles = roles.filter((r) => r.id !== id);
-        await saveRoles(roles);
+        await deleteRole(id);
 
         return NextResponse.json({ success: true, message: "Role deleted successfully." });
     } catch (err: unknown) {

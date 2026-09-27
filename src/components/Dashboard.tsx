@@ -7,7 +7,6 @@ import {
     Bell,
     ArrowRight,
     House,
-    Lightning,
     FileText,
 } from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
@@ -658,26 +657,26 @@ export default function Dashboard() {
                             alignItems: "center",
                             flexWrap: "nowrap",
                             whiteSpace: "nowrap",
-                            gap: "0.6rem",
+                            gap: "0.85rem",
                             flexShrink: 0,
                         }}
                     >
                         <div
                             className={styles.logoIcon}
                             style={{
-                                width: 32,
-                                height: 32,
+                                width: 25,
+                                height: 25,
                                 flexShrink: 0,
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
                                 overflow: "visible",
-                                transform: "translateY(2px)",
+                                transform: "translateY(1px)",
                             }}
                         >
                             <img
-                                src="https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png"
-                                alt="onscript"
+                                src="https://res.cloudinary.com/dyg7neetr/image/upload/v1790510817/Vector_10_thljja.png"
+                                alt="get prepped"
                                 className={styles.logoImg}
                             />
                         </div>
@@ -688,19 +687,54 @@ export default function Dashboard() {
                                 whiteSpace: "nowrap",
                                 lineHeight: 1,
                                 fontFamily: "'Inter', sans-serif",
+                                fontSize: "1.02rem",
                                 fontWeight: 400,
                             }}
                         >
-                            onscript
+                            get prepped
                         </span>
                     </div>
                 </div>
 
                 <div className={styles.navRight}>
-                    <div className={`${styles.xpBadge} ${styles.tabularNums}`}>
-                        <Lightning size={14} weight="fill" />
-                        <span className={styles.tabularNums}>{(stats?.averageScore || 0) * 10}</span> Points
-                    </div>
+                    {(() => {
+                        const readinessVal = stats && stats.interviewsCompleted > 0 ? Math.min(100, Math.max(0, Math.round(stats.averageScore))) : 0;
+                        const ringRadius = 7;
+                        const ringCircumference = 2 * Math.PI * ringRadius;
+                        const ringOffset = ringCircumference - (readinessVal / 100) * ringCircumference;
+                        return (
+                            <div className={`${styles.xpBadge} ${styles.tabularNums}`} title={`Interview Readiness: ${readinessVal}%`}>
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 20 20"
+                                    style={{ transform: "rotate(-90deg)", flexShrink: 0 }}
+                                    aria-hidden="true"
+                                >
+                                    <circle
+                                        cx="10"
+                                        cy="10"
+                                        r={ringRadius}
+                                        fill="none"
+                                        stroke="#BFDBFE"
+                                        strokeWidth="2.4"
+                                    />
+                                    <circle
+                                        cx="10"
+                                        cy="10"
+                                        r={ringRadius}
+                                        fill="none"
+                                        stroke="#2563EB"
+                                        strokeWidth="2.4"
+                                        strokeDasharray={ringCircumference}
+                                        strokeDashoffset={ringOffset}
+                                        strokeLinecap="round"
+                                    />
+                                </svg>
+                                <span>Readiness <span className={styles.tabularNums}>{readinessVal}%</span></span>
+                            </div>
+                        );
+                    })()}
                     <button
                         className={styles.settingsNavBtn}
                         onClick={() => setIsSettingsOpen(true)}

@@ -601,12 +601,12 @@ export default function AdminPage() {
                 <div className={styles.brandWrap}>
                     <div className={styles.brandLogoWrap}>
                         <img
-                            src="https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png"
-                            alt="onscript"
+                            src="https://res.cloudinary.com/dyg7neetr/image/upload/v1790510817/Vector_10_thljja.png"
+                            alt="get prepped"
                             className={styles.brandLogo}
                         />
                     </div>
-                    <span className={styles.brandTitle}>onscript</span>
+                    <span className={styles.brandTitle}>get prepped</span>
                     <span className={styles.adminBadge}>Admin Portal</span>
                 </div>
 
@@ -1475,7 +1475,7 @@ export default function AdminPage() {
                                         type="text"
                                         required
                                         className={styles.inputField}
-                                        placeholder="e.g. OnScript AI"
+                                        placeholder="e.g. Get Prepped"
                                         value={jFormCompany}
                                         onChange={(e) => setJFormCompany(e.target.value)}
                                     />

@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
-import { isJobLocationMatch, isJobRoleMatch, normalizeUserRoleFamily, UserLocation } from "@/utils/locationDetector";
+import { isJobLocationMatch, isJobRoleMatch, UserLocation } from "@/utils/locationDetector";
+import {
+    getAllJobs,
+    createJob,
+    updateJob,
+    deleteJob,
+    purgeExpiredJobs,
+} from "@/lib/jobStorage";
 
 export interface JobItem {
     id: string;
@@ -23,47 +28,6 @@ export interface JobItem {
     isNigeria?: boolean;
 }
 
-const JOBS_FILE_PATH = path.join(process.cwd(), "src", "engine", "data", "jobs.json");
-
-function decodeHtmlEntities(text?: string): string {
-    if (!text) return "";
-    return text
-        .replace(/&amp;/gi, "&")
-        .replace(/&quot;/gi, '"')
-        .replace(/&#039;|&apos;|&#39;/gi, "'")
-        .replace(/&lt;/gi, "<")
-        .replace(/&gt;/gi, ">")
-        .replace(/&nbsp;/gi, " ")
-        .replace(/&#8211;|&ndash;/gi, "–")
-        .replace(/&#8212;|&mdash;/gi, "—")
-        .replace(/&rsquo;|&lsquo;/gi, "'")
-        .replace(/&rdquo;|&ldquo;/gi, '"');
-}
-
-function sanitizeJob(j: JobItem): JobItem {
-    return {
-        ...j,
-        title: decodeHtmlEntities(j.title),
-        company: decodeHtmlEntities(j.company),
-        location: decodeHtmlEntities(j.location),
-        description: decodeHtmlEntities(j.description),
-    };
-}
-
-async function readJobs(): Promise<JobItem[]> {
-    try {
-        const data = await fs.readFile(JOBS_FILE_PATH, "utf-8");
-        const list: JobItem[] = JSON.parse(data);
-        return list.map(sanitizeJob);
-    } catch {
-        return [];
-    }
-}
-
-async function saveJobs(jobs: JobItem[]) {
-    await fs.writeFile(JOBS_FILE_PATH, JSON.stringify(jobs, null, 2), "utf-8");
-}
-
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const roleFamily = searchParams.get("roleFamily");
@@ -78,7 +42,7 @@ export async function GET(req: Request) {
     const timezone = searchParams.get("timezone");
     const limit = searchParams.get("limit") ? parseInt(searchParams.get("limit")!) : undefined;
 
-    let jobs = await readJobs();
+    let jobs = await getAllJobs();
 
     const MAX_POSTING_AGE_DAYS = 14;
     const ttlCutoff = new Date(Date.now() - MAX_POSTING_AGE_DAYS * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
@@ -185,7 +149,6 @@ export async function POST(req: Request) {
             );
         }
 
-        const jobs = await readJobs();
         const newJob: JobItem = {
             id: `job_${Date.now()}`,
             title: title.trim(),
@@ -198,12 +161,12 @@ export async function POST(req: Request) {
             description: description?.trim() || "",
             source: "manual",
             datePosted: new Date().toISOString().split("T")[0],
+            status: "active",
         };
 
-        jobs.unshift(newJob);
-        await saveJobs(jobs);
+        const created = await createJob(newJob);
 
-        return NextResponse.json({ success: true, job: newJob }, { status: 201 });
+        return NextResponse.json({ success: true, job: created }, { status: 201 });
     } catch (err: unknown) {
         const error = err instanceof Error ? err.message : "Internal Error";
         return NextResponse.json({ error }, { status: 500 });
@@ -219,29 +182,25 @@ export async function PUT(req: Request) {
             return NextResponse.json({ error: "ID, Title, and Company are required." }, { status: 400 });
         }
 
-        const jobs = await readJobs();
-        const index = jobs.findIndex((j) => j.id === id);
-
-        if (index === -1) {
-            return NextResponse.json({ error: "Job not found." }, { status: 404 });
-        }
-
-        jobs[index] = {
-            ...jobs[index],
+        const updateData: Partial<JobItem> = {
             title: title.trim(),
             company: company.trim(),
             location: location.trim(),
             roleFamily: roleFamily.trim(),
-            url: url?.trim() || jobs[index].url,
-            employmentType: employmentType?.trim() || jobs[index].employmentType,
-            salaryRange: salaryRange?.trim() || jobs[index].salaryRange,
-            description: description?.trim() || jobs[index].description,
+            url: url?.trim(),
+            employmentType: employmentType?.trim(),
+            salaryRange: salaryRange?.trim(),
+            description: description?.trim(),
             status: status === "expired" ? "expired" : "active",
         };
 
-        await saveJobs(jobs);
+        const updated = await updateJob(id, updateData);
 
-        return NextResponse.json({ success: true, job: jobs[index] });
+        if (!updated) {
+            return NextResponse.json({ error: "Job not found." }, { status: 404 });
+        }
+
+        return NextResponse.json({ success: true, job: updated });
     } catch (err: unknown) {
         const error = err instanceof Error ? err.message : "Internal Error";
         return NextResponse.json({ error }, { status: 500 });
@@ -254,23 +213,15 @@ export async function DELETE(req: Request) {
         const id = searchParams.get("id");
         const purgeExpired = searchParams.get("purgeExpired") === "true";
 
-        let jobs = await readJobs();
-
         if (purgeExpired) {
-            const beforeCount = jobs.length;
             const ttlCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-            jobs = jobs.filter((j) => {
-                const isExpired = (j.status || "active") === "expired";
-                const isTooOld = j.datePosted && j.datePosted < ttlCutoff;
-                return !isExpired && !isTooOld;
-            });
-            const purgedCount = beforeCount - jobs.length;
-            await saveJobs(jobs);
+            const purgedCount = await purgeExpiredJobs(ttlCutoff);
+            const remainingJobs = await getAllJobs();
             return NextResponse.json({
                 success: true,
                 message: `Purged ${purgedCount} expired/stale role(s).`,
                 purgedCount,
-                remainingCount: jobs.length,
+                remainingCount: remainingJobs.length,
             });
         }
 
@@ -278,8 +229,7 @@ export async function DELETE(req: Request) {
             return NextResponse.json({ error: "ID parameter is required." }, { status: 400 });
         }
 
-        jobs = jobs.filter((j) => j.id !== id);
-        await saveJobs(jobs);
+        await deleteJob(id);
 
         return NextResponse.json({ success: true, message: "Job deleted successfully." });
     } catch (err: unknown) {

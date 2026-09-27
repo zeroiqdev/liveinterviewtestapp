@@ -29,6 +29,7 @@ export interface IUser extends Document {
     roleFamily: string;
     seniority: string;
     experienceInRole?: string;
+    password?: string;
     portfolioUrl?: string;
     linkedinUrl?: string;
     resumes: IResume[];
@@ -69,6 +70,7 @@ const UserSchema = new Schema<IUser>(
         roleFamily: { type: String, default: "engineering" },
         seniority: { type: String, default: "professional" },
         experienceInRole: { type: String, default: "professional" },
+        password: { type: String, default: "" },
         portfolioUrl: { type: String, default: "" },
         linkedinUrl: { type: String, default: "" },
         resumes: [ResumeSchema],

@@ -1002,9 +1002,6 @@ export default function FeedbackReport({
                         <div className={styles.loadingContainer}>
                             <div className={styles.loadingSpinner} />
                             <h2 className={styles.loadingTitle}>Evaluating your session…</h2>
-                            <p className={styles.loadingSubtitle}>
-                                Analyzing transcript claims, terminology precision, structured delivery, and industry rubrics.
-                            </p>
                         </div>
                     ) : hasError && !reportData ? (
                         <div className={styles.errorContainer}>
@@ -1044,12 +1041,12 @@ export default function FeedbackReport({
                 >
                     <div className={styles.logoIcon}>
                         <img
-                            src="https://res.cloudinary.com/dyg7neetr/image/upload/v1789904880/Gemini_Generated_Image_k81ahgk81ahgk81a-removebg-preview_fby74s.png"
-                            alt="onscript"
+                            src="https://res.cloudinary.com/dyg7neetr/image/upload/v1790510817/Vector_10_thljja.png"
+                            alt="get prepped"
                             className={styles.logoImg}
                         />
                     </div>
-                    <span className={styles.brandName}>onscript</span>
+                    <span className={styles.brandName}>get prepped</span>
                 </div>
 
                 <div className={styles.navActions}>
@@ -1080,9 +1077,6 @@ export default function FeedbackReport({
                 <div className={styles.loadingContainer}>
                     <div className={styles.loadingSpinner} />
                     <h2 className={styles.loadingTitle}>Evaluating your session…</h2>
-                    <p className={styles.loadingSubtitle}>
-                        Analyzing transcript claims, terminology precision, structured delivery, and industry rubrics.
-                    </p>
                 </div>
             ) : hasError && !reportData ? (
                 <div className={styles.errorContainer}>
