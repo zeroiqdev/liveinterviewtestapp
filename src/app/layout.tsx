@@ -16,7 +16,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
     title: "get prepped - AI Interview Training",
-    description: "Comprehensive Interview Test Role-Play Training for Success",
+    description: "Get prepared to land your next offer",
     icons: {
         icon: [
             { url: "https://res.cloudinary.com/dyg7neetr/image/upload/v1790510817/Vector_10_thljja.png", type: "image/png" },
