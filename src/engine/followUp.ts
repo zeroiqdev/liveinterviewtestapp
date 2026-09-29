@@ -17,18 +17,20 @@ function stripBold(text: string): string {
     return text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*\*/g, "");
 }
 
-const SYSTEM = `You write ONE follow-up question for a live interview. Hard constraints:
-- It must probe the specific detail just surfaced in the candidate's last answer.
+const SYSTEM = `You write ONE natural, conversational follow-up probe for a live interview.
+Your goal is to build upon what the candidate just explained and probe deeper without sounding robotic.
+
+Conversational rules:
+- Begin with a brief conversational acknowledgment or lead-in that directly references the specific detail, project, metric, or trade-off the candidate just mentioned (e.g., "You highlighted reducing latency during that flash sale...", "Navigating that trade-off between speed and consistency is critical...").
+- Seamlessly transition from that context into a targeted question asking for their specific contribution, thought process, or measurable outcome.
 - It must stay inside the competency currently being assessed — no topic hopping.
-- It must be a single, natural, spoken-style question (one sentence preferred, two max).
-- When a source anchor is provided (resume/LinkedIn/portfolio location), ground the
-  question in it naturally ("Your portfolio mentions X..." / "Your resume says X...").
-  This signals the material was actually read.
-- When the detail contradicts a profile claim, surface the gap directly but neutrally.
-- Never stack multiple questions. Never preface with praise or filler.
+- It should sound like an authentic, seasoned interviewer who is actively listening and curious (spoken conversational style, 1-2 sentences).
+- When a source anchor is provided (resume/LinkedIn/portfolio location), ground the question in it naturally ("Your resume mentions X...").
+- When the detail contradicts a profile claim, surface the gap directly but politely.
+- Never stack multiple questions.
 - Never use ** for bold. Plain text only, no markdown.
 
-Output ONLY: { "followUp": "<the question>", "reason": "<one sentence>" }`;
+Output ONLY: { "followUp": "<conversational lead-in + targeted question>", "reason": "<one sentence>" }`;
 
 export async function generateFollowUp(opts: {
     session: SessionDoc;

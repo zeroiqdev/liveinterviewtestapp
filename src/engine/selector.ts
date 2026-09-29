@@ -114,6 +114,10 @@ ${parkedIndexes
         .map((n) => `- ${n.summary}`)
         .join("\n");
 
+    const lastCandidateAnswer = session.transcript
+        .filter((t) => t.role === "candidate")
+        .slice(-1)[0]?.text;
+
     const pacingNote =
         pacing.mode === "compressed"
             ? "PACING: compressed — pick the single most information-dense anchor question; no frills."
@@ -121,21 +125,25 @@ ${parkedIndexes
               ? "PACING: tightening — prefer the single most information-dense question over broad openers."
               : "PACING: normal.";
 
-    const system = `You are the question selector for a live interview engine. Pick the single best next question for the current section. Output ONLY valid JSON:
+    const system = `You are the question selector and conversational interviewer for a live interview engine.
+Pick the single best next question for the current section. If the candidate has already answered earlier questions, craft a natural conversational lead-in that links what they just said to the theme of the new question so the interview feels cohesive and conversational.
+
+Output ONLY valid JSON:
 {
   "choice": "question_id" | "parked_topic",
   "questionId": "<id from the pool list, or null>",
   "parkedIndex": <index from a parked:N tag, or null>,
-  "questionText": "<the exact question to ask; for parked_topic, phrase it naturally as a callback>",
+  "conversationalBridge": "<1 spoken sentence that acknowledges what the candidate just discussed and builds a base for what will be asked next. E.g. 'That gives me good insight into your engineering background. Shifting our focus to execution under tight deadlines:'>",
+  "questionText": "<the complete spoken question to ask the candidate: conversationalBridge + the question>",
   "reason": "<one sentence>"
 }
 
 Rules:
 - Interviewer persona: ${blueprint.persona.voice}
 - ${pacingNote}
-- A parked topic that fits this section well outranks a generic pool question.
-- Otherwise pick from the pool list using the candidate's profile and the conversation so far — same pool, different question per candidate.
-- Never pick a question id that is not in the pool list. For parked_topic, questionText must be your own natural phrasing anchored to the topic.
+- Conversational Bridging: If there is a last candidate answer, do not abruptly jump to a new topic. Briefly connect their previous answer (referencing a key achievement, trade-off, tool, or metric they discussed) to the core premise of the next question.
+- A parked topic that fits this section well outranks a generic pool question. For parked topics, create a natural callback ("Earlier you mentioned X — let's unpack that...").
+- Never pick a question id that is not in the pool list.
 - Do not repeat ground already covered in the running notes.
 - Never use ** for bold. Plain text only, no markdown.`;
 
@@ -145,7 +153,10 @@ ${parkedBlock}
 
 ${profileBlock(profile, blueprint.blueprintId, competencyId)}
 
-Conversation so far:
+Candidate's last answer:
+${lastCandidateAnswer ? `"${lastCandidateAnswer}"` : "(Opening turn — no prior answer yet)"}
+
+Conversation running notes so far:
 ${notes || "- (nothing yet)"}
 ${opts.diversityNote ? `\n${opts.diversityNote}` : ""}
 
@@ -157,6 +168,7 @@ ${candidates.map((q) => `- ${q.id} — ${q.question}`).join("\n")}`;
             choice?: string;
             questionId?: string | null;
             parkedIndex?: number | null;
+            conversationalBridge?: string;
             questionText?: string;
             reason?: string;
         }>({
@@ -183,12 +195,16 @@ ${candidates.map((q) => `- ${q.id} — ${q.question}`).join("\n")}`;
 
         const picked = candidates.find((q) => q.id === raw.questionId);
         if (picked) {
+            let finalText = stripBold(raw.questionText || picked.question) || picked.question;
+            if (raw.conversationalBridge && !finalText.includes(raw.conversationalBridge.slice(0, 15))) {
+                finalText = `${stripBold(raw.conversationalBridge)} ${finalText}`;
+            }
             return {
                 choice: "question_id",
                 questionId: picked.id,
                 parkedIndex: null,
-                questionText: stripBold(picked.question),
-                reason: raw.reason || "selector pick",
+                questionText: finalText,
+                reason: raw.reason || "selector pick with conversational bridge",
             };
         }
         throw new Error("selector returned invalid id");
@@ -205,11 +221,13 @@ ${candidates.map((q) => `- ${q.id} — ${q.question}`).join("\n")}`;
             };
         }
         const first = candidates[0];
+        const bridge = lastCandidateAnswer ? "Thanks for breaking that down. Building on that:" : "";
+        const fallbackText = first?.question ? (bridge ? `${bridge} ${first.question}` : first.question) : null;
         return {
             choice: "question_id",
             questionId: first?.id ?? null,
             parkedIndex: null,
-            questionText: stripBold(first?.question ?? null),
+            questionText: stripBold(fallbackText),
             reason: "fallback: first unasked pool question",
         };
     }
@@ -220,21 +238,29 @@ function mockSelection(
     parkedIndexes: number[],
     session: SessionDoc
 ) {
+    const lastAnswer = session.transcript
+        .filter((t) => t.role === "candidate")
+        .slice(-1)[0]?.text;
+
     if (parkedIndexes.length > 0) {
         const i = parkedIndexes[0];
         return {
             choice: "parked_topic",
             questionId: null,
             parkedIndex: i,
+            conversationalBridge: "Earlier you touched on an interesting point.",
             questionText: stripBold(`Earlier you mentioned "${session.parkingLot[i].topicSummary}" — walk me through that.`),
             reason: "mock: parked topic",
         };
     }
+    const q = candidates[0];
+    const bridge = lastAnswer ? "Thanks for sharing those details. Building on that:" : "";
     return {
         choice: "question_id",
-        questionId: candidates[0]?.id ?? null,
+        questionId: q?.id ?? null,
         parkedIndex: null,
-        questionText: stripBold(candidates[0]?.question ?? null),
-        reason: "mock: first pool question",
+        conversationalBridge: bridge,
+        questionText: bridge ? `${bridge} ${stripBold(q?.question ?? "")}` : stripBold(q?.question ?? null),
+        reason: "mock: first pool question with bridge",
     };
 }

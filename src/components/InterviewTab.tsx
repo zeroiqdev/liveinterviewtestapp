@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useInterview } from "../context/InterviewContext";
 import { useMediaRecorder } from "../hooks/useMediaRecorder";
@@ -9,12 +9,13 @@ import { db } from "../services/database";
 import { blueprintForRole } from "../engine/roleMapping";
 import type { EnginePrompt, PublicSessionState } from "../engine/types";
 import { useTtsAudio } from "../hooks/useTtsAudio";
+import { useTurnDetection } from "../hooks/useTurnDetection";
+import { useAgentActivity } from "../hooks/useAgentActivity";
 import {
     PhoneDisconnect,
     VideoCamera,
     Star,
     X,
-    Pulse,
     Microphone,
     MicrophoneSlash,
     VideoCameraSlash,
@@ -32,6 +33,8 @@ import {
     Minus,
     Check,
     Clock,
+    Pause,
+    Play,
     Chats,
     Ticket,
     ShieldCheck,
@@ -94,6 +97,11 @@ function readableText(raw: string): string {
     return "";
 }
 
+function isPlaceholderCompanyName(company: string | null | undefined): boolean {
+    const normalized = company?.trim().toLowerCase();
+    return !normalized || normalized === "target role" || normalized === "general";
+}
+
 export default function InterviewTab() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -122,10 +130,11 @@ export default function InterviewTab() {
     const [user, setUser] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
 
-    // ── Interview Mode & Live Coaching State ──
-    const [interviewMode, setInterviewMode] = useState<"live_coaching" | "post_interview">("live_coaching");
+    // ── Interview Mode (Mock Interview vs Live Coaching) State ──
+    const [interviewMode, setInterviewMode] = useState<"live_coaching" | "post_interview">("post_interview");
     const [instantFeedback, setInstantFeedback] = useState<InstantQuestionFeedback | null>(null);
     const [isGeneratingInstantFeedback, setIsGeneratingInstantFeedback] = useState(false);
+    const lastCandidateAnswerRef = useRef<string>("");
     const [interviewType, setInterviewType] = useState<string>("");
 
     // ── Engine state ──
@@ -146,13 +155,18 @@ export default function InterviewTab() {
     }, [interviewType, engineState?.role, queryRole, user?.role]);
     const [currentPrompt, setCurrentPrompt] = useState<EnginePrompt | null>(null);
     const [isEngineBusy, setIsEngineBusy] = useState(false);
+    const [activeToolCall, setActiveToolCall] = useState<{ tool: string; reason?: string; systemMessage?: string } | null>(null);
 
     // ── Live session UI state ──
     const [isListening, setIsListening] = useState(false);
     const [countdown, setCountdown] = useState<number | null>(null);
+    const [isTimerPaused, setIsTimerPaused] = useState(false);
     const [sessionStarted, setSessionStarted] = useState(false);
     const [isConnecting, setIsConnecting] = useState(false);
     const [currentAnswer, setCurrentAnswer] = useState("");
+    const [finalTranscript, setFinalTranscript] = useState("");
+    const [latestStarScore, setLatestStarScore] = useState<InstantQuestionFeedback["star"] | null>(null);
+    const [isStarScoring, setIsStarScoring] = useState(false);
     const [isEditingAnswer, setIsEditingAnswer] = useState(false);
     const [showEndModal, setShowEndModal] = useState(false);
     const [elapsedTick, setElapsedTick] = useState(0);
@@ -161,7 +175,7 @@ export default function InterviewTab() {
     >([]);
 
     // ── Pre-interview briefing state ──
-    const [targetCompany, setTargetCompany] = useState<string>("Stripe");
+    const [targetCompany, setTargetCompany] = useState<string>("General Industry Benchmark");
     const [briefing, setBriefing] = useState<PreInterviewBriefing | null>(null);
     const [briefingLoading, setBriefingLoading] = useState<boolean>(false);
 
@@ -183,6 +197,13 @@ export default function InterviewTab() {
     const [cameraChecked, setCameraChecked] = useState(false);
     const [steadyCameraChecked, setSteadyCameraChecked] = useState(false);
     const [showTroubleshooting, setShowTroubleshooting] = useState(false);
+
+    // A link launched from a configured interview card should retain that
+    // configuration even when it is opened in a fresh browser profile. The
+    // session remains anonymous until the candidate signs in elsewhere.
+    const hasConfiguredLaunch = Boolean(queryRole || queryCompany || queryInterviewType);
+    const configuredRole = queryRole?.trim() || user?.role || "Software Engineer";
+    const canStartInterview = micChecked && !isConnecting && !isEngineBusy;
 
     const loadDevices = async () => {
         if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) return;
@@ -307,14 +328,14 @@ export default function InterviewTab() {
         if (queryMode) {
             setInterviewMode(queryMode === "post_interview" ? "post_interview" : "live_coaching");
         }
-        if (queryCompany) {
-            setTargetCompany(queryCompany);
+        if (!isPlaceholderCompanyName(queryCompany)) {
+            setTargetCompany(queryCompany?.trim() || "General Industry Benchmark");
         } else {
             try {
                 const rawMeta = localStorage.getItem("useladder_last_session_meta");
                 if (rawMeta) {
                     const parsed = JSON.parse(rawMeta);
-                    if (parsed.companyName && parsed.companyName !== "General" && parsed.companyName !== "General Industry Benchmark") {
+                    if (!isPlaceholderCompanyName(parsed.companyName) && parsed.companyName !== "General Industry Benchmark") {
                         setTargetCompany(parsed.companyName);
                     }
                 }
@@ -344,7 +365,7 @@ export default function InterviewTab() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                role: interviewType || user.role,
+                role: configuredRole,
                 seniority: user.seniority || "Mid-Level",
                 companyName: targetCompany,
             }),
@@ -362,12 +383,21 @@ export default function InterviewTab() {
         return () => {
             isCancelled = true;
         };
-    }, [user?.role, user?.seniority, targetCompany]);
+    }, [user?.role, user?.seniority, configuredRole, targetCompany]);
 
     // Auth check
     useEffect(() => {
         const raw = localStorage.getItem("useladder_user");
         if (!raw) {
+            if (hasConfiguredLaunch) {
+                setUser({
+                    name: "Candidate",
+                    role: queryRole?.trim() || "Software Engineer",
+                    seniority: "Mid-Level",
+                });
+                setLoading(false);
+                return;
+            }
             router.push("/onboarding");
             return;
         }
@@ -377,7 +407,7 @@ export default function InterviewTab() {
             router.push("/onboarding");
         }
         setLoading(false);
-    }, [router]);
+    }, [router, hasConfiguredLaunch, queryRole]);
 
     // Automatically map user's target role & experience to the engine blueprint
     useEffect(() => {
@@ -385,11 +415,13 @@ export default function InterviewTab() {
         if (raw) {
             try {
                 const u: UserProfile = JSON.parse(raw);
-                const mapped = blueprintForRole(u.role, u.seniority);
+                const mapped = blueprintForRole(queryRole?.trim() || u.role, u.seniority);
                 setSelectedBlueprint(mapped);
             } catch { /* ignore */ }
+        } else if (hasConfiguredLaunch) {
+            setSelectedBlueprint(blueprintForRole(queryRole, "Mid-Level"));
         }
-    }, [user]);
+    }, [user, queryRole, hasConfiguredLaunch]);
 
     // Detect a readable resume from the stored profile (optional input)
     useEffect(() => {
@@ -418,62 +450,207 @@ export default function InterviewTab() {
         };
     }, [stopStream]);
 
-    // Elapsed clock — the INTERVIEWER is on a schedule, not the candidate.
-    // Ticks locally between turns; the engine owns the authoritative value.
+    // The engine owns pacing; this display timer can be paused without
+    // changing question selection or the server session.
     useEffect(() => {
-        if (!sessionStarted || !engineState || engineState.complete) return;
+        if (!sessionStarted || !engineState || engineState.complete || isTimerPaused) return;
         const base = engineState.elapsedSeconds;
         const baseAt = Date.now();
+        setElapsedTick(base);
         const t = setInterval(() => {
             setElapsedTick(base + Math.floor((Date.now() - baseAt) / 1000));
         }, 1000);
         return () => clearInterval(t);
-    }, [sessionStarted, engineState]);
-
-    // Speech Recognition — candidate speaks freely, never capped
-    useEffect(() => {
-        if (!isListening || isMuted) return;
-
-        const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-        if (!SpeechRecognition) return;
-
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.onresult = (event: any) => {
-            const transcript = Array.from(event.results)
-                .map((result: any) => (result as any)[0].transcript)
-                .join("");
-            setCurrentAnswer(transcript);
-        };
-        recognition.start();
-        return () => recognition.stop();
-    }, [isListening, isMuted]);
+    }, [sessionStarted, engineState, isTimerPaused]);
 
     // TTS Audio & Regional Voice Engine
     const {
         playTts,
+        playPipelinedSpeech,
+        playFiller,
         prefetchTts,
+        prefetchFillers,
+        primeAudioCache,
         stopAudio,
+        restoreAudio,
+        resumeAudio,
         replayCurrentAudio,
         isPlaying: isAiSpeaking,
         isLoadingAudio,
         voiceLabel,
     } = useTtsAudio();
 
-    // Background pre-fetch upcoming questions to eliminate TTS latency
+    // Canonical Voice Agent State Machine (LiveKit AgentActivity model)
+    const agentActivity = useAgentActivity({
+        initialState: "idle",
+        minInterruptionDurationMs: 480,
+        onStateChange: (_prev, current) => {
+            if (current === "listening") {
+                setIsListening(true);
+            } else {
+                setIsListening(false);
+            }
+        },
+        onInterruption: () => {
+            turnEpochRef.current += 1;
+            stopAudio();
+            setCurrentAnswer("");
+            setFinalTranscript("");
+        },
+        onFalseInterruption: () => {
+            resumeAudio();
+            restoreAudio();
+        },
+    });
+
+    const isListeningRef = useRef(isListening);
+    isListeningRef.current = isListening;
+    const isMutedRef = useRef(isMuted);
+    isMutedRef.current = isMuted;
+    const isEngineBusyRef = useRef(isEngineBusy);
+    isEngineBusyRef.current = isEngineBusy;
+    const sessionStartedRef = useRef(sessionStarted);
+    sessionStartedRef.current = sessionStarted;
+
+    const recognitionRef = useRef<any>(null);
+    const isRecognitionActiveRef = useRef<boolean>(false);
+    const accumulatedFinalTranscriptRef = useRef<string>("");
+    const turnEpochRef = useRef(0);
+    const recognitionEnabled = sessionStarted && !isMuted && agentActivity.isListening;
+
+    const stopRecognition = useCallback(() => {
+        isRecognitionActiveRef.current = false;
+        if (recognitionRef.current) {
+            try {
+                recognitionRef.current.abort();
+            } catch {}
+            recognitionRef.current = null;
+        }
+    }, []);
+
+    // Recognition is deliberately active only during the candidate's turn.
+    // Leaving it on during TTS lets the browser transcribe the interviewer and
+    // feed that text back into the turn loop.
+    useEffect(() => {
+        if (!recognitionEnabled) {
+            stopRecognition();
+            return;
+        }
+
+        const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+        if (!SpeechRecognition) return;
+
+        isRecognitionActiveRef.current = true;
+        const recognition = new SpeechRecognition();
+        recognitionRef.current = recognition;
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "en-US";
+
+        recognition.onresult = (event: any) => {
+            // A delayed final result can arrive just after a turn transition.
+            // Discard it rather than letting interviewer audio become an answer.
+            if (agentActivity.stateRef.current !== "listening" || !isListeningRef.current || isEngineBusyRef.current) return;
+
+            let interimTranscript = "";
+            let finalChunk = "";
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                const item = event.results[i];
+                if (item.isFinal) {
+                    finalChunk += item[0].transcript + " ";
+                } else {
+                    interimTranscript += item[0].transcript;
+                }
+            }
+
+            if (finalChunk) {
+                accumulatedFinalTranscriptRef.current += finalChunk;
+                setFinalTranscript(accumulatedFinalTranscriptRef.current.trim());
+            }
+
+            const fullTranscript = (accumulatedFinalTranscriptRef.current + interimTranscript).trim();
+            setCurrentAnswer(fullTranscript);
+        };
+
+        recognition.onerror = (e: any) => {
+            if (e.error !== "no-speech" && e.error !== "aborted") {
+                console.warn("[SpeechRecognition] error:", e.error);
+            }
+        };
+
+        recognition.onend = () => {
+            // Auto-restart only while it is still the candidate's turn.
+            if (isRecognitionActiveRef.current && sessionStartedRef.current && !isMutedRef.current && agentActivity.stateRef.current === "listening") {
+                setTimeout(() => {
+                    if (isRecognitionActiveRef.current && sessionStartedRef.current && !isMutedRef.current && agentActivity.stateRef.current === "listening" && recognitionRef.current) {
+                        try {
+                            recognitionRef.current.start();
+                        } catch (err) {
+                            // If already started or browser state in transition, next onend will catch it
+                        }
+                    }
+                }, 100);
+            }
+        };
+
+        try {
+            recognition.start();
+        } catch (e) {
+            console.warn("[SpeechRecognition] start failed:", e);
+        }
+
+        return () => {
+            if (recognitionRef.current === recognition) stopRecognition();
+        };
+    }, [recognitionEnabled, stopRecognition, agentActivity.stateRef]);
+
+    // Background pre-fetch conversational fillers & upcoming questions to eliminate dead air
+    useEffect(() => {
+        prefetchFillers({ persona: "recruiter" });
+    }, [prefetchFillers]);
+
     useEffect(() => {
         if (engineState?.upcomingQuestions && engineState.upcomingQuestions.length > 0) {
             prefetchTts(engineState.upcomingQuestions, { persona: "recruiter" });
         }
     }, [engineState?.upcomingQuestions, prefetchTts]);
 
-    const speakQuestion = (text: string, onDone?: () => void) => {
-        playTts(text, {
-            persona: "recruiter",
-            onStart: () => setIsListening(false),
-            onEnd: () => onDone?.(),
-        });
+    const speakQuestion = (
+        text: string,
+        onDone?: () => void,
+        segments?: Array<{ text: string; audioUrl: string }>
+    ) => {
+        stopRecognition();
+        accumulatedFinalTranscriptRef.current = "";
+        agentActivity.transitionTo("speaking", "Starting question playback");
+        setIsListening(false);
+        setCurrentAnswer("");
+
+        const playOptions = {
+            persona: "recruiter" as const,
+            preferImmediate: true,
+            onStart: () => {
+                accumulatedFinalTranscriptRef.current = "";
+                agentActivity.transitionTo("speaking", "TTS audio playing");
+                setIsListening(false);
+                setCurrentAnswer("");
+            },
+            onEnd: () => {
+                // 500ms acoustic grace period to allow room reverb and speaker echo to die
+                setTimeout(() => {
+                    accumulatedFinalTranscriptRef.current = "";
+                    setCurrentAnswer("");
+                    agentActivity.transitionTo("listening", "Interviewer speech ended, listening for candidate");
+                    onDone?.();
+                }, 500);
+            },
+        };
+
+        if (segments && segments.length > 1) {
+            playPipelinedSpeech(segments, playOptions);
+        } else {
+            playTts(text, playOptions);
+        }
     };
 
     const handleRoleSelect = (roleName: string) => {
@@ -494,7 +671,7 @@ export default function InterviewTab() {
         const candidateId = user?.email || "anonymous";
         const hasSources =
             resumeText.trim() || linkedinText.trim() || portfolioText.trim();
-        const blueprintId = selectedBlueprint || blueprintForRole(user?.role, user?.seniority);
+        const blueprintId = selectedBlueprint || blueprintForRole(configuredRole, user?.seniority);
 
         // One-time extraction, pre-interview — never inside the live loop.
         if (hasSources) {
@@ -518,6 +695,8 @@ export default function InterviewTab() {
                 candidateId,
                 blueprintId,
                 interviewType: interviewType || queryInterviewType || undefined,
+                candidateName: candidateDisplayName,
+                companyName: targetCompany,
             }),
         });
         if (!res.ok) return null;
@@ -526,6 +705,10 @@ export default function InterviewTab() {
 
     // Main entry point — user clicks "Start"
     const handleStartInterview = async () => {
+        if (!micChecked) {
+            setMicTestStatus("error");
+            return;
+        }
         setIsConnecting(true);
         const granted = await startStream();
         if (!granted) {
@@ -547,6 +730,8 @@ export default function InterviewTab() {
         setElapsedTick(started.state.elapsedSeconds);
         setIsConnecting(false);
         setSessionStarted(true);
+        setCurrentAnswer("");
+        setIsListening(false);
         if (started.prompt?.text) {
             setLocalTranscript([{ role: "interviewer", text: started.prompt.text }]);
         }
@@ -573,19 +758,46 @@ export default function InterviewTab() {
         }, 1000);
     };
 
-    // Hand answer to orchestrator engine
+    // Hand answer to orchestrator engine with conversational filler to eliminate dead air
     const submitTurnToEngine = async (candidateText: string) => {
         if (!sessionId) return;
+        const turnEpoch = turnEpochRef.current;
         setIsEngineBusy(true);
+        agentActivity.transitionTo("thinking", "Candidate submitted turn, processing");
+        setIsListening(false);
+        accumulatedFinalTranscriptRef.current = "";
+        setCurrentAnswer("");
+        setFinalTranscript("");
+
+        // A brief bridge gives the interviewer a natural conversational beat.
+        // It is deliberately capped so a slow model can never make the caller wait.
+        const bridgeStartedAt = Date.now();
+        const BRIDGE_RUNWAY_MS = 600;
+        playFiller(candidateText, {
+            persona: "recruiter",
+            onStart: () => {
+                setIsListening(false);
+                setCurrentAnswer("");
+            },
+        });
 
         try {
             const res = await fetch(`/api/engine/session/${sessionId}/turn`, {
                 method: "POST",
                 headers: { "content-type": "application/json" },
-                body: JSON.stringify({ answerText: candidateText }),
+                body: JSON.stringify({
+                    answerText: candidateText,
+                    persona: "recruiter",
+                }),
             });
             if (!res.ok) throw new Error("turn failed");
             const data = await res.json();
+            if (turnEpoch !== turnEpochRef.current) return;
+
+            // Prime client audio cache immediately with server-synthesized audio URL
+            if (data.audioUrl && data.prompt?.text) {
+                primeAudioCache(data.prompt.text, data.audioUrl, data.voiceLabel, "recruiter");
+            }
 
             setLocalTranscript((prev) => [
                 ...prev,
@@ -598,21 +810,41 @@ export default function InterviewTab() {
             setCurrentAnswer("");
             setIsEditingAnswer(false);
 
-            if (data.prompt.type === "complete" || data.state.complete) {
-                if (data.prompt.text) {
-                    speakQuestion(data.prompt.text, () => handleComplete());
-                } else {
-                    handleComplete();
+            if (data.toolCall) {
+                setActiveToolCall(data.toolCall);
+                if (data.toolCall.tool !== "end_call") {
+                    setTimeout(() => {
+                        setActiveToolCall((prev) => (prev?.tool === data.toolCall.tool ? null : prev));
+                    }, 4500);
                 }
-                return;
+            } else {
+                setActiveToolCall(null);
             }
 
-            if (data.prompt.text) {
-                speakQuestion(data.prompt.text, () => setIsListening(true));
-            } else {
-                setIsListening(true);
-            }
-        } catch {
+            const playNext = () => {
+                if (data.prompt.type === "complete" || data.state.complete || data.endCall) {
+                    if (data.prompt.text) {
+                        speakQuestion(data.prompt.text, () => handleComplete(), data.audioSegments);
+                    } else {
+                        handleComplete();
+                    }
+                    return;
+                }
+
+                if (data.prompt.text) {
+                    speakQuestion(data.prompt.text, () => {
+                        agentActivity.transitionTo("listening", "Interviewer speech ended, listening for candidate");
+                    }, data.audioSegments);
+                } else {
+                    agentActivity.transitionTo("listening", "No prompt text, listening");
+                }
+            };
+
+            const remainingBridgeMs = Math.max(0, BRIDGE_RUNWAY_MS - (Date.now() - bridgeStartedAt));
+            window.setTimeout(playNext, remainingBridgeMs);
+        } catch (err) {
+            console.error("submitTurnToEngine error:", err);
+            agentActivity.transitionTo("listening", "Engine turn error, re-enabling listening");
             setIsListening(true);
         } finally {
             setIsEngineBusy(false);
@@ -620,49 +852,72 @@ export default function InterviewTab() {
     };
 
     // Candidate finished their answer — hand it to orchestrator or trigger instant coaching
-    const handleNext = async () => {
+    const handleNext = async (overrideText?: string) => {
         if (!sessionId || isEngineBusy) return;
 
-        const candidateText = currentAnswer.trim();
+        const candidateText = (typeof overrideText === "string" ? overrideText : finalTranscript).trim();
+        if (!candidateText) return;
+        lastCandidateAnswerRef.current = candidateText;
+        accumulatedFinalTranscriptRef.current = "";
         setIsListening(false);
+        setCurrentAnswer("");
 
-        // If in live coaching mode, request instant feedback and pause for coaching review
-        if (interviewMode === "live_coaching" && !instantFeedback) {
-            setIsGeneratingInstantFeedback(true);
-            try {
-                const res = await fetch("/api/interview/instant-feedback", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        question: currentPrompt?.text || "Interview question",
-                        answer: candidateText,
-                        role: user?.role || "Software Engineer",
-                        companyName: targetCompany || "Top Tech",
-                        category: queryCategory || "General Interview",
-                    }),
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.feedback) {
-                        setInstantFeedback(data.feedback);
-                        setIsGeneratingInstantFeedback(false);
-                        return; // Keep modal open for candidate review
-                    }
-                }
-            } catch (e) {
-                console.warn("Instant feedback error:", e);
-            }
-            setIsGeneratingInstantFeedback(false);
+        // Mock interviews stay uninterrupted. The score is generated only in
+        // the explicit live-coaching mode and never blocks the voice turn.
+        if (interviewMode === "live_coaching") {
+            setIsStarScoring(true);
+            void fetch("/api/interview/instant-feedback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                question: currentPrompt?.text || "Interview question",
+                answer: candidateText,
+                role: user?.role || "Software Engineer",
+                companyName: targetCompany || "Top Tech",
+                category: queryCategory || "General Interview",
+            }),
+            })
+                .then((res) => res.ok ? res.json() : null)
+                .then((data) => {
+                    if (data?.feedback?.star) setLatestStarScore(data.feedback.star);
+                })
+                .catch(() => undefined)
+                .finally(() => setIsStarScoring(false));
         }
 
         await submitTurnToEngine(candidateText);
     };
 
+    // Hands-free Voice Activity & Silence Detection (VAD)
+    const { isCountingDown } = useTurnDetection({
+        enabled: sessionStarted && !showEndModal && agentActivity.isListening && !isMuted,
+        isAiSpeaking: agentActivity.isSpeaking,
+        isEngineBusy: agentActivity.isThinking || isEngineBusy,
+        activityTranscript: currentAnswer,
+        currentTranscript: finalTranscript,
+        minDelayMs: 3600,
+        maxDelayMs: 8000,
+        alpha: 0.35,
+        minWords: 5,
+        onTurnComplete: (transcript) => {
+            handleNext(transcript);
+        },
+    });
+
     // Candidate reviewed coaching feedback and clicked "Next Question →"
     const handleContinueAfterCoaching = async () => {
-        const candidateText = currentAnswer.trim();
+        const textToSubmit = lastCandidateAnswerRef.current || currentAnswer.trim();
         setInstantFeedback(null);
-        await submitTurnToEngine(candidateText);
+        await submitTurnToEngine(textToSubmit);
+    };
+
+    // Candidate wants to retry answering the same question with coaching tips in mind
+    const handleRetryAnswer = () => {
+        setInstantFeedback(null);
+        accumulatedFinalTranscriptRef.current = "";
+        setCurrentAnswer("");
+        setIsListening(true);
+        agentActivity.transitionTo("listening", "Retrying answer with coach tips");
     };
 
 
@@ -758,6 +1013,9 @@ export default function InterviewTab() {
     const fmt = (s: number) =>
         `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
+    const timeRemaining = Math.max(0, (engineState?.totalTimeBudgetSeconds ?? 1800) - elapsedTick);
+    const timerTone = timeRemaining <= 120 ? styles.timerCritical : timeRemaining <= 300 ? styles.timerWarning : "";
+
     const sectionProgress = engineState
         ? `Section ${engineState.sectionIndex + 1} of ${engineState.sectionCount}`
         : "";
@@ -823,7 +1081,7 @@ export default function InterviewTab() {
                                 <span className={styles.preInterviewPill}>14 min</span>
                             </div>
                             <p className={styles.preInterviewSubtitle}>
-                                Discuss your knowledge in a domain of your choice.
+                                Practice {interviewType || "role-specific"} questions for {configuredRole} with focused follow-ups based on your answers.
                             </p>
                         </div>
 
@@ -1108,7 +1366,8 @@ export default function InterviewTab() {
                                             type="button"
                                             className={styles.preInterviewStartCta}
                                             onClick={handleStartInterview}
-                                            disabled={isConnecting || isEngineBusy}
+                                            disabled={!canStartInterview}
+                                            aria-describedby="start-interview-requirement"
                                         >
                                             {isConnecting
                                                 ? "Connecting Camera & Mic…"
@@ -1135,7 +1394,9 @@ export default function InterviewTab() {
                                         )}
 
                                         <p className={styles.preInterviewFooterNote}>
-                                            Your setup is checked before you start so your submission can be reviewed.
+                                            <span id="start-interview-requirement">
+                                                Test your microphone to enable the interview. Your mock interview stays uninterrupted, with feedback after it ends.
+                                            </span>
                                         </p>
                                     </div>
                                 ) : (
@@ -1243,9 +1504,7 @@ export default function InterviewTab() {
                                             <span>
                                                 {isAiSpeaking
                                                     ? "Interviewer is speaking…"
-                                                    : isListening
-                                                      ? "Listening to you…"
-                                                      : isEngineBusy
+                                                    : isEngineBusy
                                                         ? "Evaluating response…"
                                                         : "Live"}
                                             </span>
@@ -1307,22 +1566,39 @@ export default function InterviewTab() {
                         {/* Right Column */}
                         <div className={styles.rightColumn}>
                             {/* Questions Card */}
-                            <div className={styles.infoCard}>
+                            <div className={`${styles.infoCard} ${interviewMode === "live_coaching" && (isGeneratingInstantFeedback || instantFeedback) ? styles.infoCardCoachingActive : ""}`}>
                                 <div className={styles.cardHeader}>
                                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                                         <div className={styles.headerLabel}>
                                             <span>{headerInterviewTitle}</span>
                                         </div>
                                     </div>
-                                    <div className={styles.timer} title="Time elapsed in interview">
+                                    <div className={`${styles.timer} ${timerTone}`} title="Time remaining in this interview">
                                         <span className={styles.timerBlinkDot} />
-                                        <span>{fmt(elapsedTick)}</span>
+                                        <span>{fmt(timeRemaining)}</span>
+                                        <button
+                                            type="button"
+                                            className={styles.timerPauseButton}
+                                            onClick={() => setIsTimerPaused((paused) => !paused)}
+                                            title={isTimerPaused ? "Resume visual timer" : "Pause visual timer"}
+                                            aria-label={isTimerPaused ? "Resume visual timer" : "Pause visual timer"}
+                                        >
+                                            {isTimerPaused ? <Play size={13} weight="fill" /> : <Pause size={13} weight="fill" />}
+                                        </button>
                                     </div>
                                 </div>
 
-                                {currentPrompt?.kind === "follow_up" && (
-                                    <div className={styles.followUpBadge}>
-                                        <span>🎯 Probing detail from your previous answer</span>
+                                {activeToolCall && (
+                                    <div className={`${styles.toolCallBadge} ${activeToolCall.tool === "end_call" ? styles.toolCallBadgeEnding : ""}`}>
+                                        <span>
+                                            {activeToolCall.tool === "end_call"
+                                                ? "⚡ Action: Ending Interview (Voice command detected)"
+                                                : activeToolCall.tool === "repeat_question"
+                                                ? "⚡ Action: Repeating Question"
+                                                : activeToolCall.tool === "skip_question"
+                                                ? "⚡ Action: Skipping to Next Question"
+                                                : `⚡ Action: ${activeToolCall.tool}`}
+                                        </span>
                                     </div>
                                 )}
 
@@ -1370,122 +1646,209 @@ export default function InterviewTab() {
                                     </div>
                                 )}
 
+                                {((isListening && !isAiSpeaking) || currentAnswer.trim()) && (
+                                    <div className={`${styles.liveSpeechBox} ${currentAnswer.trim() ? styles.liveSpeechActive : ""}`}>
+                                        <div className={styles.liveSpeechHeader}>
+                                            <span className={styles.speechPulseDot} />
+                                            <span>Your Response</span>
+                                            {currentAnswer.trim() && (
+                                                <span className={styles.wordCountBadge}>
+                                                    {currentAnswer.trim().split(/\s+/).filter(Boolean).length} words
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className={styles.liveSpeechContent}>
+                                            {currentAnswer.trim() ? (
+                                                <p className={styles.liveSpeechText}>{currentAnswer}</p>
+                                            ) : (
+                                                <p className={styles.liveSpeechPlaceholder}>Speak your answer… (audio is captured automatically)</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className={styles.cardFooter}>
                                     <span style={{ fontSize: '0.8rem', color: '#555' }}>
-                                        {`${sectionProgress}${currentPrompt?.kind === "follow_up" ? " · follow-up" : ""}${engineState?.pacing !== "normal" && engineState ? ` · pacing: ${engineState.pacing}` : ""}`}
+                                        {`${sectionProgress}${engineState?.pacing !== "normal" && engineState ? ` · pacing: ${engineState.pacing}` : ""}`}
                                     </span>
-                                    {isRecording && !engineState?.complete && (
+                                    {!isAiSpeaking && !isEngineBusy && (isListening || isCountingDown) && (
                                         <button
-                                            className={styles.nextBtn}
-                                            onClick={handleNext}
-                                            disabled={isEngineBusy}
+                                            type="button"
+                                            className={styles.quickSendBtn}
+                                            onClick={() => handleNext()}
+                                            title="Finish answer immediately"
                                         >
-                                            {isEngineBusy ? "Thinking…" : "Next"}
+                                            Done speaking
                                         </button>
                                     )}
                                 </div>
                             </div>
+
+                            {interviewMode === "live_coaching" && (isStarScoring || latestStarScore) && (
+                                <section className={styles.starScorePanel} aria-live="polite">
+                                    <div className={styles.starScoreHeader}>
+                                        <div>
+                                            <span className={styles.starScoreEyebrow}>Answer structure</span>
+                                            <h3>STAR signal</h3>
+                                        </div>
+                                        {isStarScoring ? (
+                                            <div className={styles.starPending}><span className={styles.miniSpinner} /> Scoring</div>
+                                        ) : latestStarScore ? (
+                                            <div className={styles.starOverall}>{latestStarScore.overallScore}<span>/100</span></div>
+                                        ) : null}
+                                    </div>
+                                    {latestStarScore && (
+                                        <>
+                                            <div className={styles.starMetrics}>
+                                                {[
+                                                    ["Situation", latestStarScore.situation],
+                                                    ["Task", latestStarScore.task],
+                                                    ["Action", latestStarScore.action],
+                                                    ["Result", latestStarScore.result],
+                                                ].map(([label, score]) => (
+                                                    <div key={label as string} className={styles.starMetric}>
+                                                        <div><span>{label}</span><strong>{score as number}</strong></div>
+                                                        <i><b style={{ width: `${Math.min(100, Number(score) * 4)}%` }} /></i>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <p className={styles.starSummary}>{latestStarScore.summary}</p>
+                                            <p className={styles.starFocus}>Next: {latestStarScore.nextFocus}</p>
+                                        </>
+                                    )}
+                                </section>
+                            )}
+
+                            {/* Live Coaching Panel – Runs in-page beside video below question */}
+                            {interviewMode === "live_coaching" && (isGeneratingInstantFeedback || instantFeedback) && (
+                                <div className={styles.inlineFeedbackCard}>
+                                    {isGeneratingInstantFeedback ? (
+                                        <div className={styles.inlineAnalyzingCard}>
+                                            <div className={styles.inlineAnalyzingHeader}>
+                                                <div className={styles.inlineCoachBadge}>
+                                                    <Sparkle size={14} weight="fill" />
+                                                    <span>AI Coach Evaluating</span>
+                                                </div>
+                                                {targetCompany && (
+                                                    <span className={styles.inlineTargetCompany}>
+                                                        Target: {targetCompany}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className={styles.inlineAnalyzingBody}>
+                                                <div className={styles.inlineAnalyzingSpinnerWrap}>
+                                                    <div className={styles.inlineAnalyzingSpinner} />
+                                                </div>
+                                                <div className={styles.inlineAnalyzingContent}>
+                                                    <h4 className={styles.inlineAnalyzingTitle}>Analyzing your response…</h4>
+                                                    <p className={styles.inlineAnalyzingText}>
+                                                        Evaluating structure, delivery, and alignment with {targetCompany || "role"} standards.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className={styles.inlineAnalyzingProgressTrack}>
+                                                <div className={styles.inlineAnalyzingProgressBar} />
+                                            </div>
+                                        </div>
+                                    ) : instantFeedback ? (
+                                        <div className={styles.inlineFeedbackContent}>
+                                            <div className={styles.inlineFeedbackHeader}>
+                                                <div className={styles.inlineCoachProfile}>
+                                                    <div className={styles.inlineCoachAvatar}>
+                                                        <Sparkle size={16} weight="fill" />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className={styles.inlineCoachTitle}>Live Coach Feedback</h3>
+                                                        <p className={styles.inlineCoachSubtitle}>Instant Per-Question Critique</p>
+                                                    </div>
+                                                </div>
+                                                <div className={styles.inlineScoreBadgeRow}>
+                                                    <span
+                                                        className={`${styles.inlineRatingPill} ${
+                                                            instantFeedback.rating === "Strong"
+                                                                ? styles.ratingStrong
+                                                                : instantFeedback.rating === "Average"
+                                                                ? styles.ratingAverage
+                                                                : styles.ratingNeedsWork
+                                                        }`}
+                                                    >
+                                                        {instantFeedback.rating}
+                                                    </span>
+                                                    <span className={styles.inlineScorePill}>
+                                                        {instantFeedback.score}/100
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className={styles.inlineFeedbackBody}>
+                                                <div className={styles.inlineHeadlineCard}>
+                                                    &ldquo;{instantFeedback.headline}&rdquo;
+                                                </div>
+
+                                                {instantFeedback.strengths && instantFeedback.strengths.length > 0 && (
+                                                    <div>
+                                                        <div className={styles.inlineSectionTitle}>
+                                                            <CheckCircle size={15} weight="fill" color="#10b981" />
+                                                            <span>What Worked Well</span>
+                                                        </div>
+                                                        <ul className={styles.inlineStrengthsList}>
+                                                            {instantFeedback.strengths.map((str, idx) => (
+                                                                <li key={idx} className={styles.inlineStrengthsItem}>
+                                                                    <CheckCircle size={14} weight="fill" />
+                                                                    <span>{str}</span>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+
+                                                {instantFeedback.coachingTip && (
+                                                    <div className={styles.inlineCoachingTipCard}>
+                                                        <div className={styles.inlineSectionTitle} style={{ color: "#b45309" }}>
+                                                            <Lightbulb size={15} weight="fill" color="#d97706" />
+                                                            <span>Coach Polish Tip</span>
+                                                        </div>
+                                                        <p>{instantFeedback.coachingTip}</p>
+                                                    </div>
+                                                )}
+
+                                                {instantFeedback.modelAnswer && (
+                                                    <div className={styles.inlineModelAnswerCard}>
+                                                        <div className={styles.inlineSectionTitle} style={{ color: "#475569" }}>
+                                                            <Star size={14} weight="fill" color="#f59e0b" />
+                                                            <span>Top 1% Model Answer Benchmark</span>
+                                                        </div>
+                                                        <p>&ldquo;{instantFeedback.modelAnswer}&rdquo;</p>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className={styles.inlineFeedbackFooter}>
+                                                <button
+                                                    type="button"
+                                                    className={styles.inlineRetryBtn}
+                                                    onClick={handleRetryAnswer}
+                                                    title="Re-speak your answer using the coach's tips"
+                                                >
+                                                    <span>Try Answer Again</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className={styles.inlineContinueBtn}
+                                                    onClick={handleContinueAfterCoaching}
+                                                >
+                                                    <span>Next Question</span>
+                                                    <ArrowRight size={15} weight="bold" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : null}
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
             </main>
-
-            {/* Live Coaching Instant Feedback Modal */}
-            {(isGeneratingInstantFeedback || instantFeedback) && (
-                <div className={styles.instantFeedbackOverlay}>
-                    <div className={styles.instantFeedbackModal}>
-                        {isGeneratingInstantFeedback ? (
-                            <div className={styles.instantGeneratingCard}>
-                                <div className={styles.instantGeneratingSpinner} />
-                                <h4 style={{ color: "#f8fafc", margin: 0, fontSize: "1rem" }}>
-                                    Analyzing your response…
-                                </h4>
-                                <p style={{ color: "#94a3b8", fontSize: "0.825rem", margin: 0, maxWidth: 360 }}>
-                                    Your AI coach is evaluating delivery, technical depth, and alignment with {targetCompany} benchmarks.
-                                </p>
-                            </div>
-                        ) : instantFeedback ? (
-                            <>
-                                <div className={styles.instantFeedbackHeader}>
-                                    <div className={styles.instantCoachProfile}>
-                                        <div className={styles.instantCoachAvatar}>
-                                            <Sparkle size={20} weight="fill" />
-                                        </div>
-                                        <div>
-                                            <h3 className={styles.instantCoachTitle}>Live Coach Feedback</h3>
-                                            <p className={styles.instantCoachSubtitle}>Instant Per-Question Critique</p>
-                                        </div>
-                                    </div>
-                                    <div className={styles.instantScoreBadgeRow}>
-                                        <span
-                                            className={`${styles.instantRatingPill} ${
-                                                instantFeedback.rating === "Strong"
-                                                    ? styles.ratingStrong
-                                                    : instantFeedback.rating === "Average"
-                                                    ? styles.ratingAverage
-                                                    : styles.ratingNeedsWork
-                                            }`}
-                                        >
-                                            {instantFeedback.rating}
-                                        </span>
-                                        <span className={styles.instantScorePill}>
-                                            {instantFeedback.score}/100
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className={styles.instantFeedbackBody}>
-                                    <div className={styles.instantHeadlineCard}>
-                                        "{instantFeedback.headline}"
-                                    </div>
-
-                                    <div>
-                                        <div className={styles.instantSectionTitle}>
-                                            <CheckCircle size={15} weight="fill" color="#10b981" />
-                                            <span>What Worked Well</span>
-                                        </div>
-                                        <ul className={styles.instantStrengthsList}>
-                                            {instantFeedback.strengths?.map((str, idx) => (
-                                                <li key={idx} className={styles.instantStrengthsItem}>
-                                                    <CheckCircle size={14} weight="fill" />
-                                                    <span>{str}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-
-                                    <div className={styles.instantCoachingTipCard}>
-                                        <div className={styles.instantSectionTitle} style={{ color: "#fbbf24" }}>
-                                            <Lightbulb size={15} weight="fill" color="#fbbf24" />
-                                            <span>Coach Polish Tip</span>
-                                        </div>
-                                        <p>{instantFeedback.coachingTip}</p>
-                                    </div>
-
-                                    <div className={styles.instantModelAnswerCard}>
-                                        <div className={styles.instantSectionTitle} style={{ color: "#94a3b8" }}>
-                                            <Star size={14} weight="fill" color="#f59e0b" />
-                                            <span>Top 1% Model Answer Benchmark</span>
-                                        </div>
-                                        <p>"{instantFeedback.modelAnswer}"</p>
-                                    </div>
-                                </div>
-
-                                <div className={styles.instantFeedbackFooter}>
-                                    <button
-                                        type="button"
-                                        className={styles.instantContinueBtn}
-                                        onClick={handleContinueAfterCoaching}
-                                    >
-                                        <span>Next Question</span>
-                                        <ArrowRight size={16} weight="bold" />
-                                    </button>
-                                </div>
-                            </>
-                        ) : null}
-                    </div>
-                </div>
-            )}
 
             {/* End Interview Warning Modal — modern design */}
             {showEndModal && (

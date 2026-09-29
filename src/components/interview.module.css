@@ -915,6 +915,23 @@
     flex-direction: column;
     gap: 1rem;
     min-height: 0;
+    height: 100%;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #E2E8F0 transparent;
+}
+
+.rightColumn::-webkit-scrollbar {
+    width: 5px;
+}
+
+.rightColumn::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 9999px;
+}
+
+.rightColumn::-webkit-scrollbar-track {
+    background: transparent;
 }
 
 /* ── Info Card (Adaptive Path) ── */
@@ -927,8 +944,23 @@
     flex-direction: column;
     position: relative;
     flex: 1;
-    height: 100%;
+    min-height: 0;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transition: padding 0.2s ease;
+}
+
+.infoCardCoachingActive {
+    flex: 0 0 auto;
+    padding: 1.35rem 1.75rem 1.15rem;
+}
+
+.infoCardCoachingActive .questionText {
+    font-size: 1.2rem;
+    margin-bottom: 1.15rem;
+}
+
+.infoCardCoachingActive .cardHeader {
+    margin-bottom: 1rem;
 }
 
 .cardHeader {
@@ -963,6 +995,39 @@
     border-radius: 9999px;
 }
 
+.timerWarning {
+    color: #a16207;
+    background: #fffbeb;
+    border-color: #facc15;
+}
+
+.timerCritical {
+    color: #b91c1c;
+    background: #fff1f2;
+    border-color: #fda4af;
+}
+
+.timerCritical .timerBlinkDot {
+    background-color: #e11d48;
+}
+
+.timerPauseButton {
+    width: 22px;
+    height: 22px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0;
+    color: currentColor;
+    background: transparent;
+    border: 0;
+    border-left: 1px solid currentColor;
+    cursor: pointer;
+}
+
+.timerPauseButton:hover {
+    opacity: 0.7;
+}
+
 .timerBlinkDot {
     width: 7px;
     height: 7px;
@@ -986,11 +1051,12 @@
 }
 
 .questionText {
-    font-size: 1.75rem;
-    font-weight: 300;
+    font-size: 1.3rem;
+    font-weight: 400;
     color: #141414;
-    line-height: 1.4;
-    margin-bottom: 3rem;
+    line-height: 1.5;
+    margin-bottom: 2rem;
+    font-optical-sizing: auto;
 }
 
 .cardFooter {
@@ -1038,6 +1104,116 @@
 
 .nextBtn:hover {
     background: #3c7dd2;
+}
+
+/* ── Conversational HUD & Hands-Free Status ── */
+.conversationalIndicatorRow {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.aiSpeakingBadge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    padding: 0.4rem 0.85rem;
+    border-radius: 9999px;
+    font-weight: 500;
+}
+
+.thinkingBadge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.08);
+    border: 1px solid rgba(251, 191, 36, 0.25);
+    padding: 0.4rem 0.85rem;
+    border-radius: 9999px;
+    font-weight: 500;
+}
+
+.miniSpinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(251, 191, 36, 0.3);
+    border-top-color: #fbbf24;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.silenceCountdownBadge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    color: #c084fc;
+    background: rgba(192, 132, 252, 0.08);
+    border: 1px solid rgba(192, 132, 252, 0.3);
+    padding: 0.35rem 0.75rem;
+    border-radius: 9999px;
+    font-weight: 500;
+}
+
+.countdownDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #c084fc;
+    animation: pulse 1s infinite;
+}
+
+.listeningBadge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    color: #34d399;
+    background: rgba(52, 211, 153, 0.08);
+    border: 1px solid rgba(52, 211, 153, 0.25);
+    padding: 0.35rem 0.75rem;
+    border-radius: 9999px;
+    font-weight: 500;
+}
+
+.listeningDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
+}
+
+.quickSendBtn {
+    background: rgba(255, 255, 255, 0.08);
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    margin-left: 0.25rem;
+    transition: all 0.15s ease;
+}
+
+.quickSendBtn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+}
+
+.pulsingIcon {
+    animation: pulse 1.2s infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
 
@@ -1375,6 +1551,26 @@
     margin-bottom: 0.75rem;
 }
 
+.toolCallBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6366f1;
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    padding: 0.3rem 0.75rem;
+    border-radius: 9999px;
+    margin-bottom: 0.75rem;
+}
+
+.toolCallBadgeEnding {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.25);
+}
+
 .resumeStatusBadge {
     display: flex;
     align-items: center;
@@ -1671,275 +1867,7 @@
     font-weight: 600;
 }
 
-/* ── Live Coaching Instant Feedback Card ── */
-.instantFeedbackOverlay {
-    position: fixed;
-    inset: 0;
-    z-index: 1200;
-    background: rgba(4, 7, 13, 0.78);
-    backdrop-filter: blur(8px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 1.25rem;
-    animation: fadeIn 0.2s ease-out;
-}
-
-.instantFeedbackModal {
-    background: #0f172a;
-    border: 1px solid #1e293b;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(59, 130, 246, 0.2);
-    border-radius: 16px;
-    width: 100%;
-    max-width: 640px;
-    max-height: 90vh;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    animation: slideUpModal 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes slideUpModal {
-    from {
-        opacity: 0;
-        transform: translateY(16px) scale(0.98);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
-.instantFeedbackHeader {
-    padding: 1.25rem 1.5rem;
-    background: linear-gradient(180deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.4) 100%);
-    border-bottom: 1px solid #1e293b;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-}
-
-.instantCoachProfile {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.instantCoachAvatar {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
-}
-
-.instantCoachTitle {
-    font-family: 'Inter', sans-serif;
-    font-size: 0.95rem;
-    font-weight: 400;
-    color: #f8fafc;
-    margin: 0;
-    letter-spacing: -0.01em;
-}
-
-.instantCoachSubtitle {
-    font-family: 'Inter', sans-serif;
-    font-size: 0.75rem;
-    font-weight: 400;
-    color: #94a3b8;
-    margin: 0;
-}
-
-.instantScoreBadgeRow {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.instantRatingPill {
-    padding: 0.3rem 0.65rem;
-    border-radius: 9999px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-}
-
-.ratingStrong {
-    background: rgba(16, 185, 129, 0.18);
-    color: #34d399;
-    border: 1px solid rgba(16, 185, 129, 0.35);
-}
-
-.ratingAverage {
-    background: rgba(245, 158, 11, 0.18);
-    color: #fbbf24;
-    border: 1px solid rgba(245, 158, 11, 0.35);
-}
-
-.ratingNeedsWork {
-    background: rgba(239, 68, 68, 0.18);
-    color: #f87171;
-    border: 1px solid rgba(239, 68, 68, 0.35);
-}
-
-.instantScorePill {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #e2e8f0;
-    background: #1e293b;
-    padding: 0.3rem 0.6rem;
-    border-radius: 8px;
-    border: 1px solid #334155;
-}
-
-.instantFeedbackBody {
-    padding: 1.25rem 1.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 1.1rem;
-}
-
-.instantHeadlineCard {
-    background: rgba(59, 130, 246, 0.08);
-    border: 1px solid rgba(59, 130, 246, 0.22);
-    border-left: 3px solid #3b82f6;
-    padding: 0.9rem 1rem;
-    border-radius: 8px;
-    font-size: 0.875rem;
-    color: #e2e8f0;
-    line-height: 1.5;
-    font-weight: 500;
-}
-
-.instantSectionTitle {
-    font-size: 0.78rem;
-    font-weight: 700;
-    color: #94a3b8;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin: 0 0 0.5rem;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-}
-
-.instantStrengthsList {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 0.45rem;
-}
-
-.instantStrengthsItem {
-    font-size: 0.825rem;
-    color: #cbd5e1;
-    display: flex;
-    align-items: flex-start;
-    gap: 0.5rem;
-    line-height: 1.45;
-}
-
-.instantStrengthsItem svg {
-    flex-shrink: 0;
-    margin-top: 2px;
-    color: #10b981;
-}
-
-.instantCoachingTipCard {
-    background: rgba(245, 158, 11, 0.08);
-    border: 1px solid rgba(245, 158, 11, 0.25);
-    border-radius: 10px;
-    padding: 0.85rem 1rem;
-}
-
-.instantCoachingTipCard p {
-    margin: 0;
-    font-size: 0.825rem;
-    color: #fde68a;
-    line-height: 1.5;
-}
-
-.instantModelAnswerCard {
-    background: #111c30;
-    border: 1px solid #1e293b;
-    border-radius: 10px;
-    padding: 0.85rem 1rem;
-}
-
-.instantModelAnswerCard p {
-    margin: 0;
-    font-size: 0.82rem;
-    color: #94a3b8;
-    line-height: 1.55;
-    font-style: normal;
-}
-
-.instantFeedbackFooter {
-    padding: 1rem 1.5rem 1.25rem;
-    border-top: 1px solid #1e293b;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.75rem;
-    background: rgba(15, 23, 42, 0.6);
-    border-bottom-left-radius: 16px;
-    border-bottom-right-radius: 16px;
-}
-
-.instantContinueBtn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.65rem 1.25rem;
-    background: #3b82f6;
-    color: #ffffff;
-    border: none;
-    border-radius: 8px;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.875rem;
-    font-weight: 400;
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-
-.instantContinueBtn:hover {
-    background: #2563eb;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
-}
-
-.instantGeneratingCard {
-    padding: 2.5rem 1.5rem;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-}
-
-.instantGeneratingSpinner {
-    width: 32px;
-    height: 32px;
-    border: 3px solid rgba(59, 130, 246, 0.2);
-    border-top-color: #3b82f6;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-/* ── Inline Live Coaching Feedback – below question, scrollable, retake replaces same card – White (coach character, not dark) ── */
+/* ── Inline Live Coaching Feedback Panel (Runs beside video below questions) ── */
 .inlineFeedbackCard {
     background: #FFFFFF;
     border: 1px solid #E2E8F0;
@@ -1947,133 +1875,243 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
     font-family: 'Inter', sans-serif;
-    animation: slideUpModal 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: inlineCardEnter 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    flex-shrink: 0;
 }
 
-.inlineFeedbackCard .instantFeedbackHeader {
+@keyframes inlineCardEnter {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── Analyzing Your Response (Live Coaching In-Progress State) ── */
+.inlineAnalyzingCard {
+    display: flex;
+    flex-direction: column;
     background: #FFFFFF;
+}
+
+.inlineAnalyzingHeader {
+    padding: 0.85rem 1.25rem;
+    background: #FAFAFA;
     border-bottom: 1px solid #F1F5F9;
-    padding: 1rem 1.25rem;
-}
-
-.inlineFeedbackCard .instantCoachTitle {
-    color: #0F172A;
-    font-weight: 400;
-    font-family: 'Inter', sans-serif;
-}
-
-.inlineFeedbackCard .instantCoachSubtitle {
-    color: #64748B;
-    font-weight: 400;
-    font-family: 'Inter', sans-serif;
-}
-
-.inlineFeedbackCard .instantHeadlineCard {
-    background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-left: 3px solid #1D4ED8;
-    color: #0F172A;
-    font-weight: 400;
-    font-family: 'Inter', sans-serif;
-    border-radius: 0 8px 8px 0;
-    font-style: normal;
-}
-
-.inlineFeedbackCard .instantStrengthsItem {
-    color: #334155;
-    font-weight: 400;
-    font-family: 'Inter', sans-serif;
-}
-
-.inlineFeedbackCard .instantSectionTitle {
-    font-weight: 400;
-    font-family: 'Inter', sans-serif;
-    color: #0F172A;
-}
-
-.inlineFeedbackCard .instantCoachingTipCard p,
-.inlineFeedbackCard .instantStrengthsList {
-    font-weight: 400;
-    font-family: 'Inter', sans-serif;
-}
-
-.inlineFeedbackCard .instantCoachingTipCard {
-    background: #FFFBEB;
-    border-color: #FDE68A;
-}
-
-.inlineFeedbackCard .instantCoachingTipCard p {
-    color: #92400E;
-}
-
-.inlineFeedbackCard .instantModelAnswerCard {
-    background: #F8FAFC;
-    border-color: #E2E8F0;
-}
-
-.inlineFeedbackCard .instantModelAnswerCard p {
-    color: #475569;
-    font-style: normal;
-    font-weight: 400;
-    font-family: 'Inter', sans-serif;
-}
-
-.inlineFeedbackCard .instantScorePill {
-    background: #F8FAFC;
-    color: #0F172A;
-    border-color: #E2E8F0;
-}
-
-.inlineFeedbackCard .instantCoachAvatar {
-    background: #FFFFFF;
-    border: 1.5px solid #E2E8F0;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-    overflow: hidden;
-    padding: 0;
-}
-
-.inlineFeedbackCard .instantCoachAvatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-    border-radius: 50%;
-}
-
-.inlineAnalyzingRow {
     display: flex;
     align-items: center;
-    gap: 0.9rem;
-    padding: 1rem 1.25rem;
-    background: #F8FAFC;
-    border-bottom: 1px solid #F1F5F9;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.inlineCoachBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: #EFF6FF;
+    color: #1D4ED8;
+    border: 1px solid #DBEAFE;
+    padding: 0.25rem 0.65rem;
+    border-radius: 9999px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+}
+
+.inlineTargetCompany {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #64748B;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.inlineAnalyzingBody {
+    padding: 1.35rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.inlineAnalyzingSpinnerWrap {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.inlineAnalyzingSpinner {
+    width: 28px;
+    height: 28px;
+    border: 2.5px solid rgba(71, 147, 247, 0.18);
+    border-top-color: #4793f7;
+    border-radius: 50%;
+    animation: inlineSpin 0.75s linear infinite;
+}
+
+@keyframes inlineSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.inlineAnalyzingContent {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1;
 }
 
 .inlineAnalyzingTitle {
-    color: #0F172A;
-    font-size: 0.9rem;
-    font-weight: 400;
     font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #0F172A;
     margin: 0;
+    letter-spacing: -0.01em;
 }
 
 .inlineAnalyzingText {
-    color: #64748B;
-    font-size: 0.78rem;
     font-family: 'Inter', sans-serif;
-    font-weight: 400;
-    margin: 0.2rem 0 0;
-    line-height: 1.4;
+    font-size: 0.8rem;
+    color: #64748B;
+    margin: 0;
+    line-height: 1.45;
+}
+
+.inlineAnalyzingProgressTrack {
+    height: 3px;
+    background: #F1F5F9;
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.inlineAnalyzingProgressBar {
+    height: 100%;
+    width: 40%;
+    background: linear-gradient(90deg, #4793f7 0%, #38bdf8 50%, #4793f7 100%);
+    border-radius: 9999px;
+    animation: inlineProgressShimmer 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes inlineProgressShimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(350%);
+    }
+}
+
+/* ── Live Coaching Critique Content (Per-Question Feedback) ── */
+.inlineFeedbackContent {
+    display: flex;
+    flex-direction: column;
+}
+
+.inlineFeedbackHeader {
+    padding: 0.9rem 1.25rem;
+    background: #FAFAFA;
+    border-bottom: 1px solid #F1F5F9;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.inlineCoachProfile {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.inlineCoachAvatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #EFF6FF;
+    border: 1px solid #DBEAFE;
+    color: #2563EB;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.inlineCoachTitle {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: #0F172A;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.inlineCoachSubtitle {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.72rem;
+    color: #64748B;
+    margin: 0.15rem 0 0;
+}
+
+.inlineScoreBadgeRow {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.inlineRatingPill {
+    padding: 0.25rem 0.55rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.ratingStrong {
+    background: #ECFDF5;
+    color: #059669;
+    border: 1px solid #A7F3D0;
+}
+
+.ratingAverage {
+    background: #FFFBEB;
+    color: #D97706;
+    border: 1px solid #FDE68A;
+}
+
+.ratingNeedsWork {
+    background: #FEF2F2;
+    color: #DC2626;
+    border: 1px solid #FECACA;
+}
+
+.inlineScorePill {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #0F172A;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    padding: 0.22rem 0.55rem;
+    border-radius: 6px;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 .inlineFeedbackBody {
     padding: 1rem 1.25rem;
     display: flex;
     flex-direction: column;
-    gap: 0.9rem;
-    max-height: 320px;
+    gap: 0.85rem;
+    max-height: 280px;
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: #CBD5E1 #FFFFFF;
@@ -2081,7 +2119,7 @@
 }
 
 .inlineFeedbackBody::-webkit-scrollbar {
-    width: 6px;
+    width: 5px;
 }
 
 .inlineFeedbackBody::-webkit-scrollbar-track {
@@ -2089,44 +2127,143 @@
 }
 
 .inlineFeedbackBody::-webkit-scrollbar-thumb {
-    background: #CBD5E1;
+    background: #E2E8F0;
     border-radius: 9999px;
 }
 
 .inlineFeedbackBody::-webkit-scrollbar-thumb:hover {
-    background: #94A3B8;
+    background: #CBD5E1;
+}
+
+.inlineHeadlineCard {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-left: 3.5px solid #4793f7;
+    padding: 0.75rem 0.95rem;
+    border-radius: 6px;
+    font-size: 0.84rem;
+    color: #1E293B;
+    line-height: 1.45;
+    font-weight: 500;
+    font-style: italic;
+}
+
+.inlineSectionTitle {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0 0 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: #0F172A;
+}
+
+.inlineStrengthsList {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.inlineStrengthsItem {
+    font-size: 0.8rem;
+    color: #334155;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+    line-height: 1.4;
+}
+
+.inlineStrengthsItem svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: #10B981;
+}
+
+.inlineCoachingTipCard {
+    background: #FFFBEB;
+    border: 1px solid #FDE68A;
+    border-radius: 8px;
+    padding: 0.75rem 0.9rem;
+}
+
+.inlineCoachingTipCard p {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #92400E;
+    line-height: 1.45;
+}
+
+.inlineModelAnswerCard {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 0.75rem 0.9rem;
+}
+
+.inlineModelAnswerCard p {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #475569;
+    line-height: 1.45;
 }
 
 .inlineFeedbackFooter {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.85rem 1.25rem;
+    justify-content: flex-end;
+    gap: 0.65rem;
+    padding: 0.75rem 1.25rem;
     border-top: 1px solid #F1F5F9;
-    background: #F8FAFC;
+    background: #FAFAFA;
 }
 
-.inlineRetakeBtn {
+.inlineRetryBtn {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    background: #1e293b;
-    border: 1px solid #334155;
-    color: #e2e8f0;
-    padding: 0.55rem 0.85rem;
-    border-radius: 8px;
-    font-size: 0.78rem;
-    font-weight: 400;
+    gap: 0.35rem;
+    padding: 0.5rem 0.85rem;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    color: #475569;
+    border-radius: 6px;
     font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 500;
     cursor: pointer;
     transition: all 0.15s ease;
 }
 
-.inlineRetakeBtn:hover {
-    background: #334155;
-    color: #f8fafc;
-    border-color: #475569;
+.inlineRetryBtn:hover {
+    background: #F1F5F9;
+    color: #0F172A;
+    border-color: #CBD5E1;
+}
+
+.inlineContinueBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1.15rem;
+    background: #4793f7;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: 0 1px 2px rgba(71, 147, 247, 0.2);
+}
+
+.inlineContinueBtn:hover {
+    background: #3c7dd2;
+    box-shadow: 0 2px 6px rgba(71, 147, 247, 0.3);
 }
 
 /* ── Pre-interview camcorder badge — plain line icon, no blue transparent bg ── */
@@ -2214,5 +2351,108 @@
     margin-bottom: 1.25rem;
 }
 
+/* Per-answer STAR evaluation arrives independently of the live turn loop. */
+.starScorePanel {
+    border-top: 1px solid #e2e8f0;
+    padding: 1rem 1.25rem 1.15rem;
+    background: #fbfdff;
+}
 
+.starScoreHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.starScoreEyebrow {
+    display: block;
+    color: #64748b;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.starScoreHeader h3 {
+    margin: 0.15rem 0 0;
+    color: #0f172a;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.starOverall {
+    color: #075985;
+    font-size: 1.15rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.starOverall span {
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 500;
+    margin-left: 0.1rem;
+}
+
+.starPending {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: #64748b;
+    font-size: 0.75rem;
+}
+
+.starMetrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.65rem;
+    margin-top: 0.85rem;
+}
+
+.starMetric div {
+    display: flex;
+    justify-content: space-between;
+    color: #64748b;
+    font-size: 0.68rem;
+}
+
+.starMetric strong {
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+}
+
+.starMetric i {
+    display: block;
+    height: 4px;
+    margin-top: 0.35rem;
+    overflow: hidden;
+    background: #e2e8f0;
+    border-radius: 999px;
+}
+
+.starMetric b {
+    display: block;
+    height: 100%;
+    background: #0ea5e9;
+    border-radius: inherit;
+}
+
+.starSummary,
+.starFocus {
+    margin: 0.85rem 0 0;
+    color: #334155;
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.starFocus {
+    color: #0369a1;
+    font-weight: 500;
+    margin-top: 0.35rem;
+}
+
+@media (max-width: 520px) {
+    .starMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 

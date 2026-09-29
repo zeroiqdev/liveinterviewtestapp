@@ -90,8 +90,8 @@ export function InterviewSetupModal({
 }: InterviewSetupModalProps) {
     const router = useRouter();
 
-    // ── 1. Interview Mode (Live Coaching vs Mock Interview) ──
-    const [interviewMode, setInterviewMode] = useState<"live_coaching" | "post_interview">("live_coaching");
+    // ── 1. Interview Mode (Mock Interview vs Live Coaching) ──
+    const [interviewMode, setInterviewMode] = useState<"live_coaching" | "post_interview">("post_interview");
 
     // ── 2. Resume Selection & Upload State ──
     const [savedResumes, setSavedResumes] = useState<StoredResumeItem[]>([]);
@@ -565,22 +565,6 @@ export function InterviewSetupModal({
                                     {/* Mode Tabs with Divider & Underline Selected State */}
                                     <div className={styles.modeTabsRow}>
                                         <div
-                                            className={`${styles.modeTabCol} ${interviewMode === "live_coaching" ? styles.modeTabColActive : ""}`}
-                                            onClick={() => setInterviewMode("live_coaching")}
-                                        >
-                                            <div className={styles.modeTabHeaderWrap}>
-                                                <span className={styles.modeTabHeader}>
-                                                    Live Coaching
-                                                </span>
-                                            </div>
-                                            <p className={styles.modeTabDesc}>
-                                                Receive real-time critiques, strengths, coach tips, and top 1% model answers immediately after each question.
-                                            </p>
-                                        </div>
-
-                                        <div className={styles.modeTabDivider} />
-
-                                        <div
                                             className={`${styles.modeTabCol} ${interviewMode === "post_interview" ? styles.modeTabColActive : ""}`}
                                             onClick={() => setInterviewMode("post_interview")}
                                         >
@@ -591,6 +575,22 @@ export function InterviewSetupModal({
                                             </div>
                                             <p className={styles.modeTabDesc}>
                                                 A realistic, uninterrupted interview with no interruptions — get a full evaluation and benchmark score at the end.
+                                            </p>
+                                        </div>
+
+                                        <div className={styles.modeTabDivider} />
+
+                                        <div
+                                            className={`${styles.modeTabCol} ${interviewMode === "live_coaching" ? styles.modeTabColActive : ""}`}
+                                            onClick={() => setInterviewMode("live_coaching")}
+                                        >
+                                            <div className={styles.modeTabHeaderWrap}>
+                                                <span className={styles.modeTabHeader}>
+                                                    Live Coaching
+                                                </span>
+                                            </div>
+                                            <p className={styles.modeTabDesc}>
+                                                Receive real-time critiques, strengths, coach tips, and top 1% model answers immediately after each question.
                                             </p>
                                         </div>
                                     </div>

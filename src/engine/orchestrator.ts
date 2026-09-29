@@ -18,6 +18,7 @@ import { enforceBudget, evaluateAnswer } from "./probe";
 import { generateFollowUp } from "./followUp";
 import { generalPool, getBlueprint, queryPool } from "./data";
 import { getSession, saveSession } from "./sessionStore";
+import { executeConversationalTurn, type InterviewToolCall } from "./conversationalEngine";
 import type {
     AuditEntry,
     Blueprint,
@@ -84,6 +85,10 @@ function recordAsked(session: SessionDoc, id: string) {
     }
 }
 
+function nextScriptedQuestion(nextPoolQuestion: string | null): string {
+    return nextPoolQuestion || "Let's move to the next area. Can you share another relevant example from your experience?";
+}
+
 /* ── session init ── */
 
 export async function startSession(opts: {
@@ -91,6 +96,8 @@ export async function startSession(opts: {
     blueprintId: string;
     profile: CandidateProfile | null;
     interviewType?: string | null;
+    candidateName?: string | null;
+    companyName?: string | null;
 }): Promise<{ session: SessionDoc; prompt: EnginePrompt }> {
     const blueprint = getBlueprint(opts.blueprintId);
     if (!blueprint) throw new Error(`unknown blueprintId: ${opts.blueprintId}`);
@@ -125,6 +132,9 @@ export async function startSession(opts: {
     const session: SessionDoc = {
         sessionId: randomUUID(),
         candidateId,
+        candidateName: opts.candidateName ?? null,
+        company: opts.companyName ?? null,
+        interviewType: opts.interviewType ?? null,
         blueprintId: blueprint.blueprintId,
         hasProfile: profile?.hasProfile ?? {
             resume: false,
@@ -233,24 +243,39 @@ async function askNextQuestion(
 
     session.turnCount++;
     session.phase = "awaiting_answer";
+
+    let questionText = selection.questionText;
+    const isOpening = session.turnCount === 1;
+
+    if (isOpening) {
+        const candidateGreeting = session.candidateName ? `Hello ${session.candidateName},` : "Hello,";
+        const roleLabel = session.interviewType || blueprint.role || "this role";
+        const companySegment = session.company && session.company !== "General" && session.company !== "General Industry Benchmark"
+            ? ` with ${session.company}`
+            : "";
+
+        const firstQuestion = selection.questionText || "could you share a bit about your background and what excites you about this role?";
+        questionText = `${candidateGreeting} welcome! I'll be your interviewer today for the ${roleLabel} position${companySegment}. Over the next 20 to 30 minutes, we'll dive into your background and key competencies for the position. Take all the time you need to think through your answers. To get us started: ${firstQuestion.replace(/^[A-Z]/, (c) => c.toLowerCase())}`;
+    }
+
     session.pendingQuestion = {
-        text: selection.questionText,
+        text: questionText,
         competencyId: comp?.id ?? GENERAL_ID,
-        kind: session.turnCount === 1 ? "opening" : "scripted",
+        kind: isOpening ? "opening" : "scripted",
         questionId: selection.questionId,
     };
     session.transcript.push({
         role: "interviewer",
-        text: selection.questionText,
+        text: questionText,
         competencyId: comp?.id ?? GENERAL_ID,
-        kind: session.turnCount === 1 ? "opening" : "scripted",
+        kind: isOpening ? "opening" : "scripted",
         timestamp: new Date().toISOString(),
     });
     saveSession(session);
 
     return {
         type: "question",
-        text: selection.questionText,
+        text: questionText,
         competencyId: comp?.id ?? GENERAL_ID,
         competencyLabel: comp?.label ?? GENERAL_LABEL,
         kind: session.pendingQuestion.kind,
@@ -328,7 +353,7 @@ export async function submitAnswer(opts: {
     sessionId: string;
     answerText: string;
     profile: CandidateProfile | null;
-}): Promise<{ session: SessionDoc; prompt: EnginePrompt; pacing: PacingDirective }> {
+}): Promise<{ session: SessionDoc; prompt: EnginePrompt; pacing: PacingDirective; toolCall?: InterviewToolCall }> {
     const session = getSession(opts.sessionId);
     if (!session) throw new Error(`unknown sessionId: ${opts.sessionId}`);
     const blueprint = getBlueprint(session.blueprintId);
@@ -368,125 +393,220 @@ export async function submitAnswer(opts: {
     // Time Governor — every turn, never on a fixed schedule
     const pacing = computePacing(session, blueprint);
 
-    // Running Notes + Probe Timing (combined call)
-    const remainingLabels = blueprint.competencies
-        .slice(session.currentCompetencyIndex + 1)
-        .map((c) => `${c.label} (id: "${c.id}")`);
-    const decision = await evaluateAnswer({
-        session,
-        blueprint,
-        competency: comp,
-        answerText,
-        profile: opts.profile,
-        remainingLabels,
-    });
-
-    session.runningNotes.push({
-        turn: session.turnCount,
-        competencyId: comp?.id ?? GENERAL_ID,
-        summary: decision.note_summary,
-    });
-    audit(session, "probe", decision.immediacy, decision.reason);
-
-    const parkIt = () => {
-        if (!decision.topic_summary) return;
-        let target: string;
-        if (
-            decision.best_fit_competency_if_parked &&
-            blueprint.competencies.some((c) => c.id === decision.best_fit_competency_if_parked)
-        ) {
-            target = decision.best_fit_competency_if_parked;
-        } else if (comp) {
-            target = comp.id;
-        } else if (blueprint.competencies.length > 0) {
-            target = blueprint.competencies[0].id;
-        } else {
-            target = GENERAL_ID;
-        }
-
-        session.parkingLot.push({
-            topicSummary: decision.topic_summary,
-            sourceCompetency: comp?.id ?? GENERAL_ID,
-            targetCompetency: target,
-            turnParked: session.turnCount,
-            resolved: false,
-        });
-        audit(session, "probe", "parked", `"${decision.topic_summary}" → ${target}`);
-    };
-
-    let moveOn: "continue" | "advance" = "continue";
-
-    if (decision.immediacy === "park") {
-        parkIt();
-    } else if (decision.immediacy === "probe_now") {
-        const verdict = enforceBudget({ session, competency: comp, pacing, decision });
-        if (verdict.allow) {
-            audit(
-                session,
-                "budget",
-                verdict.override ? "override" : "allow",
-                verdict.reason
-            );
-            const fu = await generateFollowUp({
-                session,
-                blueprint,
-                competency: comp,
-                answerText,
-                topicSummary: decision.topic_summary,
-                contradiction: !!decision.contradiction,
-                profile: opts.profile,
-            });
-            if (session.currentCompetencyIndex >= 0) {
-                const tp = session.topicProgress[session.currentCompetencyIndex];
-                if (tp) tp.followUpsUsed++;
-            }
-            session.turnCount++;
-            session.phase = "follow_up";
-            session.pendingQuestion = {
-                text: fu.followUp,
-                competencyId: comp?.id ?? GENERAL_ID,
-                kind: "follow_up",
-                questionId: null,
-            };
-            session.transcript.push({
-                role: "interviewer",
-                text: fu.followUp,
-                competencyId: comp?.id ?? GENERAL_ID,
-                kind: "follow_up",
-                timestamp: new Date().toISOString(),
-            });
-            audit(session, "follow_up", "ask", fu.reason);
-            saveSession(session);
-            return {
-                session,
-                prompt: {
-                    type: "follow_up",
-                    text: fu.followUp,
-                    competencyId: comp?.id ?? GENERAL_ID,
-                    competencyLabel: comp?.label ?? GENERAL_LABEL,
-                    kind: "follow_up",
-                    questionId: null,
-                },
-                pacing,
-            };
-        }
-        // Caps spent — downgrade to park
-        audit(session, "budget", "downgrade", verdict.reason);
-        parkIt();
+    // Initialize competency progress if starting interview
+    if (session.currentCompetencyIndex < 0 && blueprint.competencies.length > 0) {
+        session.currentCompetencyIndex = 0;
+        session.topicProgress[0].status = "in_progress";
     }
 
-    // Continue current section or advance, based on target coverage
-    const asked = sectionAskedCount(session);
-    const range = sectionRange(session, blueprint);
-    moveOn = asked >= range.min ? "advance" : "continue";
+    const currentComp = currentCompetency(session, blueprint);
+    const pool = currentComp ? queryPool(currentComp.questionPoolFilter) : generalPool();
+    const askedIds = new Set(
+        currentComp
+            ? (session.topicProgress[session.currentCompetencyIndex]?.askedQuestionIds ?? [])
+            : session.generalAsked.questionIds
+    );
+    const unaskedPool = pool.filter((q) => !askedIds.has(q.id));
+    const nextPoolQuestion = unaskedPool[0]?.question || null;
 
-    const prompt =
-        moveOn === "advance"
-            ? await advance(session, blueprint, pacing, opts.profile)
-            : await askNextQuestion(session, blueprint, pacing, opts.profile);
+    let convResult = await executeConversationalTurn({
+        session,
+        blueprint,
+        competency: currentComp,
+        answerText,
+        profile: opts.profile,
+        nextPoolQuestion,
+    });
 
+    // The conversational model can suggest a clarification, but it cannot
+    // replace the interview plan. A probe is allowed only within the explicit
+    // section budget and never immediately after another probe.
+    if (convResult.action === "push_back" || convResult.action === "follow_up") {
+        const budget = enforceBudget({
+            session,
+            competency: currentComp,
+            pacing,
+            decision: {
+                noteworthy: true,
+                immediacy: "probe_now",
+                reason: "conversational engine requested a clarification",
+                best_fit_competency_if_parked: null,
+                topic_summary: convResult.cleanExtraction || null,
+                contradiction: false,
+                note_summary: convResult.noteSummary,
+            },
+        });
+        const previousQuestionWasFollowUp = session.pendingQuestion?.kind === "follow_up";
+        const hasScriptedCoverage = sectionAskedCount(session) > 0;
+
+        if (!budget.allow || previousQuestionWasFollowUp || !hasScriptedCoverage) {
+            const reason = previousQuestionWasFollowUp
+                ? "follow-up already asked — returning to the scripted plan"
+                : !hasScriptedCoverage
+                    ? "no scripted question covered yet — returning to the planned question"
+                : budget.reason;
+            audit(session, "budget", "suppress_follow_up", reason);
+            convResult = {
+                ...convResult,
+                action: "next_question",
+                spokenText: nextScriptedQuestion(nextPoolQuestion),
+                advanceSection: false,
+                toolCall: {
+                    tool: "ask_question",
+                    reason,
+                    systemMessage: nextScriptedQuestion(nextPoolQuestion),
+                    cleanExtraction: convResult.cleanExtraction,
+                    noteSummary: convResult.noteSummary,
+                },
+            };
+        }
+    }
+
+    // 1. Handle end_interview intent
+    if (convResult.intent === "end_interview") {
+        session.phase = "complete";
+        session.complete = true;
+        session.pendingQuestion = null;
+        session.transcript.push({
+            role: "interviewer",
+            text: convResult.spokenText,
+            competencyId: null,
+            kind: "scripted",
+            timestamp: new Date().toISOString(),
+        });
+        audit(session, "finalizer", "end_call", convResult.endCallReason || "Candidate ended call");
+        saveSession(session);
+        return {
+            session,
+            prompt: {
+                type: "complete",
+                text: convResult.spokenText,
+                competencyId: null,
+                competencyLabel: null,
+                kind: null,
+                questionId: null,
+            },
+            toolCall: convResult.toolCall,
+            pacing,
+        };
+    }
+
+    // 2. Handle repeat_question intent
+    if (convResult.intent === "repeat_question") {
+        session.transcript.push({
+            role: "interviewer",
+            text: convResult.spokenText,
+            competencyId: currentComp?.id ?? GENERAL_ID,
+            kind: "scripted",
+            timestamp: new Date().toISOString(),
+        });
+        audit(session, "selector", "repeat", "Candidate requested question repeat");
+        saveSession(session);
+        return {
+            session,
+            prompt: {
+                type: "question",
+                text: convResult.spokenText,
+                competencyId: currentComp?.id ?? GENERAL_ID,
+                competencyLabel: currentComp?.label ?? GENERAL_LABEL,
+                kind: "scripted",
+                questionId: session.pendingQuestion?.questionId ?? null,
+            },
+            toolCall: convResult.toolCall,
+            pacing,
+        };
+    }
+
+    // 3. Handle push_back / follow_up action
+    if (convResult.action === "push_back" || convResult.action === "follow_up") {
+        session.turnCount++;
+        session.phase = "follow_up";
+        if (session.currentCompetencyIndex >= 0) {
+            const tp = session.topicProgress[session.currentCompetencyIndex];
+            if (tp) tp.followUpsUsed++;
+        }
+        session.pendingQuestion = {
+            text: convResult.spokenText,
+            competencyId: currentComp?.id ?? GENERAL_ID,
+            kind: "follow_up",
+            questionId: null,
+        };
+        session.transcript.push({
+            role: "interviewer",
+            text: convResult.spokenText,
+            competencyId: currentComp?.id ?? GENERAL_ID,
+            kind: "follow_up",
+            timestamp: new Date().toISOString(),
+        });
+        session.runningNotes.push({
+            turn: session.turnCount,
+            competencyId: currentComp?.id ?? GENERAL_ID,
+            summary: convResult.noteSummary,
+        });
+        audit(session, "follow_up", convResult.action, convResult.cleanExtraction || "pushback probe");
+        saveSession(session);
+        return {
+            session,
+            prompt: {
+                type: "follow_up",
+                text: convResult.spokenText,
+                competencyId: currentComp?.id ?? GENERAL_ID,
+                competencyLabel: currentComp?.label ?? GENERAL_LABEL,
+                kind: "follow_up",
+                questionId: null,
+            },
+            toolCall: convResult.toolCall,
+            pacing,
+        };
+    }
+
+    // 4. Handle next_question action with clean extraction
+    session.turnCount++;
+    session.phase = "awaiting_answer";
+    if (unaskedPool[0]) {
+        recordAsked(session, unaskedPool[0].id);
+    }
+    if (convResult.advanceSection && session.currentCompetencyIndex < blueprint.competencies.length - 1) {
+        if (session.currentCompetencyIndex >= 0) {
+            const tp = session.topicProgress[session.currentCompetencyIndex];
+            if (tp) tp.status = "complete";
+        }
+        session.currentCompetencyIndex++;
+        session.topicProgress[session.currentCompetencyIndex].status = "in_progress";
+    }
+    session.pendingQuestion = {
+        text: convResult.spokenText,
+        competencyId: currentComp?.id ?? GENERAL_ID,
+        kind: "scripted",
+        questionId: unaskedPool[0]?.id ?? null,
+    };
+    session.transcript.push({
+        role: "interviewer",
+        text: convResult.spokenText,
+        competencyId: currentComp?.id ?? GENERAL_ID,
+        kind: "scripted",
+        timestamp: new Date().toISOString(),
+    });
+    session.runningNotes.push({
+        turn: session.turnCount,
+        competencyId: currentComp?.id ?? GENERAL_ID,
+        summary: convResult.noteSummary,
+    });
+    audit(session, "selector", "next_question", convResult.cleanExtraction || "bridged to next question");
     saveSession(session);
-    return { session, prompt, pacing };
+    return {
+        session,
+        prompt: {
+            type: "question",
+            text: convResult.spokenText,
+            competencyId: currentComp?.id ?? GENERAL_ID,
+            competencyLabel: currentComp?.label ?? GENERAL_LABEL,
+            kind: "scripted",
+            questionId: unaskedPool[0]?.id ?? null,
+        },
+        toolCall: convResult.toolCall,
+        pacing,
+    };
 }
 
 /* ── public state ── */

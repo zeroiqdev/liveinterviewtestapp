@@ -203,22 +203,16 @@ export function enforceBudget(opts: {
         };
     }
 
-    // Opening / general behavioral section: cap follow-ups at 1 max across the entire intro
+    // The opening establishes context. Specific claims can be explored later
+    // in their matching competency instead of turning the introduction into a
+    // rabbit hole.
     if (!competency) {
-        const openingFollowUps = session.auditLog.filter(
-            (a) =>
-                a.module === "follow_up" &&
-                a.decision === "ask" &&
-                session.currentCompetencyIndex < 0
-        ).length;
-        if (openingFollowUps >= 1) {
-            return {
-                allow: false,
-                downgraded: true,
-                override: false,
-                reason: "opening section follow-up cap reached — proceeding with scripted interview",
-            };
-        }
+        return {
+            allow: false,
+            downgraded: true,
+            override: false,
+            reason: "opening answer is reserved for scripted coverage — proceeding to the planned question",
+        };
     }
 
     if (pacing.followUpAllowanceMultiplier === 0) {
@@ -230,9 +224,12 @@ export function enforceBudget(opts: {
         };
     }
 
-    const cap = Math.floor(
+    // One targeted clarification per competency preserves a useful mix of
+    // scripted coverage and responsive probing without changing the session
+    // into an answer-led loop.
+    const cap = Math.min(1, Math.floor(
         (competency?.maxFollowUps ?? 1) * pacing.followUpAllowanceMultiplier
-    );
+    ));
     const used = competency
         ? (session.topicProgress[session.currentCompetencyIndex]?.followUpsUsed ?? 0)
         : 0;

@@ -182,6 +182,7 @@ export interface SessionDoc {
         questionId: string | null;
     } | null;
     complete: boolean;
+    candidateName?: string | null;
     company?: string | null;
     interviewType?: string | null;
     isSpecificJob?: boolean;

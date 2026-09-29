@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import { CONVERSATIONAL_FILLERS, getRandomFiller, getContextualFiller } from "@/config/fillerConfig";
 
 export interface PlayTtsOptions {
   persona?: "recruiter" | "coach";
   jobRegion?: string;
+  /** Use browser speech after a short TTS wait instead of leaving a turn silent. */
+  preferImmediate?: boolean;
   onStart?: () => void;
   onEnd?: () => void;
 }
@@ -22,8 +25,15 @@ function fallbackBrowserSpeech(
     return;
   }
 
+  // Strip emotion tags like [happy], [slow], [thoughtful] so browser speech doesn't read brackets
+  const cleanedText = text.replace(/\[[a-zA-Z0-9_\s]+\]/g, "").replace(/\*\*(.*?)\*\*/g, "$1").trim();
+  if (!cleanedText) {
+    onEnd?.();
+    return;
+  }
+
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
+  const utterance = new SpeechSynthesisUtterance(cleanedText);
   const voices = window.speechSynthesis.getVoices();
 
   // Try to find a Nigerian or natural English voice
@@ -163,6 +173,27 @@ export function useTtsAudio() {
       setActiveText(text);
 
       const persona = options?.persona || "recruiter";
+      let instantFallbackStarted = false;
+      let instantFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+      const startInstantFallback = () => {
+        if (instantFallbackStarted || thisPlayId !== currentPlayIdRef.current) return;
+        instantFallbackStarted = true;
+        setIsLoadingAudio(false);
+        fallbackBrowserSpeech(
+          text,
+          () => {
+            if (thisPlayId !== currentPlayIdRef.current) return;
+            setIsPlaying(true);
+            options?.onStart?.();
+          },
+          () => {
+            if (thisPlayId !== currentPlayIdRef.current) return;
+            setIsPlaying(false);
+            options?.onEnd?.();
+          }
+        );
+      };
 
       // Detect job/user region from options or localStorage
       let jobRegion = options?.jobRegion;
@@ -216,6 +247,10 @@ export function useTtsAudio() {
         return;
       }
 
+      if (options?.preferImmediate) {
+        instantFallbackTimer = setTimeout(startInstantFallback, 280);
+      }
+
       try {
         const res = await fetch("/api/tts", {
           method: "POST",
@@ -228,7 +263,8 @@ export function useTtsAudio() {
         });
 
         // If a new play request arrived while fetching, ignore this one
-        if (thisPlayId !== currentPlayIdRef.current) return;
+        if (instantFallbackTimer) clearTimeout(instantFallbackTimer);
+        if (thisPlayId !== currentPlayIdRef.current || instantFallbackStarted) return;
 
         if (!res.ok) {
           throw new Error(`TTS API returned status ${res.status}`);
@@ -252,7 +288,9 @@ export function useTtsAudio() {
         setIsLoadingAudio(false);
         playMainAudio(data.audioUrl);
       } catch (err) {
+        if (instantFallbackTimer) clearTimeout(instantFallbackTimer);
         if (thisPlayId !== currentPlayIdRef.current) return;
+        if (instantFallbackStarted) return;
         console.warn("[useTtsAudio] TTS API call failed, falling back to Web Speech:", err);
         setIsLoadingAudio(false);
         fallbackBrowserSpeech(
@@ -309,10 +347,228 @@ export function useTtsAudio() {
     };
   }, [stopAudio]);
 
+  const playFiller = useCallback(
+    async (candidateTranscript?: string, options?: PlayTtsOptions) => {
+      const fillerText = getContextualFiller(candidateTranscript);
+      const persona = options?.persona || "recruiter";
+      let jobRegion = options?.jobRegion;
+      if (!jobRegion && typeof window !== "undefined") {
+        jobRegion = getStoredJobRegion();
+      }
+      jobRegion = jobRegion || "nigeria";
+
+      const cacheKey = `${persona}:${jobRegion}:${fillerText.trim()}`;
+      const cached = ttsUrlCache.get(cacheKey);
+
+      // 1. If pre-cached, play high-fidelity synthesized audio
+      if (cached?.audioUrl) {
+        return playTts(fillerText, options);
+      }
+
+      // 2. If not pre-cached, DO NOT block on a remote API call! Speak immediately via Web Speech with 0ms latency.
+      stopAudio();
+      const thisPlayId = currentPlayIdRef.current;
+      fallbackBrowserSpeech(
+        fillerText,
+        () => {
+          if (thisPlayId !== currentPlayIdRef.current) return;
+          setIsPlaying(true);
+          options?.onStart?.();
+        },
+        () => {
+          if (thisPlayId !== currentPlayIdRef.current) return;
+          setIsPlaying(false);
+          options?.onEnd?.();
+        }
+      );
+    },
+    [playTts, stopAudio]
+  );
+
+  const primeAudioCache = useCallback(
+    (text: string, audioUrl: string, voiceLabel?: string | null, persona: string = "recruiter", jobRegion?: string) => {
+      if (!text || !audioUrl) return;
+      const region = jobRegion || (typeof window !== "undefined" ? getStoredJobRegion() : "nigeria");
+      const cacheKey = `${persona}:${region}:${text.trim()}`;
+      ttsUrlCache.set(cacheKey, {
+        audioUrl,
+        voiceLabel: voiceLabel || undefined,
+      });
+
+      if (typeof window !== "undefined") {
+        const audioPreload = new Audio();
+        audioPreload.preload = "auto";
+        audioPreload.src = audioUrl;
+      }
+    },
+    []
+  );
+
+  const prefetchFillers = useCallback(
+    (options?: { persona?: "recruiter" | "coach"; jobRegion?: string }) => {
+      prefetchTts(CONVERSATIONAL_FILLERS, options);
+    },
+    [prefetchTts]
+  );
+
+  const duckAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = 0.15;
+    }
+  }, []);
+
+  const restoreAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = 1.0;
+    }
+  }, []);
+
+  const pauseAudio = useCallback(() => {
+    if (audioRef.current && !audioRef.current.paused) {
+      audioRef.current.pause();
+    }
+  }, []);
+
+  const resumeAudio = useCallback(() => {
+    if (audioRef.current && audioRef.current.paused) {
+      audioRef.current.play().catch(() => {});
+    }
+  }, []);
+
+  const playPipelinedSpeech = useCallback(
+    async (segments: Array<{ text: string; audioUrl?: string }>, options?: PlayTtsOptions) => {
+      if (!segments || segments.length === 0) {
+        options?.onEnd?.();
+        return;
+      }
+
+      if (segments.length === 1) {
+        if (segments[0].audioUrl) {
+          stopAudio();
+          const thisPlayId = currentPlayIdRef.current;
+          const audio = new Audio(segments[0].audioUrl);
+          audio.defaultPlaybackRate = TTS_PLAYBACK_SPEED;
+          audio.playbackRate = TTS_PLAYBACK_SPEED;
+          audio.preservesPitch = true;
+          audioRef.current = audio;
+          audio.onplay = () => {
+            if (thisPlayId !== currentPlayIdRef.current) return;
+            setIsPlaying(true);
+            options?.onStart?.();
+          };
+          audio.onended = () => {
+            if (thisPlayId !== currentPlayIdRef.current) return;
+            setIsPlaying(false);
+            options?.onEnd?.();
+          };
+          audio.play().catch(() => {
+            fallbackBrowserSpeech(segments[0].text, options?.onStart, options?.onEnd);
+          });
+          return;
+        }
+        return playTts(segments[0].text, options);
+      }
+
+      // Multi-segment sentence queue (LiveKit _speech_q model)
+      stopAudio();
+      const thisPlayId = currentPlayIdRef.current;
+      let currentIndex = 0;
+
+      const playNextSegment = async () => {
+        if (thisPlayId !== currentPlayIdRef.current) return;
+        if (currentIndex >= segments.length) {
+          setIsPlaying(false);
+          options?.onEnd?.();
+          return;
+        }
+
+        const seg = segments[currentIndex];
+        currentIndex++;
+
+        let url = seg.audioUrl;
+        if (!url) {
+          const persona = options?.persona || "recruiter";
+          const jobRegion = options?.jobRegion || getStoredJobRegion();
+          const cacheKey = `${persona}:${jobRegion}:${seg.text.trim()}`;
+          const cached = ttsUrlCache.get(cacheKey);
+          if (cached?.audioUrl) {
+            url = cached.audioUrl;
+          } else {
+            try {
+              const res = await fetch("/api/tts", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: seg.text.trim(), persona, jobRegion }),
+              });
+              if (res.ok) {
+                const data = await res.json();
+                url = data.audioUrl;
+              }
+            } catch {}
+          }
+        }
+
+        if (thisPlayId !== currentPlayIdRef.current) return;
+
+        if (url) {
+          const audio = new Audio(url);
+          audio.defaultPlaybackRate = TTS_PLAYBACK_SPEED;
+          audio.playbackRate = TTS_PLAYBACK_SPEED;
+          audio.preservesPitch = true;
+          audioRef.current = audio;
+
+          audio.onplay = () => {
+            if (thisPlayId !== currentPlayIdRef.current) return;
+            setIsPlaying(true);
+            if (currentIndex === 1) options?.onStart?.();
+          };
+
+          audio.onended = () => {
+            if (thisPlayId !== currentPlayIdRef.current) return;
+            playNextSegment();
+          };
+
+          audio.onerror = () => {
+            if (thisPlayId !== currentPlayIdRef.current) return;
+            playNextSegment();
+          };
+
+          audio.play().catch(() => {
+            playNextSegment();
+          });
+        } else {
+          fallbackBrowserSpeech(
+            seg.text,
+            () => {
+              if (thisPlayId !== currentPlayIdRef.current) return;
+              setIsPlaying(true);
+              if (currentIndex === 1) options?.onStart?.();
+            },
+            () => {
+              if (thisPlayId !== currentPlayIdRef.current) return;
+              playNextSegment();
+            }
+          );
+        }
+      };
+
+      playNextSegment();
+    },
+    [playTts, stopAudio]
+  );
+
   return {
     playTts,
+    playPipelinedSpeech,
+    playFiller,
     prefetchTts,
+    prefetchFillers,
+    primeAudioCache,
     stopAudio,
+    duckAudio,
+    restoreAudio,
+    pauseAudio,
+    resumeAudio,
     replayCurrentAudio,
     isPlaying,
     isLoadingAudio,
