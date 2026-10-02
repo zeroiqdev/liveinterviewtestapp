@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { normalizeUserRoleFamily } from "@/utils/locationDetector";
+import { signSessionToken, setSessionCookie, toSafeUser, isConfiguredAdmin } from "@/lib/session";
 
 function parseJwtPayload(token: string) {
     try {
@@ -106,27 +107,37 @@ export async function POST(req: NextRequest) {
             await user.save();
         }
 
-        const userResponse = {
-            id: user._id.toString(),
+        // Check admin status
+        const isAdmin = isConfiguredAdmin(user.email, user.systemRole, user.isAdmin);
+        if (isAdmin && (!user.isAdmin || user.systemRole !== "admin")) {
+            user.isAdmin = true;
+            user.systemRole = "admin";
+            await user.save();
+        }
+
+        const sessionToken = await signSessionToken({
+            userId: user._id.toString(),
             email: user.email,
             name: user.name,
-            avatar: user.avatar,
             role: user.role,
             domain: user.domain,
             roleFamily: user.roleFamily,
             seniority: user.seniority,
-            experienceInRole: user.experienceInRole,
-            portfolioUrl: user.portfolioUrl || "",
-            linkedinUrl: user.linkedinUrl || "",
-            resumes: user.resumes,
-            onboarded: Boolean(user.role && user.domain),
+            systemRole: user.systemRole || (isAdmin ? "admin" : "user"),
+            isAdmin,
             provider: "google",
-        };
-
-        return NextResponse.json({
-            success: true,
-            user: userResponse,
         });
+
+        const safeUser = toSafeUser(user);
+
+        const response = NextResponse.json({
+            success: true,
+            user: safeUser,
+        });
+
+        setSessionCookie(response, sessionToken);
+
+        return response;
     } catch (err) {
         console.error("[api/auth/google] Error:", err);
         return NextResponse.json(

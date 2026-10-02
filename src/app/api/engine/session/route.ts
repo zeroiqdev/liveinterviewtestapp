@@ -2,11 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { startSession, toPublicState } from "@/engine/orchestrator";
 import { getBlueprint } from "@/engine/data";
 import { getProfile } from "@/engine/sessionStore";
+import { requireAuth } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
     try {
+        const authResult = await requireAuth(req);
+        if ("errorResponse" in authResult) {
+            return authResult.errorResponse;
+        }
+
         const body = await req.json();
-        const { candidateId, blueprintId, interviewType, candidateName, companyName } = body || {};
+        const { candidateId: bodyCandidateId, blueprintId, interviewType, candidateName, companyName } = body || {};
+        const candidateId = bodyCandidateId || authResult.session.userId || authResult.session.email;
 
         if (!candidateId || !blueprintId) {
             return NextResponse.json(

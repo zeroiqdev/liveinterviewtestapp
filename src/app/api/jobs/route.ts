@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { isJobLocationMatch, isJobRoleMatch, UserLocation } from "@/utils/locationDetector";
 import {
     getAllJobs,
@@ -7,6 +7,7 @@ import {
     deleteJob,
     purgeExpiredJobs,
 } from "@/lib/jobStorage";
+import { requireAdmin } from "@/lib/session";
 
 export interface JobItem {
     id: string;
@@ -137,8 +138,13 @@ export async function GET(req: Request) {
     return NextResponse.json({ jobs, totalCount: jobs.length });
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
+        const authResult = await requireAdmin(req);
+        if ("errorResponse" in authResult) {
+            return authResult.errorResponse;
+        }
+
         const body = await req.json();
         const { title, company, location, roleFamily, url, employmentType, salaryRange, description } = body;
 
@@ -173,8 +179,13 @@ export async function POST(req: Request) {
     }
 }
 
-export async function PUT(req: Request) {
+export async function PUT(req: NextRequest) {
     try {
+        const authResult = await requireAdmin(req);
+        if ("errorResponse" in authResult) {
+            return authResult.errorResponse;
+        }
+
         const body = await req.json();
         const { id, title, company, location, roleFamily, url, employmentType, salaryRange, description, status } = body;
 
@@ -207,8 +218,13 @@ export async function PUT(req: Request) {
     }
 }
 
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
     try {
+        const authResult = await requireAdmin(req);
+        if ("errorResponse" in authResult) {
+            return authResult.errorResponse;
+        }
+
         const { searchParams } = new URL(req.url);
         const id = searchParams.get("id");
         const purgeExpired = searchParams.get("purgeExpired") === "true";

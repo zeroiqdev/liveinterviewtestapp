@@ -24,10 +24,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const [user, setUser] = React.useState<any>(null);
 
     React.useEffect(() => {
-        const raw = localStorage.getItem("useladder_user");
-        if (raw) {
-            try { setUser(JSON.parse(raw)); } catch {}
-        }
+        fetch("/api/auth/me")
+            .then((r) => r.json())
+            .then((data) => {
+                if (data.authenticated && data.user) {
+                    setUser(data.user);
+                    try {
+                        localStorage.setItem("useladder_user", JSON.stringify(data.user));
+                    } catch {}
+                }
+            })
+            .catch(() => {
+                const raw = localStorage.getItem("useladder_user");
+                if (raw) {
+                    try { setUser(JSON.parse(raw)); } catch {}
+                }
+            });
     }, []);
 
     const userName = user?.name || (user?.email ? user.email.split("@")[0] : "User");
@@ -110,9 +122,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             <Plus size={16} /> Add Account
                         </button>
                         <button 
-                            onClick={() => {
+                            onClick={async () => {
+                                try {
+                                    await fetch("/api/auth/logout", { method: "POST" });
+                                } catch {}
                                 localStorage.removeItem("useladder_user");
-                                router.push("/");
+                                router.push("/login");
                             }}
                             className="w-full bg-white text-gray-700 text-sm py-2 rounded-lg font-medium flex items-center justify-center gap-2 border border-gray-200 hover:bg-gray-50 transition-colors"
                         >

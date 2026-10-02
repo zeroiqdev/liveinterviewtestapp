@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callJSON } from "@/engine/llm";
+import { requireAuth } from "@/lib/session";
 
 export interface InstantQuestionFeedback {
     rating: "Strong" | "Average" | "Needs Work";
@@ -90,6 +91,11 @@ function getFallbackInstantFeedback(question: string, answer: string): InstantQu
 
 export async function POST(req: NextRequest) {
     try {
+        const authResult = await requireAuth(req);
+        if ("errorResponse" in authResult) {
+            return authResult.errorResponse;
+        }
+
         const body = await req.json();
         const {
             question,

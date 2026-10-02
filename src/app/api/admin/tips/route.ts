@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
 import dbConnect from "@/lib/mongodb";
 import AppConfig from "@/models/AppConfig";
+import { requireAdmin } from "@/lib/session";
 
 const FLAG_PATH = path.join(process.cwd(), "src", "engine", "data", "adminTips.json");
 
@@ -54,8 +55,13 @@ export async function GET() {
   return NextResponse.json({ enabled });
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const authResult = await requireAdmin(req);
+    if ("errorResponse" in authResult) {
+      return authResult.errorResponse;
+    }
+
     const body = await req.json().catch(() => ({} as any));
     const enabled = typeof body.enabled === "boolean" ? body.enabled : true;
     await writeFlag(enabled);

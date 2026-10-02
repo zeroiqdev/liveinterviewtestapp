@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, Suspense, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -43,27 +43,75 @@ declare global {
     }
 }
 
-export default function LoginPage() {
+interface SafeUser {
+    id: string;
+    email: string;
+    name: string;
+    role?: string;
+    domain?: string;
+    isAdmin?: boolean;
+    systemRole?: string;
+    [key: string]: unknown;
+}
+
+function LoginForm() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [authLoading, setAuthLoading] = useState<"google" | "email" | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
-    const router = useRouter();
 
-    // If user already logged in with valid profile, forward to dashboard
-    useEffect(() => {
-        try {
-            const raw = localStorage.getItem("useladder_user");
-            if (raw) {
-                const u = JSON.parse(raw);
-                if (u?.domain && u?.role) {
-                    router.replace("/dashboard");
-                }
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const redirectParam = searchParams.get("redirect");
+    const errorParam = searchParams.get("error");
+
+    const navigateAfterLogin = useCallback((user: SafeUser) => {
+        if (redirectParam && redirectParam.startsWith("/")) {
+            if (redirectParam.startsWith("/admin") && !user.isAdmin) {
+                router.replace("/dashboard");
+                return;
             }
-        } catch {
-            /* ignore */
+            router.replace(redirectParam);
+            return;
         }
-    }, [router]);
+
+        if (user.role && user.domain) {
+            router.replace("/dashboard");
+        } else {
+            router.replace("/onboarding");
+        }
+    }, [redirectParam, router]);
+
+    // Check for authorization error messages in URL query
+    useEffect(() => {
+        if (errorParam === "unauthorized_admin") {
+            setErrorMessage("Administrator privileges are required to view that page. Please sign in with an admin account.");
+        }
+    }, [errorParam]);
+
+    // Check active session on mount
+    useEffect(() => {
+        let isMounted = true;
+        fetch("/api/auth/me")
+            .then((res) => {
+                if (res.ok) return res.json();
+                return null;
+            })
+            .then((data) => {
+                if (!isMounted || !data?.authenticated || !data?.user) return;
+                try {
+                    localStorage.setItem("useladder_user", JSON.stringify(data.user));
+                } catch {
+                    // Ignore storage quota
+                }
+                navigateAfterLogin(data.user);
+            })
+            .catch(() => {});
+
+        return () => {
+            isMounted = false;
+        };
+    }, [navigateAfterLogin]);
 
     // Load Google Identity Services script
     useEffect(() => {
@@ -101,12 +149,13 @@ export default function LoginPage() {
                 throw new Error(data.error || "Login failed");
             }
 
-            localStorage.setItem("useladder_user", JSON.stringify(data.user));
-            if (data.user?.role && data.user?.domain) {
-                router.replace("/dashboard");
-            } else {
-                router.replace("/onboarding");
+            try {
+                localStorage.setItem("useladder_user", JSON.stringify(data.user));
+            } catch {
+                // Ignore storage errors
             }
+
+            navigateAfterLogin(data.user);
         } catch (err) {
             setErrorMessage(err instanceof Error ? err.message : "Error logging in with email");
         } finally {
@@ -159,12 +208,13 @@ export default function LoginPage() {
                             const data = await res.json();
                             if (!res.ok || data.error) throw new Error(data.error || "Failed to persist Google session");
 
-                            localStorage.setItem("useladder_user", JSON.stringify(data.user));
-                            if (data.user?.role && data.user?.domain) {
-                                router.replace("/dashboard");
-                            } else {
-                                router.replace("/onboarding");
+                            try {
+                                localStorage.setItem("useladder_user", JSON.stringify(data.user));
+                            } catch {
+                                // Ignore storage errors
                             }
+
+                            navigateAfterLogin(data.user);
                         } catch (e) {
                             setErrorMessage(e instanceof Error ? e.message : "Google authentication error");
                         } finally {
@@ -180,26 +230,39 @@ export default function LoginPage() {
             }
         }
 
-        // 2. Demo fallback if Google Client ID is not configured in local environment
-        setTimeout(() => {
-            const fallbackProfile = {
-                id: `usr_${Date.now()}`,
-                email: email.trim() || "allen@example.com",
-                name: "Allen Kurotimi",
-                avatar: "",
-                role: "Senior Product Manager",
-                domain: "Product & Design",
-                roleFamily: "product",
-                seniority: "professional",
-                experienceInRole: "professional",
-                resumes: [],
-                onboarded: true,
-                provider: "google",
-            };
-            localStorage.setItem("useladder_user", JSON.stringify(fallbackProfile));
-            router.replace("/dashboard");
+        // 2. Local fallback if Google Client ID is not configured - posts to server for real session
+        try {
+            const res = await fetch("/api/auth/google", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    email: email.trim() || "allen@example.com",
+                    name: "Allen Kurotimi",
+                    avatar: "",
+                    role: "Senior Product Manager",
+                    domain: "Product & Design",
+                    seniority: "professional",
+                    provider: "google",
+                }),
+            });
+
+            const data = await res.json();
+            if (!res.ok || data.error) {
+                throw new Error(data.error || "Failed to complete local sign-in");
+            }
+
+            try {
+                localStorage.setItem("useladder_user", JSON.stringify(data.user));
+            } catch {
+                // Ignore storage errors
+            }
+
+            navigateAfterLogin(data.user);
+        } catch (err) {
+            setErrorMessage(err instanceof Error ? err.message : "Failed to sign in");
+        } finally {
             setAuthLoading(null);
-        }, 600);
+        }
     };
 
     return (
@@ -343,5 +406,13 @@ export default function LoginPage() {
                 </p>
             </div>
         </div>
+    );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={<div className={styles.splitWrapper} />}>
+            <LoginForm />
+        </Suspense>
     );
 }

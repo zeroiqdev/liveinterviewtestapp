@@ -14,8 +14,8 @@ export const MODEL_EXTRACTION =
 export const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 export const ANTHROPIC_VERSION = "2023-06-01";
 
-/** Set USELADDER_ENGINE_MOCK=1 to run the whole engine without an API key. */
-export const ENGINE_MOCK = process.env.USELADDER_ENGINE_MOCK === "1";
+/** Accept the original name and the Onscript deployment name. */
+export const ENGINE_MOCK = process.env.USELADDER_ENGINE_MOCK === "1" || process.env.ONSCRIPT_ENGINE_MOCK === "1";
 
 /* ── Time Governor thresholds ──
    ratio = secondsRemaining / estimatedSecondsNeeded               */

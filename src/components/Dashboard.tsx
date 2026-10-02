@@ -2,12 +2,14 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
     SignOut,
     Bell,
     ArrowRight,
     House,
     FileText,
+    ShieldCheck,
 } from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
 import styles from "./dashboard.module.css";
@@ -30,7 +32,7 @@ import { deriveJobResponsibilities } from "./dashboard/utils";
 interface StoredResumeItem {
     id: string;
     name: string;
-    data?: string;
+    data: string;
     rawText?: string;
     updatedAt?: string;
     score?: number;
@@ -47,6 +49,8 @@ interface UserProfile {
     seniority?: string;
     provider?: string;
     selectedResumeId?: string;
+    isAdmin?: boolean;
+    systemRole?: string;
 }
 
 export function getJobStableKey(job: JobItem): string {
@@ -209,13 +213,43 @@ export default function Dashboard() {
 
     useEffect(() => {
         const init = async () => {
-            const raw = localStorage.getItem("useladder_user");
-            if (!raw) {
-                router.push("/onboarding");
-                return;
-            }
+            let parsed: UserProfile | null = null;
             try {
-                const parsed: UserProfile = JSON.parse(raw);
+                const meRes = await fetch("/api/auth/me");
+                if (meRes.ok) {
+                    const meData = await meRes.json();
+                    if (meData?.user) {
+                        parsed = meData.user;
+                        try {
+                            localStorage.setItem("useladder_user", JSON.stringify(parsed));
+                        } catch {}
+                    }
+                } else if (meRes.status === 401) {
+                    localStorage.removeItem("useladder_user");
+                    router.push("/login");
+                    return;
+                }
+            } catch {
+                // If offline or network error, fallback to localStorage
+            }
+
+            if (!parsed) {
+                const raw = localStorage.getItem("useladder_user");
+                if (!raw) {
+                    router.push("/login");
+                    return;
+                }
+                try {
+                    parsed = JSON.parse(raw);
+                } catch {
+                    router.push("/login");
+                    return;
+                }
+            }
+
+            if (!parsed) return;
+
+            try {
                 if (parsed.role) {
                     const canonicalFamily = normalizeUserRoleFamily(parsed.role);
                     if (parsed.roleFamily !== canonicalFamily) {
@@ -639,9 +673,12 @@ export default function Dashboard() {
         ? (nameParts[0].charAt(0) + nameParts[1].charAt(0)).toUpperCase()
         : userName.slice(0, 2).toUpperCase();
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        try {
+            await fetch("/api/auth/logout", { method: "POST" });
+        } catch {}
         localStorage.removeItem("useladder_user");
-        router.push("/");
+        router.push("/login");
     };
 
     return (
@@ -735,6 +772,17 @@ export default function Dashboard() {
                             </div>
                         );
                     })()}
+                    {user?.isAdmin && (
+                        <Link
+                            href="/admin"
+                            className={styles.settingsNavBtn}
+                            aria-label="Admin Portal"
+                            title="Admin Portal"
+                            style={{ color: "#2563EB", background: "#EFF6FF" }}
+                        >
+                            <ShieldCheck size={18} weight="bold" />
+                        </Link>
+                    )}
                     <button
                         className={styles.settingsNavBtn}
                         onClick={() => setIsSettingsOpen(true)}

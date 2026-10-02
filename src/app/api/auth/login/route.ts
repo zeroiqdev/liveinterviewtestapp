@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
+import { verifyPassword, hashPassword } from "@/lib/password";
+import { signSessionToken, setSessionCookie, toSafeUser, isConfiguredAdmin } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
     try {
@@ -22,35 +24,63 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // If user set a password during signup and password is provided in login
-        if (user.password && password && user.password !== password.trim()) {
-            return NextResponse.json(
-                { error: "Incorrect password. Please verify your password and try again." },
-                { status: 401 }
-            );
+        // Verify password if user has a password set
+        if (user.password) {
+            if (!password) {
+                return NextResponse.json(
+                    { error: "Password is required for this account." },
+                    { status: 401 }
+                );
+            }
+
+            const { valid, needsUpgrade } = await verifyPassword(password, user.password);
+            if (!valid) {
+                return NextResponse.json(
+                    { error: "Incorrect password. Please verify your password and try again." },
+                    { status: 401 }
+                );
+            }
+
+            // Transparently upgrade legacy plain text password to bcrypt hash
+            if (needsUpgrade) {
+                user.password = await hashPassword(password.trim());
+                await user.save();
+            }
         }
 
-        const userResponse = {
-            id: user._id.toString(),
+        // Check if user qualifies as admin
+        const isAdmin = isConfiguredAdmin(user.email, user.systemRole, user.isAdmin);
+        if (isAdmin && (!user.isAdmin || user.systemRole !== "admin")) {
+            user.isAdmin = true;
+            user.systemRole = "admin";
+            await user.save();
+        }
+
+        // Generate signed JWT session
+        const sessionToken = await signSessionToken({
+            userId: user._id.toString(),
             email: user.email,
             name: user.name,
-            avatar: user.avatar || "",
             role: user.role,
             domain: user.domain,
             roleFamily: user.roleFamily,
             seniority: user.seniority,
-            experienceInRole: user.experienceInRole || user.seniority || "professional",
-            portfolioUrl: user.portfolioUrl || "",
-            linkedinUrl: user.linkedinUrl || "",
-            resumes: user.resumes || [],
-            onboarded: Boolean(user.role && user.domain),
-            provider: user.provider || "email",
-        };
-
-        return NextResponse.json({
-            success: true,
-            user: userResponse,
+            systemRole: user.systemRole || (isAdmin ? "admin" : "user"),
+            isAdmin,
+            provider: user.provider || "credentials",
         });
+
+        const safeUser = toSafeUser(user);
+
+        const response = NextResponse.json({
+            success: true,
+            user: safeUser,
+        });
+
+        // Set secure HTTP-only session cookie
+        setSessionCookie(response, sessionToken);
+
+        return response;
     } catch (err) {
         console.error("[api/auth/login POST] Error:", err);
         return NextResponse.json(

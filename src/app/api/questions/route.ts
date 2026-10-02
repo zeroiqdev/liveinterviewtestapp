@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getQuestions, saveQuestion, deleteQuestion } from "@/lib/adminStorage";
+import { requireAdmin } from "@/lib/session";
 
 export interface QuestionItem {
     id: string;
@@ -22,8 +23,13 @@ export async function GET(req: Request) {
     return NextResponse.json({ questions, totalCount: questions.length });
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
+        const authResult = await requireAdmin(req);
+        if ("errorResponse" in authResult) {
+            return authResult.errorResponse;
+        }
+
         const body = await req.json();
         const { role_family, question, category, sub_type, applies_to_all } = body;
 
@@ -54,8 +60,13 @@ export async function POST(req: Request) {
     }
 }
 
-export async function PUT(req: Request) {
+export async function PUT(req: NextRequest) {
     try {
+        const authResult = await requireAdmin(req);
+        if ("errorResponse" in authResult) {
+            return authResult.errorResponse;
+        }
+
         const body = await req.json();
         const { id, role_family, question, category, sub_type, applies_to_all } = body;
 
@@ -92,8 +103,13 @@ export async function PUT(req: Request) {
     }
 }
 
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
     try {
+        const authResult = await requireAdmin(req);
+        if ("errorResponse" in authResult) {
+            return authResult.errorResponse;
+        }
+
         const { searchParams } = new URL(req.url);
         const id = searchParams.get("id");
 

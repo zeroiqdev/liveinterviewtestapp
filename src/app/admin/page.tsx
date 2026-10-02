@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
     SquaresFour,
     Briefcase,
@@ -31,6 +32,43 @@ type AdminTab = "overview" | "roles" | "questions" | "jobs";
 type JobsSubTab = "listings" | "sources";
 
 export default function AdminPage() {
+    const router = useRouter();
+    const [authChecking, setAuthChecking] = useState(true);
+    const [isAuthorized, setIsAuthorized] = useState(false);
+
+    useEffect(() => {
+        let isMounted = true;
+        fetch("/api/auth/me")
+            .then((res) => {
+                if (res.ok) return res.json();
+                return null;
+            })
+            .then((data) => {
+                if (!isMounted) return;
+                if (!data?.authenticated) {
+                    router.replace("/login?redirect=/admin");
+                    return;
+                }
+                if (!data.user?.isAdmin) {
+                    setIsAuthorized(false);
+                    setAuthChecking(false);
+                    return;
+                }
+                setIsAuthorized(true);
+                setAuthChecking(false);
+            })
+            .catch(() => {
+                if (isMounted) {
+                    setAuthChecking(false);
+                    router.replace("/login?redirect=/admin");
+                }
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, [router]);
+
     const [activeTab, setActiveTab] = useState<AdminTab>("overview");
     const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -155,11 +193,13 @@ export default function AdminPage() {
     };
 
     useEffect(() => {
-        fetchRoles();
-        fetchQuestions();
-        fetchJobs();
-        fetchSources();
-    }, []);
+        if (isAuthorized) {
+            fetchRoles();
+            fetchQuestions();
+            fetchJobs();
+            fetchSources();
+        }
+    }, [isAuthorized]);
 
     // ── Role Handlers ──
     const handleSaveRole = async (e: React.FormEvent) => {
@@ -593,6 +633,39 @@ export default function AdminPage() {
     const uniqueDomains = useMemo(() => Array.from(new Set(roles.map((r) => r.domain))), [roles]);
     const uniqueRoleFamilies = useMemo(() => Array.from(new Set(questions.map((q) => q.role_family))), [questions]);
     const uniqueCategories = useMemo(() => Array.from(new Set(questions.map((q) => q.category))), [questions]);
+
+    if (authChecking) {
+        return (
+            <div className={styles.adminPage} style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                    <ArrowsClockwise size={28} style={{ animation: "spin 1s linear infinite" }} />
+                    <p style={{ color: "#64748b", fontSize: "0.95rem" }}>Verifying administrator credentials...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!isAuthorized) {
+        return (
+            <div className={styles.adminPage} style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: 24 }}>
+                <div style={{ maxWidth: 440, width: "100%", background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: 32, textAlign: "center", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)" }}>
+                    <div style={{ width: 48, height: 48, borderRadius: "50%", background: "#fee2e2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                        <X size={24} weight="bold" />
+                    </div>
+                    <h2 style={{ fontSize: "1.25rem", fontWeight: 600, color: "#0f172a", marginBottom: 8 }}>Access Denied</h2>
+                    <p style={{ fontSize: "0.9rem", color: "#64748b", lineHeight: 1.5, marginBottom: 24 }}>
+                        You are signed in, but your account does not have administrator privileges to access this area.
+                    </p>
+                    <Link
+                        href="/dashboard"
+                        style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#0f172a", color: "#fff", padding: "10px 20px", borderRadius: 10, fontSize: "0.9rem", fontWeight: 500, textDecoration: "none" }}
+                    >
+                        <ArrowLeft size={16} /> Return to Dashboard
+                    </Link>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className={styles.adminPage}>

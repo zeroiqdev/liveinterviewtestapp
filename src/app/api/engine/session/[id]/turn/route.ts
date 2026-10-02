@@ -5,15 +5,17 @@ import { getCachedAudio } from "@/services/ttsService";
 import type { Persona } from "@/config/voiceConfig";
 
 import { cleanSpokenAudioText } from "@/engine/conversationalEngine";
+import { traceTurn } from "@/engine/turnTrace";
 
 const QUICK_AUDIO_BUDGET_MS = 240;
 
 async function getQuickAudio(
     text: string,
     persona: Persona,
-    jobRegion: string
+    jobRegion: string,
+    turnId?: string | null
 ) {
-    const audioPromise = getCachedAudio(text, persona, jobRegion);
+    const audioPromise = getCachedAudio(text, persona, jobRegion, turnId || undefined);
     const quickResult = await Promise.race([
         audioPromise,
         new Promise<null>((resolve) => setTimeout(() => resolve(null), QUICK_AUDIO_BUDGET_MS)),
@@ -31,6 +33,8 @@ export async function POST(
 ) {
     try {
         const { id } = await params;
+        const turnId = req.headers.get("x-onscript-turn-id");
+        traceTurn(turnId, "turn_request_received");
         const body = await req.json();
         const answerText = typeof body?.answerText === "string" ? body.answerText : "";
 
@@ -43,7 +47,9 @@ export async function POST(
             sessionId: id,
             answerText,
             profile,
+            turnId: turnId || undefined,
         });
+        traceTurn(turnId, "engine_completed");
 
         // Fast server-side audio resolution: Return audioUrl directly in the turn payload
         // to eliminate an entire extra HTTP client round-trip to /api/tts!
@@ -67,42 +73,60 @@ export async function POST(
 
         if (textToSynthesize) {
             try {
+                traceTurn(turnId, "tts_lookup_started");
                 const persona = (body?.persona as Persona) || "recruiter";
                 const jobRegion = body?.jobRegion || "nigeria";
 
-                // Phase 3: Sentence-level pipelining (LiveKit SpeechHandle architecture)
+                // The warm-up keys bank transitions by their exact combined
+                // bridge + question text. Prefer that clip first: it gives
+                // the prepared bridge immediate playback with no segment gap.
+                const isBankTransition = prompt?.kind === "scripted" && toolCall?.tool !== "repeat_question";
+                const fullClip = isBankTransition
+                    ? await getQuickAudio(textToSynthesize, persona, jobRegion, turnId)
+                    : null;
+                if (fullClip) {
+                    audioUrl = fullClip.audioUrl;
+                    voiceLabel = fullClip.voiceLabel;
+                    audioSegments.push({ text: textToSynthesize, audioUrl: fullClip.audioUrl });
+                    traceTurn(turnId, "first_audio_ready", { exactCombined: true });
+                } else {
+                // Dynamic probes retain the existing fast sentence fallback.
                 const sentenceMatches = textToSynthesize.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g);
                 const sentences = sentenceMatches ? sentenceMatches.map((s) => s.trim()).filter(Boolean) : [textToSynthesize];
 
                 if (sentences.length > 1) {
                     // Synthesize first sentence with ultra-low latency for instant TTFA
-                    const firstChunkRes = await getQuickAudio(sentences[0], persona, jobRegion);
+                    const firstChunkRes = await getQuickAudio(sentences[0], persona, jobRegion, turnId);
                     if (firstChunkRes) {
                         audioUrl = firstChunkRes.audioUrl;
                         voiceLabel = firstChunkRes.voiceLabel;
                         audioSegments.push({ text: sentences[0], audioUrl: firstChunkRes.audioUrl });
+                        traceTurn(turnId, "first_audio_ready", { exactCombined: false });
 
                         // Include following chunks only when the opener is ready.
                         // Otherwise the client uses its immediate full-text fallback.
                         sentences.slice(1).forEach((seg) => {
                             audioSegments.push({ text: seg, audioUrl: "" });
-                            getCachedAudio(seg, persona, jobRegion).catch(() => {});
+                            getCachedAudio(seg, persona, jobRegion, turnId || undefined).catch(() => {});
                         });
                     } else {
                         sentences.slice(1).forEach((seg) => {
-                            getCachedAudio(seg, persona, jobRegion).catch(() => {});
+                            getCachedAudio(seg, persona, jobRegion, turnId || undefined).catch(() => {});
                         });
                     }
                 } else {
-                    const ttsRes = await getQuickAudio(textToSynthesize, persona, jobRegion);
+                    const ttsRes = await getQuickAudio(textToSynthesize, persona, jobRegion, turnId);
                     if (ttsRes) {
                         audioUrl = ttsRes.audioUrl;
                         voiceLabel = ttsRes.voiceLabel;
                         audioSegments.push({ text: textToSynthesize, audioUrl: ttsRes.audioUrl });
                     }
                 }
+                }
             } catch (ttsErr) {
                 console.warn("[turn/route] Server-side TTS synthesis skipped:", ttsErr);
+            } finally {
+                traceTurn(turnId, "tts_lookup_completed", { hasAudio: Boolean(audioUrl) });
             }
         }
 
@@ -112,6 +136,7 @@ export async function POST(
             systemMessage: endCall.systemMessage,
         } : undefined);
 
+        traceTurn(turnId, "turn_response_sent", { hasAudio: Boolean(audioUrl) });
         return NextResponse.json({
             prompt: {
                 ...prompt,

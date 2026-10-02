@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { CONVERSATIONAL_FILLERS, getRandomFiller, getContextualFiller } from "@/config/fillerConfig";
+import { CONVERSATIONAL_FILLERS, getContextualFiller, type FillerLength } from "@/config/fillerConfig";
 
 export interface PlayTtsOptions {
   persona?: "recruiter" | "coach";
@@ -10,6 +10,13 @@ export interface PlayTtsOptions {
   preferImmediate?: boolean;
   onStart?: () => void;
   onEnd?: () => void;
+}
+
+export interface PlayFillerOptions extends PlayTtsOptions {
+  /** Recent candidate turns give a brief acknowledgement optional context. */
+  recentCandidateTurns?: string[];
+  /** Longer bridges are used only when the next response is still unresolved. */
+  length?: FillerLength;
 }
 
 // Default playback speed: 1.15x for crisper, more natural interview pacing
@@ -113,7 +120,7 @@ export function useTtsAudio() {
    * Caches response URLs in memory and primes the browser's native HTTP/media cache.
    */
   const prefetchTts = useCallback(
-    (texts: string[], options?: { persona?: "recruiter" | "coach"; jobRegion?: string }) => {
+    (texts: string[], options?: { persona?: "recruiter" | "coach"; jobRegion?: string; turnId?: string }) => {
       if (typeof window === "undefined" || !texts || texts.length === 0) return;
       const persona = options?.persona || "recruiter";
       const jobRegion = options?.jobRegion || getStoredJobRegion();
@@ -128,7 +135,10 @@ export function useTtsAudio() {
 
         fetch("/api/tts", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(options?.turnId ? { "x-onscript-turn-id": options.turnId } : {}),
+          },
           body: JSON.stringify({ text, persona, jobRegion }),
         })
           .then((res) => {
@@ -348,8 +358,8 @@ export function useTtsAudio() {
   }, [stopAudio]);
 
   const playFiller = useCallback(
-    async (candidateTranscript?: string, options?: PlayTtsOptions) => {
-      const fillerText = getContextualFiller(candidateTranscript);
+    async (candidateTranscript?: string, options?: PlayFillerOptions) => {
+      const fillerText = getContextualFiller(candidateTranscript, options?.recentCandidateTurns, options?.length);
       const persona = options?.persona || "recruiter";
       let jobRegion = options?.jobRegion;
       if (!jobRegion && typeof window !== "undefined") {

@@ -29,6 +29,8 @@ export interface IUser extends Document {
     roleFamily: string;
     seniority: string;
     experienceInRole?: string;
+    systemRole?: "user" | "admin";
+    isAdmin?: boolean;
     password?: string;
     portfolioUrl?: string;
     linkedinUrl?: string;
@@ -65,6 +67,8 @@ const UserSchema = new Schema<IUser>(
         avatar: { type: String, default: "" },
         provider: { type: String, enum: ["google", "credentials", "email"], default: "google" },
         googleId: { type: String, default: "" },
+        systemRole: { type: String, enum: ["user", "admin"], default: "user" },
+        isAdmin: { type: Boolean, default: false },
         role: { type: String, default: "Software Engineer" },
         domain: { type: String, default: "Software & Engineering" },
         roleFamily: { type: String, default: "engineering" },

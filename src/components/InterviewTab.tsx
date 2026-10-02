@@ -467,7 +467,6 @@ export default function InterviewTab() {
     const {
         playTts,
         playPipelinedSpeech,
-        playFiller,
         prefetchTts,
         prefetchFillers,
         primeAudioCache,
@@ -516,6 +515,9 @@ export default function InterviewTab() {
     const isRecognitionActiveRef = useRef<boolean>(false);
     const accumulatedFinalTranscriptRef = useRef<string>("");
     const turnEpochRef = useRef(0);
+    const preparedTurnRef = useRef<{ text: string; controller: AbortController; turnId: string } | null>(null);
+    const activeTurnIdRef = useRef<string | null>(null);
+    const endpointAtRef = useRef<Map<string, number>>(new Map());
     const recognitionEnabled = sessionStarted && !isMuted && agentActivity.isListening;
 
     const stopRecognition = useCallback(() => {
@@ -630,6 +632,14 @@ export default function InterviewTab() {
             persona: "recruiter" as const,
             preferImmediate: true,
             onStart: () => {
+                if (activeTurnIdRef.current && process.env.NEXT_PUBLIC_ONSCRIPT_TURN_TRACE === "1") {
+                    console.info(`[turn:${activeTurnIdRef.current}] playback_started`);
+                    const endpointAt = endpointAtRef.current.get(activeTurnIdRef.current);
+                    if (endpointAt) {
+                        console.info(`[turn:${activeTurnIdRef.current}] endpoint_to_playback_ms=${Date.now() - endpointAt}`);
+                        endpointAtRef.current.delete(activeTurnIdRef.current);
+                    }
+                }
                 accumulatedFinalTranscriptRef.current = "";
                 agentActivity.transitionTo("speaking", "TTS audio playing");
                 setIsListening(false);
@@ -761,6 +771,14 @@ export default function InterviewTab() {
     // Hand answer to orchestrator engine with conversational filler to eliminate dead air
     const submitTurnToEngine = async (candidateText: string) => {
         if (!sessionId) return;
+        const turnId = preparedTurnRef.current?.text === candidateText
+            ? preparedTurnRef.current.turnId
+            : crypto.randomUUID();
+        activeTurnIdRef.current = turnId;
+        if (process.env.NEXT_PUBLIC_ONSCRIPT_TURN_TRACE === "1") {
+            console.info(`[turn:${turnId}] endpoint_confirmed`);
+        }
+        endpointAtRef.current.set(turnId, Date.now());
         const turnEpoch = turnEpochRef.current;
         setIsEngineBusy(true);
         agentActivity.transitionTo("thinking", "Candidate submitted turn, processing");
@@ -769,22 +787,10 @@ export default function InterviewTab() {
         setCurrentAnswer("");
         setFinalTranscript("");
 
-        // A brief bridge gives the interviewer a natural conversational beat.
-        // It is deliberately capped so a slow model can never make the caller wait.
-        const bridgeStartedAt = Date.now();
-        const BRIDGE_RUNWAY_MS = 600;
-        playFiller(candidateText, {
-            persona: "recruiter",
-            onStart: () => {
-                setIsListening(false);
-                setCurrentAnswer("");
-            },
-        });
-
         try {
             const res = await fetch(`/api/engine/session/${sessionId}/turn`, {
                 method: "POST",
-                headers: { "content-type": "application/json" },
+                headers: { "content-type": "application/json", "x-onscript-turn-id": turnId },
                 body: JSON.stringify({
                     answerText: candidateText,
                     persona: "recruiter",
@@ -792,10 +798,18 @@ export default function InterviewTab() {
             });
             if (!res.ok) throw new Error("turn failed");
             const data = await res.json();
+            if (process.env.NEXT_PUBLIC_ONSCRIPT_TURN_TRACE === "1") {
+                console.info(`[turn:${turnId}] turn_response_received`);
+            }
             if (turnEpoch !== turnEpochRef.current) return;
 
-            // Prime client audio cache immediately with server-synthesized audio URL
-            if (data.audioUrl && data.prompt?.text) {
+            // Prime only the text each URL actually contains. A prepared bank
+            // transition may be one exact combined clip or sentence segments.
+            if (data.audioSegments?.length) {
+                data.audioSegments.forEach((segment: { text: string; audioUrl: string }) => {
+                    if (segment.audioUrl) primeAudioCache(segment.text, segment.audioUrl, data.voiceLabel, "recruiter");
+                });
+            } else if (data.audioUrl && data.prompt?.text) {
                 primeAudioCache(data.prompt.text, data.audioUrl, data.voiceLabel, "recruiter");
             }
 
@@ -840,8 +854,7 @@ export default function InterviewTab() {
                 }
             };
 
-            const remainingBridgeMs = Math.max(0, BRIDGE_RUNWAY_MS - (Date.now() - bridgeStartedAt));
-            window.setTimeout(playNext, remainingBridgeMs);
+            playNext();
         } catch (err) {
             console.error("submitTurnToEngine error:", err);
             agentActivity.transitionTo("listening", "Engine turn error, re-enabling listening");
@@ -899,6 +912,41 @@ export default function InterviewTab() {
         maxDelayMs: 8000,
         alpha: 0.35,
         minWords: 5,
+        onTurnLikelyComplete: (transcript) => {
+            if (!sessionId || transcript.trim().length < 24) return;
+            if (preparedTurnRef.current?.text === transcript) return;
+            preparedTurnRef.current?.controller.abort();
+            const controller = new AbortController();
+            const turnId = crypto.randomUUID();
+            preparedTurnRef.current = { text: transcript, controller, turnId };
+            if (process.env.NEXT_PUBLIC_ONSCRIPT_TURN_TRACE === "1") {
+                console.info(`[turn:${turnId}] stt_snapshot_ready`);
+            }
+            void fetch(`/api/engine/session/${sessionId}/prepare`, {
+                method: "POST",
+                headers: { "content-type": "application/json", "x-onscript-turn-id": turnId },
+                body: JSON.stringify({ answerText: transcript }),
+                signal: controller.signal,
+            })
+                .then((res) => res.ok ? res.json() : null)
+                .then((data) => {
+                    if (data?.preparedText && preparedTurnRef.current?.turnId === turnId) {
+                        // Warm the exact bridge + selected bank question while
+                        // endpointing is still protecting the candidate turn.
+                        prefetchTts([data.preparedText], { persona: "recruiter", turnId });
+                    }
+                })
+                .catch(() => undefined);
+        },
+        onTurnActivity: (transcript) => {
+            const prepared = preparedTurnRef.current;
+            if (!prepared || prepared.text === transcript) return;
+            prepared.controller.abort();
+            preparedTurnRef.current = null;
+            if (process.env.NEXT_PUBLIC_ONSCRIPT_TURN_TRACE === "1") {
+                console.info(`[turn:${prepared.turnId}] prepare_discarded`);
+            }
+        },
         onTurnComplete: (transcript) => {
             handleNext(transcript);
         },
@@ -1003,9 +1051,12 @@ export default function InterviewTab() {
     const userName = candidateDisplayName;
     const initials = userName.slice(0, 2).toUpperCase();
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        try {
+            await fetch("/api/auth/logout", { method: "POST" });
+        } catch {}
         localStorage.removeItem("useladder_user");
-        router.push("/");
+        router.push("/login");
     };
 
     /* ── Derived display values ── */

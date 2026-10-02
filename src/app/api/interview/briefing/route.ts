@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callJSON } from "@/engine/llm";
+import { requireAuth } from "@/lib/session";
 
 export interface DecodedResponsibility {
     responsibility: string;
@@ -96,6 +97,11 @@ function getHeuristicBriefing(role: string, company: string, seniority: string):
 
 export async function POST(req: NextRequest) {
     try {
+        const authResult = await requireAuth(req);
+        if ("errorResponse" in authResult) {
+            return authResult.errorResponse;
+        }
+
         const body = await req.json();
         const {
             role = "Software Engineer",

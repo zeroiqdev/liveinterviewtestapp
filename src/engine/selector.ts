@@ -30,13 +30,38 @@ function stripBold(text: string | null): string | null {
     return text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*\*/g, "");
 }
 
-interface SelectionResult {
+export interface SelectionResult {
     choice: "question_id" | "parked_topic";
     questionId: string | null;
     /** when choice = parked_topic: index into session.parkingLot */
     parkedIndex: number | null;
     questionText: string | null;
+    /** Short, answer-grounded lead-in. Kept separately so the exact spoken
+     * bank transition can be cached and reused as one immutable plan. */
+    bridge: string | null;
     reason: string;
+}
+
+function fallbackQuestion(candidates: BankQuestion[], session: SessionDoc, competency: Competency | null): BankQuestion | undefined {
+    if (candidates.length === 0) return undefined;
+    const asked = competency
+        ? session.topicProgress[session.currentCompetencyIndex]?.askedQuestionIds.length ?? 0
+        : session.generalAsked.questionIds.length;
+    const preferredGeneralCategories = asked <= 1
+        ? ["motivation", "company_fit", "background"]
+        : asked <= 3
+            ? ["initiative", "values", "growth_mindset", "self_assessment"]
+            : ["accountability", "work_style", "conflict_resolution", "coachability", "resilience"];
+    const preferred = competency
+        ? candidates
+        : candidates.filter((q) => preferredGeneralCategories.includes(q.category) && q.category !== "closing" && q.category !== "logistics");
+    const viable = preferred.length > 0 ? preferred : candidates.filter((q) => q.category !== "closing" && q.category !== "logistics");
+    const pool = viable.length > 0 ? viable : candidates;
+    // A stable session-derived offset makes two interviews cover the same
+    // progression but not recite the same prompt sequence when running in
+    // mock/offline mode.
+    const seed = [...session.sessionId].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    return pool[(seed + asked) % pool.length];
 }
 
 function profileBlock(
@@ -97,6 +122,7 @@ export async function selectQuestion(opts: {
             questionId: null,
             parkedIndex: null,
             questionText: null,
+            bridge: null,
             reason: "pool exhausted",
         };
     }
@@ -124,6 +150,9 @@ ${parkedIndexes
             : pacing.mode === "tightening"
               ? "PACING: tightening — prefer the single most information-dense question over broad openers."
               : "PACING: normal.";
+    const sectionProgress = competency
+        ? `${session.topicProgress[session.currentCompetencyIndex]?.askedQuestionIds.length ?? 0} of ${competency.targetQuestionRange.max} planned questions covered`
+        : `${session.generalAsked.questionIds.length} of ${blueprint.generalBehavioral.targetQuestionRange.min} background questions covered`;
 
     const system = `You are the question selector and conversational interviewer for a live interview engine.
 Pick the single best next question for the current section. If the candidate has already answered earlier questions, craft a natural conversational lead-in that links what they just said to the theme of the new question so the interview feels cohesive and conversational.
@@ -134,20 +163,21 @@ Output ONLY valid JSON:
   "questionId": "<id from the pool list, or null>",
   "parkedIndex": <index from a parked:N tag, or null>,
   "conversationalBridge": "<1 spoken sentence that acknowledges what the candidate just discussed and builds a base for what will be asked next. E.g. 'That gives me good insight into your engineering background. Shifting our focus to execution under tight deadlines:'>",
-  "questionText": "<the complete spoken question to ask the candidate: conversationalBridge + the question>",
+  "questionText": "<only for parked_topic: the complete question>",
   "reason": "<one sentence>"
 }
 
 Rules:
 - Interviewer persona: ${blueprint.persona.voice}
 - ${pacingNote}
-- Conversational Bridging: If there is a last candidate answer, do not abruptly jump to a new topic. Briefly connect their previous answer (referencing a key achievement, trade-off, tool, or metric they discussed) to the core premise of the next question.
+- Conversational Bridging: If there is a last candidate answer, do not abruptly jump to a new topic. Briefly connect it using only a detail the candidate actually said. It must be one concise, legible sentence; omit it rather than use generic thanks, acknowledgements, or filler. For question_id, do not put the bank question in conversationalBridge or questionText.
 - A parked topic that fits this section well outranks a generic pool question. For parked topics, create a natural callback ("Earlier you mentioned X — let's unpack that...").
 - Never pick a question id that is not in the pool list.
 - Do not repeat ground already covered in the running notes.
+- Interview progression matters more than novelty: use the broad stage for background, motivation and fit; use the first question in a competency for a concrete anchor example; use later questions to test a complementary dimension, trade-off or result. Do not use a closing or logistics question until the interview is actually winding down.
 - Never use ** for bold. Plain text only, no markdown.`;
 
-    const user = `Current section: ${competencyLabel}
+    const user = `Current section: ${competencyLabel} (${sectionProgress})
 
 ${parkedBlock}
 
@@ -175,7 +205,7 @@ ${candidates.map((q) => `- ${q.id} — ${q.question}`).join("\n")}`;
             system,
             user,
             maxTokens: 400,
-            mock: mockSelection(candidates, parkedIndexes, session),
+            mock: mockSelection(candidates, parkedIndexes, session, competency),
         });
 
         if (
@@ -188,22 +218,24 @@ ${candidates.map((q) => `- ${q.id} — ${q.question}`).join("\n")}`;
                 choice: "parked_topic",
                 questionId: null,
                 parkedIndex: raw.parkedIndex,
-                questionText: stripBold(raw.questionText),
+            questionText: stripBold(raw.questionText),
+                bridge: stripBold(raw.conversationalBridge || "")?.trim() || null,
                 reason: raw.reason || "resurfaced parked topic",
             };
         }
 
         const picked = candidates.find((q) => q.id === raw.questionId);
         if (picked) {
-            let finalText = stripBold(raw.questionText || picked.question) || picked.question;
-            if (raw.conversationalBridge && !finalText.includes(raw.conversationalBridge.slice(0, 15))) {
-                finalText = `${stripBold(raw.conversationalBridge)} ${finalText}`;
-            }
+            // The classified bank question is authoritative. The model may
+            // add a bridge, but cannot silently replace the planned question.
+            const bridge = stripBold(raw.conversationalBridge || "")?.trim();
+            const finalText = bridge ? `${bridge} ${picked.question}` : picked.question;
             return {
                 choice: "question_id",
                 questionId: picked.id,
                 parkedIndex: null,
                 questionText: finalText,
+                bridge: bridge || null,
                 reason: raw.reason || "selector pick with conversational bridge",
             };
         }
@@ -217,17 +249,18 @@ ${candidates.map((q) => `- ${q.id} — ${q.question}`).join("\n")}`;
                 questionId: null,
                 parkedIndex: i,
                 questionText: stripBold(`Earlier you mentioned "${session.parkingLot[i].topicSummary}" — walk me through that.`),
+                bridge: null,
                 reason: "fallback: parked topic",
             };
         }
-        const first = candidates[0];
-        const bridge = lastCandidateAnswer ? "Thanks for breaking that down. Building on that:" : "";
-        const fallbackText = first?.question ? (bridge ? `${bridge} ${first.question}` : first.question) : null;
+        const first = fallbackQuestion(candidates, session, competency);
+        const fallbackText = first?.question ?? null;
         return {
             choice: "question_id",
             questionId: first?.id ?? null,
             parkedIndex: null,
             questionText: stripBold(fallbackText),
+            bridge: null,
             reason: "fallback: first unasked pool question",
         };
     }
@@ -236,7 +269,8 @@ ${candidates.map((q) => `- ${q.id} — ${q.question}`).join("\n")}`;
 function mockSelection(
     candidates: BankQuestion[],
     parkedIndexes: number[],
-    session: SessionDoc
+    session: SessionDoc,
+    competency: Competency | null
 ) {
     const lastAnswer = session.transcript
         .filter((t) => t.role === "candidate")
@@ -253,8 +287,8 @@ function mockSelection(
             reason: "mock: parked topic",
         };
     }
-    const q = candidates[0];
-    const bridge = lastAnswer ? "Thanks for sharing those details. Building on that:" : "";
+    const q = fallbackQuestion(candidates, session, competency);
+    const bridge = lastAnswer ? `You mentioned ${lastAnswer.split(/[,.;!?]/)[0].slice(0, 80)}. ` : "";
     return {
         choice: "question_id",
         questionId: q?.id ?? null,

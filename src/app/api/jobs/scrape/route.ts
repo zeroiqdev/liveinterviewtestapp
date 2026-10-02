@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import type { JobItem } from "../route";
 import type { ScraperSource } from "../sources/route";
 import { scrapeCareerPage, classifyRoleFamily, generateRoleOverview } from "@/services/careerPageScraper";
@@ -8,6 +8,7 @@ import {
     getAllJobs,
     commitScraperSourceResult,
 } from "@/lib/jobStorage";
+import { requireAdmin } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -30,8 +31,13 @@ interface SourceResult {
  *   - sourceId (optional): scrape a single source by ID
  *   - (none): scrape all enabled sources
  */
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
+        const authResult = await requireAdmin(req);
+        if ("errorResponse" in authResult) {
+            return authResult.errorResponse;
+        }
+
         const { searchParams } = new URL(req.url);
         const singleSourceId = searchParams.get("sourceId");
 

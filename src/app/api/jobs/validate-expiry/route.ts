@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import type { JobItem } from "../route";
 import { getAllJobs, updateJob } from "@/lib/jobStorage";
+import { requireAdmin } from "@/lib/session";
 
 const CLOSED_POSTING_SIGNALS = [
     "no longer accepting applications",
@@ -85,8 +86,13 @@ async function checkJobHealth(url: string): Promise<{ isLive: boolean; reason?: 
  *   - limit (default 30): Number of active jobs to validate in parallel
  *   - checkAll (boolean): Check all active jobs
  */
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
+        const authResult = await requireAdmin(req);
+        if ("errorResponse" in authResult) {
+            return authResult.errorResponse;
+        }
+
         const { searchParams } = new URL(req.url);
         const limitParam = searchParams.get("limit");
         const checkAll = searchParams.get("checkAll") === "true";

@@ -115,8 +115,12 @@ export async function executeConversationalTurn(opts: {
     answerText: string;
     profile: CandidateProfile | null;
     nextPoolQuestion?: string | null;
+    /** The selector's immutable bridge + classified bank question. For an
+     * ordinary bank transition, the decision engine may choose the action but
+     * may not rewrite this utterance. */
+    exactBankTransition?: string | null;
 }): Promise<ConversationalTurnOutput> {
-    const { session, blueprint, competency, answerText, profile, nextPoolQuestion } = opts;
+    const { session, blueprint, competency, answerText, profile, nextPoolQuestion, exactBankTransition } = opts;
     const candidateName = session.candidateName || "Candidate";
     const companyName = session.company && session.company !== "General" ? session.company : "our company";
     const roleName = session.interviewType || blueprint.role || "this role";
@@ -229,7 +233,13 @@ ${recentHistory || "(Start of conversation)"}`;
         if (raw.tool_call) {
             const tool = raw.tool_call.tool as InterviewToolName;
             const args = raw.tool_call.args || {};
-            const systemMessage = stripBold(args.system__message_to_speak || raw.spokenText || "");
+            const generatedMessage = stripBold(args.system__message_to_speak || raw.spokenText || "");
+            // Bank questions are selected and bridged before this decision.
+            // Preserve that exact utterance for cache identity and avoid a
+            // second model-created acknowledgement or altered question.
+            const systemMessage = tool === "ask_question" && exactBankTransition
+                ? exactBankTransition
+                : generatedMessage;
             return {
                 intent: tool === "end_call" ? "end_interview" : tool === "repeat_question" ? "repeat_question" : tool === "skip_question" ? "skip_question" : "answer",
                 action: tool === "end_call" ? "end_call" : tool === "repeat_question" ? "repeat" : tool === "push_back" ? "push_back" : "next_question",

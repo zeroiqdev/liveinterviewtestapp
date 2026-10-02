@@ -14,8 +14,10 @@
     "@elevenlabs/elevenlabs-js": "^2.64.0",
     "@mingcute/react": "^3.0.2",
     "@phosphor-icons/react": "^2.1.10",
+    "bcryptjs": "^3.0.3",
     "docx": "^9.7.1",
     "dotenv": "^16.6.1",
+    "jose": "^6.2.12",
     "mammoth": "^1.12.3",
     "mongoose": "^8.24.3",
     "nanoid": "^6.0.1",
@@ -28,6 +30,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

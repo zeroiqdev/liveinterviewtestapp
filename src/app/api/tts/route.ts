@@ -47,7 +47,8 @@ export async function POST(request: Request) {
     const result = await getCachedAudio(
       text.trim(),
       persona as Persona,
-      jobRegion
+      jobRegion,
+      request.headers.get("x-onscript-turn-id") || undefined
     );
 
     return NextResponse.json(result);

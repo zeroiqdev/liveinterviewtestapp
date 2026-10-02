@@ -14,6 +14,11 @@ interface UseTurnDetectionOptions {
     maxDelayMs?: number;
     alpha?: number;
     minWords?: number; // Default: 3 words
+    /** A stable partial answer can be prepared, but is never submitted yet. */
+    preparationDelayMs?: number;
+    onTurnLikelyComplete?: (transcript: string) => void;
+    /** Speech resumed or STT advanced after a preview; caller should abort it. */
+    onTurnActivity?: (transcript: string) => void;
     onTurnComplete: (transcript: string) => void;
 }
 
@@ -27,6 +32,9 @@ export function useTurnDetection({
     maxDelayMs = 8000,
     alpha = 0.35,
     minWords = 5,
+    preparationDelayMs = 1300,
+    onTurnLikelyComplete,
+    onTurnActivity,
     onTurnComplete,
 }: UseTurnDetectionOptions) {
     const [silenceRemainingMs, setSilenceRemainingMs] = useState<number | null>(null);
@@ -34,14 +42,22 @@ export function useTurnDetection({
 
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
+    const preparationTimerRef = useRef<NodeJS.Timeout | null>(null);
     const lastActivityTextRef = useRef<string>("");
     const hasSpokenThisTurnRef = useRef<boolean>(false);
     const smoothedDelayRef = useRef<number>(minDelayMs);
     const onTurnCompleteRef = useRef(onTurnComplete);
+    const onTurnLikelyCompleteRef = useRef(onTurnLikelyComplete);
+    const onTurnActivityRef = useRef(onTurnActivity);
 
     useEffect(() => {
         onTurnCompleteRef.current = onTurnComplete;
     }, [onTurnComplete]);
+
+    useEffect(() => {
+        onTurnLikelyCompleteRef.current = onTurnLikelyComplete;
+    }, [onTurnLikelyComplete]);
+    useEffect(() => { onTurnActivityRef.current = onTurnActivity; }, [onTurnActivity]);
 
     const cancelSilence = useCallback(() => {
         if (timerRef.current) {
@@ -51,6 +67,10 @@ export function useTurnDetection({
         if (intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
+        }
+        if (preparationTimerRef.current) {
+            clearTimeout(preparationTimerRef.current);
+            preparationTimerRef.current = null;
         }
         setIsCountingDown(false);
         setSilenceRemainingMs(null);
@@ -89,6 +109,9 @@ export function useTurnDetection({
         // Interim recognition is activity, not a turn. It resets endpointing
         // without ever changing orchestrator state or submitted text.
         if (activity !== lastActivityTextRef.current) {
+            // This is a read-only activity signal. It never submits a turn,
+            // but lets speculative work be discarded as soon as speech resumes.
+            onTurnActivityRef.current?.(finalized || activity);
             lastActivityTextRef.current = activity;
             hasSpokenThisTurnRef.current = true;
             cancelSilence();
@@ -117,6 +140,15 @@ export function useTurnDetection({
             smoothedDelayRef.current = effectiveThreshold;
 
             const startTime = Date.now();
+            // This is deliberately a *read-only* early signal. The normal,
+            // conservative endpoint timer below remains the sole authority
+            // that can submit a candidate turn.
+            if (!isExplicitEnding && wordCount >= minWords) {
+                const preparationSnapshot = finalized;
+                preparationTimerRef.current = setTimeout(() => {
+                    onTurnLikelyCompleteRef.current?.(preparationSnapshot);
+                }, preparationDelayMs);
+            }
             setIsCountingDown(true);
             setSilenceRemainingMs(effectiveThreshold);
 
@@ -131,7 +163,7 @@ export function useTurnDetection({
                 onTurnCompleteRef.current(finalized);
             }, effectiveThreshold);
         }
-    }, [currentTranscript, activityTranscript, enabled, isAiSpeaking, isEngineBusy, minWords, minDelayMs, maxDelayMs, alpha, cancelSilence]);
+    }, [currentTranscript, activityTranscript, enabled, isAiSpeaking, isEngineBusy, minWords, minDelayMs, maxDelayMs, alpha, preparationDelayMs, cancelSilence]);
 
     // Cleanup on unmount
     useEffect(() => {

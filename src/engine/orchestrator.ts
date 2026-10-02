@@ -13,12 +13,13 @@
 
 import { randomUUID } from "crypto";
 import { computePacing } from "./timeGovernor";
-import { selectQuestion } from "./selector";
+import { selectQuestion, type SelectionResult } from "./selector";
 import { enforceBudget, evaluateAnswer } from "./probe";
 import { generateFollowUp } from "./followUp";
 import { generalPool, getBlueprint, queryPool } from "./data";
 import { getSession, saveSession } from "./sessionStore";
-import { executeConversationalTurn, type InterviewToolCall } from "./conversationalEngine";
+import { executeConversationalTurn, type ConversationalTurnOutput, type InterviewToolCall } from "./conversationalEngine";
+import { traceTurn } from "./turnTrace";
 import type {
     AuditEntry,
     Blueprint,
@@ -32,6 +33,12 @@ import type {
 
 const GENERAL_ID = "general_behavioral";
 const GENERAL_LABEL = "General behavioral";
+
+// A preview is created while endpointing is still deciding whether the
+// candidate has finished. It is keyed to the exact transcript and expires
+// quickly, so it can only accelerate the identical, subsequently submitted
+// answer; it can never advance a live session on its own.
+const preparedTurns = new Map<string, { answerText: string; result: ConversationalTurnOutput; selection: SelectionResult; expiresAt: number }>();
 
 /* ── helpers ── */
 
@@ -349,10 +356,92 @@ function finalize(session: SessionDoc, blueprint: Blueprint): EnginePrompt {
 
 /* ── the turn itself ── */
 
+export async function prepareAnswer(opts: {
+    sessionId: string;
+    answerText: string;
+    profile: CandidateProfile | null;
+    turnId?: string;
+}): Promise<{ spokenText: string; action: ConversationalTurnOutput["action"]; questionId: string | null; bridge: string | null } | null> {
+    const source = getSession(opts.sessionId);
+    if (!source || source.complete) return null;
+    const blueprint = getBlueprint(source.blueprintId);
+    if (!blueprint) return null;
+
+    const answerText = opts.answerText.trim();
+    if (!answerText) return null;
+    const cacheKey = opts.sessionId;
+    const cached = preparedTurns.get(cacheKey);
+    if (cached && cached.answerText === answerText && cached.expiresAt > Date.now()) {
+        return { spokenText: cached.result.spokenText, action: cached.result.action, questionId: cached.selection.questionId, bridge: cached.selection.bridge };
+    }
+    traceTurn(opts.turnId, "prepare_started");
+
+    // The conversational engine only reads the session. Clone anyway to make
+    // the non-mutating contract explicit as this pipeline evolves.
+    const preview = structuredClone(source);
+    if (preview.currentCompetencyIndex < 0 && preview.generalAsked.questionIds.length >= blueprint.generalBehavioral.targetQuestionRange.min && blueprint.competencies.length > 0) {
+        preview.currentCompetencyIndex = 0;
+        preview.topicProgress[0].status = "in_progress";
+    }
+    const previewPacing = computePacing(preview, blueprint);
+    while (preview.currentCompetencyIndex >= 0 && preview.currentCompetencyIndex < blueprint.competencies.length) {
+        const active = blueprint.competencies[preview.currentCompetencyIndex];
+        const progress = preview.topicProgress[preview.currentCompetencyIndex];
+        if (!active || !progress || progress.askedQuestionIds.length < active.targetQuestionRange.max) break;
+        progress.status = "complete";
+        preview.currentCompetencyIndex++;
+        if (preview.currentCompetencyIndex >= blueprint.competencies.length) return null;
+        const next = blueprint.competencies[preview.currentCompetencyIndex];
+        if (previewPacing.skipOptional && next.priority === "optional") {
+            preview.topicProgress[preview.currentCompetencyIndex].status = "skipped";
+            continue;
+        }
+        preview.topicProgress[preview.currentCompetencyIndex].status = "in_progress";
+    }
+    const competency = currentCompetency(preview, blueprint);
+    // Mirror the read context used by submitAnswer. This keeps references to
+    // earlier turns and the just-finished answer coherent in the warm result.
+    preview.transcript.push({
+        role: "candidate",
+        text: answerText,
+        competencyId: competency?.id ?? GENERAL_ID,
+        kind: "answer",
+        timestamp: new Date().toISOString(),
+    });
+    const pool = competency ? queryPool(competency.questionPoolFilter) : generalPool();
+    traceTurn(opts.turnId, "selector_started", { mode: "prepare" });
+    const selection = await selectQuestion({
+        session: preview,
+        blueprint,
+        competency,
+        pool,
+        pacing: previewPacing,
+        profile: opts.profile,
+        diversityNote: competency ? undefined : "Interview arc: establish background and motivation first, then values or work style. Do not use salary or closing questions at this stage.",
+    });
+    traceTurn(opts.turnId, "selector_completed", { mode: "prepare" });
+    const nextPoolQuestion = selection.questionText;
+    traceTurn(opts.turnId, "conversation_started", { mode: "prepare" });
+    const result = await executeConversationalTurn({
+        session: preview,
+        blueprint,
+        competency,
+        answerText,
+        profile: opts.profile,
+        nextPoolQuestion,
+        exactBankTransition: selection.questionText,
+    });
+    traceTurn(opts.turnId, "conversation_completed", { mode: "prepare", action: result.action });
+    preparedTurns.set(cacheKey, { answerText, result, selection, expiresAt: Date.now() + 20_000 });
+    traceTurn(opts.turnId, "prepare_completed", { action: result.action });
+    return { spokenText: result.spokenText, action: result.action, questionId: selection.questionId, bridge: selection.bridge };
+}
+
 export async function submitAnswer(opts: {
     sessionId: string;
     answerText: string;
     profile: CandidateProfile | null;
+    turnId?: string;
 }): Promise<{ session: SessionDoc; prompt: EnginePrompt; pacing: PacingDirective; toolCall?: InterviewToolCall }> {
     const session = getSession(opts.sessionId);
     if (!session) throw new Error(`unknown sessionId: ${opts.sessionId}`);
@@ -393,10 +482,37 @@ export async function submitAnswer(opts: {
     // Time Governor — every turn, never on a fixed schedule
     const pacing = computePacing(session, blueprint);
 
-    // Initialize competency progress if starting interview
-    if (session.currentCompetencyIndex < 0 && blueprint.competencies.length > 0) {
+    // Keep the broad background stage intact until its planned minimum is
+    // covered. Previously this switched to competency questions immediately
+    // after the opening, which made the interview arc feel abrupt.
+    if (
+        session.currentCompetencyIndex < 0 &&
+        session.generalAsked.questionIds.length >= blueprint.generalBehavioral.targetQuestionRange.min &&
+        blueprint.competencies.length > 0
+    ) {
         session.currentCompetencyIndex = 0;
         session.topicProgress[0].status = "in_progress";
+    }
+
+    // A section advances only after its planned depth has been covered. This
+    // gives each interview the same broad-to-deep progression while allowing
+    // the selector and targeted probes to vary the actual conversation.
+    while (session.currentCompetencyIndex >= 0 && session.currentCompetencyIndex < blueprint.competencies.length) {
+        const active = blueprint.competencies[session.currentCompetencyIndex];
+        const progress = session.topicProgress[session.currentCompetencyIndex];
+        if (!active || !progress || progress.askedQuestionIds.length < active.targetQuestionRange.max) break;
+        progress.status = "complete";
+        session.currentCompetencyIndex++;
+        if (session.currentCompetencyIndex >= blueprint.competencies.length) break;
+        const next = blueprint.competencies[session.currentCompetencyIndex];
+        if (pacing.skipOptional && next.priority === "optional") {
+            session.topicProgress[session.currentCompetencyIndex].status = "skipped";
+            continue;
+        }
+        session.topicProgress[session.currentCompetencyIndex].status = "in_progress";
+    }
+    if (session.currentCompetencyIndex >= blueprint.competencies.length) {
+        return { session, prompt: finalize(session, blueprint), pacing };
     }
 
     const currentComp = currentCompetency(session, blueprint);
@@ -407,16 +523,45 @@ export async function submitAnswer(opts: {
             : session.generalAsked.questionIds
     );
     const unaskedPool = pool.filter((q) => !askedIds.has(q.id));
-    const nextPoolQuestion = unaskedPool[0]?.question || null;
-
-    let convResult = await executeConversationalTurn({
-        session,
-        blueprint,
-        competency: currentComp,
-        answerText,
-        profile: opts.profile,
-        nextPoolQuestion,
-    });
+    const prepared = preparedTurns.get(opts.sessionId);
+    const canUsePrepared = prepared?.answerText === answerText && (prepared?.expiresAt ?? 0) > Date.now();
+    if (prepared) preparedTurns.delete(opts.sessionId);
+    traceTurn(opts.turnId, canUsePrepared ? "prepare_reused" : "prepare_discarded");
+    let selection: SelectionResult;
+    if (canUsePrepared) {
+        selection = prepared!.selection;
+    } else {
+        traceTurn(opts.turnId, "selector_started");
+        selection = await selectQuestion({
+            session,
+            blueprint,
+            competency: currentComp,
+            pool,
+            pacing,
+            profile: opts.profile,
+            diversityNote: currentComp
+                ? undefined
+                : "Interview arc: establish background and motivation first, then values or work style. Do not use salary or closing questions at this stage.",
+        });
+        traceTurn(opts.turnId, "selector_completed");
+    }
+    const nextPoolQuestion = selection.questionText;
+    let convResult = canUsePrepared
+        ? prepared!.result
+        : await (async () => {
+            traceTurn(opts.turnId, "conversation_started");
+            const result = await executeConversationalTurn({
+            session,
+            blueprint,
+            competency: currentComp,
+            answerText,
+            profile: opts.profile,
+            nextPoolQuestion,
+            exactBankTransition: selection.questionText,
+            });
+            traceTurn(opts.turnId, "conversation_completed", { action: result.action });
+            return result;
+        })();
 
     // The conversational model can suggest a clarification, but it cannot
     // replace the interview plan. A probe is allowed only within the explicit
@@ -563,22 +708,17 @@ export async function submitAnswer(opts: {
     // 4. Handle next_question action with clean extraction
     session.turnCount++;
     session.phase = "awaiting_answer";
-    if (unaskedPool[0]) {
-        recordAsked(session, unaskedPool[0].id);
-    }
-    if (convResult.advanceSection && session.currentCompetencyIndex < blueprint.competencies.length - 1) {
-        if (session.currentCompetencyIndex >= 0) {
-            const tp = session.topicProgress[session.currentCompetencyIndex];
-            if (tp) tp.status = "complete";
-        }
-        session.currentCompetencyIndex++;
-        session.topicProgress[session.currentCompetencyIndex].status = "in_progress";
+    if (selection.choice === "parked_topic" && selection.parkedIndex !== null) {
+        session.parkingLot[selection.parkedIndex].resolved = true;
+        recordAsked(session, `parked_${selection.parkedIndex}`);
+    } else if (selection.questionId) {
+        recordAsked(session, selection.questionId);
     }
     session.pendingQuestion = {
         text: convResult.spokenText,
         competencyId: currentComp?.id ?? GENERAL_ID,
         kind: "scripted",
-        questionId: unaskedPool[0]?.id ?? null,
+        questionId: selection.questionId,
     };
     session.transcript.push({
         role: "interviewer",
@@ -602,7 +742,7 @@ export async function submitAnswer(opts: {
             competencyId: currentComp?.id ?? GENERAL_ID,
             competencyLabel: currentComp?.label ?? GENERAL_LABEL,
             kind: "scripted",
-            questionId: unaskedPool[0]?.id ?? null,
+        questionId: selection.questionId,
         },
         toolCall: convResult.toolCall,
         pacing,

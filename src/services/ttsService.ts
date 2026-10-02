@@ -31,6 +31,7 @@ import { synthesizeYarnGptSpeech } from "@/lib/yarngpt";
 import { uploadToStorage, checkStorageExists } from "@/lib/r2Storage";
 import { getVoiceForContext, type Persona } from "@/config/voiceConfig";
 import { normalizeRegion } from "@/utils/regionNormalizer";
+import { traceTurn } from "@/engine/turnTrace";
 
 // ─── In-memory cache & concurrency guard ────────────────────────────
 
@@ -76,7 +77,8 @@ export interface CachedAudioResult {
 export async function getCachedAudio(
   text: string,
   persona: Persona,
-  jobRegion: string
+  jobRegion: string,
+  turnId?: string
 ): Promise<CachedAudioResult> {
   // 1. Resolve voice config
   const region = normalizeRegion(jobRegion);
@@ -95,6 +97,7 @@ export async function getCachedAudio(
   // 3. Check in-memory cache first (instant)
   const memoryHit = memoryCache.get(hash);
   if (memoryHit) {
+    traceTurn(turnId, "tts_cache_hit", { layer: "memory" });
     return {
       audioUrl: memoryHit,
       cacheHit: true,
@@ -108,6 +111,7 @@ export async function getCachedAudio(
   try {
     const r2Url = await checkStorageExists(storagePath);
     if (r2Url) {
+      traceTurn(turnId, "tts_cache_hit", { layer: "storage" });
       memoryCache.set(hash, r2Url);
       return {
         audioUrl: r2Url,
@@ -125,6 +129,7 @@ export async function getCachedAudio(
     await dbConnect();
     const cached = await TtsCacheModel.findById(hash).lean();
     if (cached) {
+      traceTurn(turnId, "tts_cache_hit", { layer: "database" });
       const audioUrl = (cached as any).audioUrl;
       memoryCache.set(hash, audioUrl);
       TtsCacheModel.updateOne(
@@ -149,6 +154,7 @@ export async function getCachedAudio(
   // 5. Cache miss — check in-flight guard
   const existingFlight = inFlight.get(hash);
   if (existingFlight) {
+    traceTurn(turnId, "tts_cache_hit", { layer: "in_flight" });
     console.info(
       `[ttsService] Awaiting in-flight synthesis for hash ${hash.slice(0, 12)}...`
     );
@@ -157,6 +163,7 @@ export async function getCachedAudio(
   }
 
   // 6. Start synthesis with concurrency guard
+  traceTurn(turnId, "tts_cache_miss");
   const synthesisPromise = (async (): Promise<string> => {
     try {
       console.info(

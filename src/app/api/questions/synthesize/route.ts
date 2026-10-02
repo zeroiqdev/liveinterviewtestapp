@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { synthesizeQuestionsForRole, synthesizeQuestionsForSession } from "@/engine/questionSynthesizer";
+import { requireAuth } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
     try {
+        const authResult = await requireAuth(req);
+        if ("errorResponse" in authResult) {
+            return authResult.errorResponse;
+        }
+
         const body = await req.json();
         const { role, domain, company, interviewType, count } = body || {};
 

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { detectATSProvider } from "@/services/careerPageScraper";
 import {
     getSources,
@@ -6,6 +6,7 @@ import {
     updateSource,
     deleteSource,
 } from "@/lib/jobStorage";
+import { requireAdmin } from "@/lib/session";
 
 export interface ScraperSource {
     id: string;
@@ -21,9 +22,6 @@ export interface ScraperSource {
 
 /**
  * Attempt to extract a company name from a URL domain.
- * e.g. "https://boards.greenhouse.io/stripe" → "Stripe"
- * e.g. "https://jobs.lever.co/notion" → "Notion"
- * e.g. "https://openai.com/careers" → "Openai"
  */
 function guessCompanyName(url: string): string {
     try {
@@ -54,8 +52,13 @@ export async function GET() {
 
 // ─── POST: Add a new scraper source ──────────────────────────────────
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
+        const authResult = await requireAdmin(req);
+        if ("errorResponse" in authResult) {
+            return authResult.errorResponse;
+        }
+
         const body = await req.json();
         const { url, companyName, sourceType } = body;
 
@@ -103,8 +106,13 @@ export async function POST(req: Request) {
 
 // ─── PUT: Update a scraper source ────────────────────────────────────
 
-export async function PUT(req: Request) {
+export async function PUT(req: NextRequest) {
     try {
+        const authResult = await requireAdmin(req);
+        if ("errorResponse" in authResult) {
+            return authResult.errorResponse;
+        }
+
         const body = await req.json();
         const { id, companyName, sourceType, enabled } = body;
 
@@ -132,8 +140,13 @@ export async function PUT(req: Request) {
 
 // ─── DELETE: Remove a scraper source ─────────────────────────────────
 
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
     try {
+        const authResult = await requireAdmin(req);
+        if ("errorResponse" in authResult) {
+            return authResult.errorResponse;
+        }
+
         const { searchParams } = new URL(req.url);
         const id = searchParams.get("id");
 

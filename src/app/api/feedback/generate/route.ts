@@ -3,6 +3,7 @@ import { getSession } from "@/engine/sessionStore";
 import { callJSON } from "@/engine/llm";
 import { blueprintForRole } from "@/engine/roleMapping";
 import { getBlueprint } from "@/engine/data";
+import { requireAuth } from "@/lib/session";
 
 export interface FeedbackMetric {
     label: string;
@@ -147,6 +148,11 @@ If the answers were articulate and structured with metrics and depth, score appr
 
 export async function POST(req: NextRequest) {
     try {
+        const authResult = await requireAuth(req);
+        if ("errorResponse" in authResult) {
+            return authResult.errorResponse;
+        }
+
         const body = await req.json();
         const {
             sessionId,
