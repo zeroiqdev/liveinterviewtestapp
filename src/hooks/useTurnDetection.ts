@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { detectVoiceCommand } from "../engine/voiceCommands";
 
 interface UseTurnDetectionOptions {
     enabled: boolean;
@@ -28,11 +29,11 @@ export function useTurnDetection({
     isEngineBusy,
     activityTranscript,
     currentTranscript,
-    minDelayMs = 3600,
-    maxDelayMs = 8000,
+    minDelayMs = 2200,
+    maxDelayMs = 4500,
     alpha = 0.35,
     minWords = 5,
-    preparationDelayMs = 1300,
+    preparationDelayMs = 1000,
     onTurnLikelyComplete,
     onTurnActivity,
     onTurnComplete,
@@ -98,7 +99,7 @@ export function useTurnDetection({
         const wordCount = finalized.split(/\s+/).filter(Boolean).length;
 
         // Check for genuine candidate voice action commands or completion intent
-        const isExplicitEnding = /\b(i am done with the interview|i'm done with the interview|i am done|i'm done|end the interview|end the call|stop the interview|wrap up the interview|that'll be all for now|that will be all for now|that's all for now|that is all for now|can you repeat the question|could you repeat the question|can you repeat that|could you repeat that|skip this question|can we skip this question|pass on this question)\b/i.test(finalized);
+        const isExplicitEnding = detectVoiceCommand(finalized) !== null;
 
         if (wordCount < 1) {
             cancelSilence();
@@ -122,13 +123,13 @@ export function useTurnDetection({
 
             // Dynamic endpointing is deliberately conservative for formal
             // interviews. Short answers can close quickly; a mid-thought
-            // answer gets up to 5.2s rather than being cut off at a chatty
+            // answer gets up to maxDelayMs rather than being cut off at a chatty
             // assistant's cadence. alpha dampens recognition jitter.
             let targetDelay = minDelayMs;
             if (isExplicitEnding) {
                 targetDelay = 1200;
             } else if (wordCount < minWords) {
-                targetDelay = Math.max(minDelayMs, 3200);
+                targetDelay = Math.max(minDelayMs, 2600);
             } else if (isTrailingThought) {
                 targetDelay = maxDelayMs;
             } else {

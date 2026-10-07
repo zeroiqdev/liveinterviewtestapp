@@ -28,6 +28,7 @@ import dbConnect from "@/lib/mongodb";
 import TtsCacheModel from "@/models/TtsCache";
 import { synthesizeSpeech } from "@/lib/elevenlabs";
 import { synthesizeYarnGptSpeech } from "@/lib/yarngpt";
+import { synthesizeAzureSpeech } from "@/lib/azureTts";
 import { uploadToStorage, checkStorageExists } from "@/lib/r2Storage";
 import { getVoiceForContext, type Persona } from "@/config/voiceConfig";
 import { normalizeRegion } from "@/utils/regionNormalizer";
@@ -42,7 +43,8 @@ const inFlight = new Map<string, Promise<string>>();
 
 /**
  * Computes a deterministic SHA-256 hash for cache deduplication.
- * The hash key is: (provider === "yarngpt" ? "yarngpt:" : "") + text + voiceId + JSON.stringify(voiceSettings || {})
+ * The hash key is: (provider === "elevenlabs" ? "" : `${provider}:`) + text + voiceId + JSON.stringify(voiceSettings || {})
+ * ElevenLabs keeps an empty prefix so existing cache entries stay valid.
  */
 export function computeCacheHash(
   text: string,
@@ -50,7 +52,7 @@ export function computeCacheHash(
   voiceSettings?: Record<string, unknown>,
   provider: string = "elevenlabs"
 ): string {
-  const prefix = provider === "yarngpt" ? "yarngpt:" : "";
+  const prefix = provider === "elevenlabs" ? "" : `${provider}:`;
   const payload = prefix + text + voiceId + JSON.stringify(voiceSettings || {});
   return createHash("sha256").update(payload).digest("hex");
 }
@@ -74,84 +76,105 @@ export interface CachedAudioResult {
  * @param jobRegion - Raw job location string (e.g. "Lagos, Nigeria")
  * @returns The audio URL and cache status
  */
+function resolveVoice(text: string, persona: Persona, jobRegion: string) {
+  const region = normalizeRegion(jobRegion);
+  const voiceEntry = getVoiceForContext(persona, region);
+  const provider = voiceEntry.provider || "elevenlabs";
+  // Whatever shapes the audio is part of the cache key, so tuning pacing or
+  // voice settings re-synthesizes instead of replaying stale clips.
+  const audioSettings = (provider === "azure" ? voiceEntry.prosody : voiceEntry.voiceSettings) as
+    | Record<string, unknown>
+    | undefined;
+  const hash = computeCacheHash(text, voiceEntry.voiceId, audioSettings, provider);
+  return { region, voiceEntry, provider, audioSettings, hash };
+}
+
+/**
+ * Finds already-stored audio without synthesizing. Order is chosen for live
+ * latency: memory (0ms) → MongoDB index (~150ms) → R2 HEAD (~850ms) only when
+ * MongoDB is unreachable. Every uploaded clip is indexed in MongoDB, so on a
+ * fresh line the slow R2 check would be pure waste.
+ */
+async function lookupStored(hash: string, turnId?: string): Promise<string | null> {
+  const memoryHit = memoryCache.get(hash);
+  if (memoryHit) {
+    traceTurn(turnId, "tts_cache_hit", { layer: "memory" });
+    return memoryHit;
+  }
+
+  try {
+    await dbConnect();
+    const cached = await TtsCacheModel.findById(hash).lean<{ audioUrl?: string }>();
+    if (cached?.audioUrl) {
+      traceTurn(turnId, "tts_cache_hit", { layer: "database" });
+      memoryCache.set(hash, cached.audioUrl);
+      TtsCacheModel.updateOne(
+        { _id: hash },
+        { $set: { lastUsedAt: new Date() } }
+      ).catch(() => {});
+      return cached.audioUrl;
+    }
+    return null;
+  } catch (dbErr) {
+    console.warn(
+      `[ttsService] MongoDB cache read skipped (${(dbErr as Error).message || "connection error"}). ` +
+      `Checking storage directly.`
+    );
+  }
+
+  // MongoDB unavailable — fall back to the storage existence check.
+  try {
+    const r2Url = await checkStorageExists(`tts-cache/${hash}.mp3`);
+    if (r2Url) {
+      traceTurn(turnId, "tts_cache_hit", { layer: "storage" });
+      memoryCache.set(hash, r2Url);
+      return r2Url;
+    }
+  } catch {
+    // Non-fatal — synthesize
+  }
+  return null;
+}
+
+/**
+ * Returns stored audio for this text if it already exists, never
+ * synthesizing. Used on the live turn path to grab a pre-warmed clip without
+ * risking a synthesis wait.
+ */
+export async function lookupCachedAudio(
+  text: string,
+  persona: Persona,
+  jobRegion: string,
+  turnId?: string
+): Promise<CachedAudioResult | null> {
+  const { region, voiceEntry, hash } = resolveVoice(text, persona, jobRegion);
+  const audioUrl = await lookupStored(hash, turnId);
+  return audioUrl ? { audioUrl, cacheHit: true, region, voiceLabel: voiceEntry.label } : null;
+}
+
 export async function getCachedAudio(
   text: string,
   persona: Persona,
   jobRegion: string,
   turnId?: string
 ): Promise<CachedAudioResult> {
-  // 1. Resolve voice config
-  const region = normalizeRegion(jobRegion);
-  const voiceEntry = getVoiceForContext(persona, region);
-  const provider = voiceEntry.provider || "elevenlabs";
-  const { voiceId, voiceSettings, label } = voiceEntry;
+  const { region, voiceEntry, provider, audioSettings, hash } = resolveVoice(text, persona, jobRegion);
+  const { voiceId, voiceSettings, prosody, label } = voiceEntry;
 
-  // 2. Compute cache hash
-  const hash = computeCacheHash(
-    text,
-    voiceId,
-    voiceSettings as unknown as Record<string, unknown> | undefined,
-    provider
-  );
-
-  // 3. Check in-memory cache first (instant)
-  const memoryHit = memoryCache.get(hash);
-  if (memoryHit) {
-    traceTurn(turnId, "tts_cache_hit", { layer: "memory" });
-    return {
-      audioUrl: memoryHit,
-      cacheHit: true,
-      region,
-      voiceLabel: label,
-    };
+  // Join an identical synthesis already running (e.g. a prefetch) first.
+  const runningFlight = inFlight.get(hash);
+  if (runningFlight && !memoryCache.has(hash)) {
+    traceTurn(turnId, "tts_cache_hit", { layer: "in_flight" });
+    const audioUrl = await runningFlight;
+    return { audioUrl, cacheHit: true, region, voiceLabel: label };
   }
 
-  // 4. Check Cloudflare R2 direct persistent storage first (fast CDN HEAD check: ~60ms)
-  const storagePath = `tts-cache/${hash}.mp3`;
-  try {
-    const r2Url = await checkStorageExists(storagePath);
-    if (r2Url) {
-      traceTurn(turnId, "tts_cache_hit", { layer: "storage" });
-      memoryCache.set(hash, r2Url);
-      return {
-        audioUrl: r2Url,
-        cacheHit: true,
-        region,
-        voiceLabel: label,
-      };
-    }
-  } catch {
-    // Non-fatal, proceed to check MongoDB
+  const stored = await lookupStored(hash, turnId);
+  if (stored) {
+    return { audioUrl: stored, cacheHit: true, region, voiceLabel: label };
   }
 
-  // 4b. Check MongoDB cache (with non-blocking error handling)
-  try {
-    await dbConnect();
-    const cached = await TtsCacheModel.findById(hash).lean();
-    if (cached) {
-      traceTurn(turnId, "tts_cache_hit", { layer: "database" });
-      const audioUrl = (cached as any).audioUrl;
-      memoryCache.set(hash, audioUrl);
-      TtsCacheModel.updateOne(
-        { _id: hash },
-        { $set: { lastUsedAt: new Date() } }
-      ).catch(() => {});
-
-      return {
-        audioUrl,
-        cacheHit: true,
-        region,
-        voiceLabel: label,
-      };
-    }
-  } catch (dbErr) {
-    console.warn(
-      `[ttsService] MongoDB cache read skipped (${(dbErr as Error).message || "connection error"}). ` +
-      `Proceeding with direct synthesis.`
-    );
-  }
-
-  // 5. Cache miss — check in-flight guard
+  // Cache miss — check in-flight guard (may have started during lookup)
   const existingFlight = inFlight.get(hash);
   if (existingFlight) {
     traceTurn(turnId, "tts_cache_hit", { layer: "in_flight" });
@@ -173,7 +196,9 @@ export async function getCachedAudio(
 
       // Synthesize via selected provider
       let audioBuffer: Buffer;
-      if (provider === "yarngpt") {
+      if (provider === "azure") {
+        audioBuffer = await synthesizeAzureSpeech(text, voiceId, prosody);
+      } else if (provider === "yarngpt") {
         audioBuffer = await synthesizeYarnGptSpeech(text, voiceId);
       } else {
         if (!voiceSettings) {
@@ -197,13 +222,13 @@ export async function getCachedAudio(
         region,
         provider,
         voiceId,
-        voiceSettings: voiceSettings || {},
+        voiceSettings: audioSettings || {},
         audioUrl,
         createdAt: new Date(),
         lastUsedAt: new Date(),
       }).then(() => {
         console.info(`[ttsService] Cached in MongoDB: ${hash.slice(0, 12)}...`);
-      }).catch((mongoErr: any) => {
+      }).catch((mongoErr) => {
         console.warn(`[ttsService] MongoDB cache save skipped: ${mongoErr?.message || mongoErr}`);
       });
 

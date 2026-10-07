@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prepareAnswer } from "@/engine/orchestrator";
-import { getProfile, getSession } from "@/engine/sessionStore";
+import { getProfile } from "@/engine/sessionStore";
+import { loadOwnedSession } from "@/engine/sessionAccess";
 import { traceTurn } from "@/engine/turnTrace";
 
 /**
@@ -20,13 +21,14 @@ export async function POST(
         if (typeof answerText !== "string" || !answerText.trim()) {
             return NextResponse.json({ prepared: false }, { status: 400 });
         }
-        const session = getSession(id);
-        if (!session) return NextResponse.json({ prepared: false }, { status: 404 });
+        const access = await loadOwnedSession(req, id);
+        if ("errorResponse" in access) return access.errorResponse;
         const prepared = await prepareAnswer({
             sessionId: id,
             answerText,
-            profile: getProfile(session.candidateId),
+            profile: await getProfile(access.session.candidateId),
             turnId: turnId || undefined,
+            session: access.session,
         });
         // The client may begin warming this exact immutable utterance, but it
         // still cannot play anything until endpointing submits the same text.

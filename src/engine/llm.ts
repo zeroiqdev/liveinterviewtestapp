@@ -79,6 +79,29 @@ function extractJSON(text: string): unknown {
     throw new Error("unbalanced braces in model output");
 }
 
+/* ── Gemini model selection ──
+   Set GEMINI_MODELS (comma-separated, most preferred first) to override.
+   The defaults lead with the lite models: they answered fastest and were
+   not quota-limited, while the bigger flash models often return 429 on
+   free-tier keys — each failed attempt cost ~0.5–0.7s per call. */
+const DEFAULT_GEMINI_MODELS = [
+    "gemini-3.1-flash-lite",
+    "gemini-flash-lite-latest",
+    "gemini-3.5-flash",
+    "gemini-3.7-flash",
+    "gemini-flash-latest",
+];
+const MODEL_COOLDOWN_MS = 60_000;
+const modelCooldownUntil = new Map<string, number>();
+
+function geminiModels(): string[] {
+    const configured = (process.env.GEMINI_MODELS || "")
+        .split(",")
+        .map((m) => m.trim())
+        .filter(Boolean);
+    return configured.length > 0 ? configured : DEFAULT_GEMINI_MODELS;
+}
+
 /** Call an LLM with structured output, parsed as T. */
 export async function callJSON<T>(opts: CallJSONOptions): Promise<T> {
     if (ENGINE_MOCK && opts.mock !== undefined) {
@@ -90,16 +113,14 @@ export async function callJSON<T>(opts: CallJSONOptions): Promise<T> {
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
     if (geminiKey) {
-        const GEMINI_MODELS = [
-            "gemini-3.5-flash",
-            "gemini-3.7-flash",
-            "gemini-flash-lite-latest",
-            "gemini-3.1-flash-lite",
-            "gemini-flash-latest"
-        ];
-
         let lastError: Error | null = null;
-        for (const model of GEMINI_MODELS) {
+        const now = Date.now();
+        // Healthy models first; ones that recently failed are tried last
+        // rather than skipped, so a call never fails just for being careful.
+        const ordered = [...geminiModels()].sort(
+            (a, b) => Number((modelCooldownUntil.get(a) ?? 0) > now) - Number((modelCooldownUntil.get(b) ?? 0) > now)
+        );
+        for (const model of ordered) {
             try {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
                 const res = await fetch(url, {
@@ -127,12 +148,15 @@ export async function callJSON<T>(opts: CallJSONOptions): Promise<T> {
                 if (!res.ok) {
                     const body = await res.text();
                     lastError = new Error(`Gemini API (${model}) ${res.status}: ${body.slice(0, 300)}`);
-                    // If 503 high demand or 429 rate limit, cascade to next available model
-                    if (res.status === 503 || res.status === 429 || res.status === 500) {
+                    // Quota (429), overload (5xx) or unknown model (404): put the
+                    // model on cooldown so the next calls don't pay for it again.
+                    if (res.status === 429 || res.status === 404 || res.status >= 500) {
+                        modelCooldownUntil.set(model, Date.now() + MODEL_COOLDOWN_MS);
                         continue;
                     }
                     throw lastError;
                 }
+                modelCooldownUntil.delete(model);
 
                 const data = (await res.json()) as any;
                 const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -140,6 +164,10 @@ export async function callJSON<T>(opts: CallJSONOptions): Promise<T> {
                 return extractJSON(text) as T;
             } catch (err: any) {
                 lastError = err;
+                // A timed-out model just cost the full timeout; don't lead with it again.
+                if (err?.name === "TimeoutError" || err?.name === "AbortError") {
+                    modelCooldownUntil.set(model, Date.now() + MODEL_COOLDOWN_MS);
+                }
                 continue;
             }
         }

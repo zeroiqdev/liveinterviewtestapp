@@ -11,8 +11,12 @@ try {
 let cached = (global as any).mongoose;
 
 if (!cached) {
-  cached = (global as any).mongoose = { conn: null, promise: null };
+  cached = (global as any).mongoose = { conn: null, promise: null, failedAt: 0 };
 }
+
+// A failed connect costs the full server-selection timeout. During an outage,
+// fail fast for this long instead of making every caller wait it out again.
+const RETRY_AFTER_FAILURE_MS = 30_000;
 
 async function dbConnect() {
   const uri = process.env.MONGODB_URI;
@@ -22,6 +26,10 @@ async function dbConnect() {
 
   if (cached.conn) {
     return cached.conn;
+  }
+
+  if (!cached.promise && cached.failedAt && Date.now() - cached.failedAt < RETRY_AFTER_FAILURE_MS) {
+    throw new Error("MongoDB connection failed recently; retrying shortly");
   }
 
   if (!cached.promise) {
@@ -39,6 +47,7 @@ async function dbConnect() {
     cached.conn = await cached.promise;
   } catch (e) {
     cached.promise = null;
+    cached.failedAt = Date.now();
     throw e;
   }
 

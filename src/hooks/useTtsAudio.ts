@@ -19,8 +19,15 @@ export interface PlayFillerOptions extends PlayTtsOptions {
   length?: FillerLength;
 }
 
-// Default playback speed: 1.15x for crisper, more natural interview pacing
-const TTS_PLAYBACK_SPEED = 1.15;
+// Natural speed. Speeding playback up also shortened the pauses at punctuation;
+// pacing is set at synthesis time instead (see voiceConfig prosody).
+const TTS_PLAYBACK_SPEED = 1.0;
+
+// How long to wait for real TTS before falling back to browser speech. Cold
+// Azure synthesis takes ~1–1.7s plus upload; at the old 280ms nearly every
+// uncached line played in the browser voice. Real failures still fall back
+// immediately via the error path.
+const TTS_FALLBACK_WAIT_MS = 3500;
 
 function fallbackBrowserSpeech(
   text: string,
@@ -37,6 +44,10 @@ function fallbackBrowserSpeech(
   if (!cleanedText) {
     onEnd?.();
     return;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    console.info("[voice] Browser speech fallback (synthesized audio unavailable or too slow)");
   }
 
   window.speechSynthesis.cancel();
@@ -65,7 +76,7 @@ function fallbackBrowserSpeech(
 const ttsUrlCache = new Map<string, { audioUrl: string; voiceLabel?: string }>();
 const ttsPrefetchInFlight = new Set<string>();
 
-function getStoredJobRegion(): string {
+export function getStoredJobRegion(): string {
   if (typeof window !== "undefined") {
     try {
       const loc = localStorage.getItem("useladder_user_location");
@@ -95,10 +106,14 @@ export function useTtsAudio() {
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const currentPlayIdRef = useRef<number>(0);
+  // Tracks what pauseAudio actually paused so resumeAudio never restarts an
+  // ended clip (play() on an ended element replays it from the start).
+  const pausedSourceRef = useRef<"element" | "speech" | null>(null);
 
   const stopAudio = useCallback(() => {
     // Invalidate any in-flight requests
     currentPlayIdRef.current++;
+    pausedSourceRef.current = null;
 
     if (audioRef.current) {
       audioRef.current.onplay = null;
@@ -224,6 +239,9 @@ export function useTtsAudio() {
         audio.onplay = () => {
           audio.playbackRate = TTS_PLAYBACK_SPEED;
           if (thisPlayId !== currentPlayIdRef.current) return;
+          if (process.env.NODE_ENV !== "production") {
+            console.info(`[voice] Playing synthesized audio: ${ttsUrlCache.get(cacheKey)?.voiceLabel || "unknown voice"}`);
+          }
           setIsPlaying(true);
           options?.onStart?.();
         };
@@ -258,7 +276,7 @@ export function useTtsAudio() {
       }
 
       if (options?.preferImmediate) {
-        instantFallbackTimer = setTimeout(startInstantFallback, 280);
+        instantFallbackTimer = setTimeout(startInstantFallback, TTS_FALLBACK_WAIT_MS);
       }
 
       try {
@@ -434,14 +452,22 @@ export function useTtsAudio() {
   }, []);
 
   const pauseAudio = useCallback(() => {
-    if (audioRef.current && !audioRef.current.paused) {
+    if (audioRef.current && !audioRef.current.paused && !audioRef.current.ended) {
       audioRef.current.pause();
+      pausedSourceRef.current = "element";
+    } else if (typeof window !== "undefined" && window.speechSynthesis?.speaking && !window.speechSynthesis.paused) {
+      window.speechSynthesis.pause();
+      pausedSourceRef.current = "speech";
     }
   }, []);
 
   const resumeAudio = useCallback(() => {
-    if (audioRef.current && audioRef.current.paused) {
+    const source = pausedSourceRef.current;
+    pausedSourceRef.current = null;
+    if (source === "element" && audioRef.current && audioRef.current.paused && !audioRef.current.ended) {
       audioRef.current.play().catch(() => {});
+    } else if (source === "speech" && typeof window !== "undefined" && window.speechSynthesis?.paused) {
+      window.speechSynthesis.resume();
     }
   }, []);
 

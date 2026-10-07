@@ -104,14 +104,43 @@ export default function OnboardingPage() {
     }, []);
 
     useEffect(() => {
-        Promise.resolve().then(() => {
-            const userSession = localStorage.getItem("useladder_user");
-            if (userSession) {
-                const user = JSON.parse(userSession);
-                if (user.domain && user.role) {
-                    router.replace("/dashboard");
-                    return;
+        let cancelled = false;
+        (async () => {
+            // Only skip onboarding for a *server-confirmed* session. A stale
+            // localStorage profile (expired or missing cookie) used to bounce
+            // here → /dashboard → /login while this page rendered nothing.
+            let onboardedUser: { role?: string; domain?: string } | null = null;
+            try {
+                const res = await fetch("/api/auth/me");
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data?.authenticated && data.user) {
+                        onboardedUser = data.user;
+                        try {
+                            localStorage.setItem("useladder_user", JSON.stringify(data.user));
+                        } catch { /* ignore */ }
+                    }
+                } else if (res.status === 401) {
+                    localStorage.removeItem("useladder_user");
+                } else {
+                    // Server-side problem (e.g. database unreachable): fall
+                    // back to the locally saved profile.
+                    onboardedUser = JSON.parse(localStorage.getItem("useladder_user") || "null");
                 }
+            } catch {
+                try {
+                    onboardedUser = JSON.parse(localStorage.getItem("useladder_user") || "null");
+                } catch { /* ignore */ }
+            }
+            if (cancelled) return;
+
+            if (onboardedUser?.domain && onboardedUser?.role) {
+                router.replace("/dashboard");
+                // Never leave a blank page if navigation stalls.
+                setTimeout(() => {
+                    if (!cancelled) setCheckingAuth(false);
+                }, 4000);
+                return;
             }
             const draft = localStorage.getItem("useladder_draft");
             if (draft) {
@@ -123,7 +152,10 @@ export default function OnboardingPage() {
                 localStorage.removeItem("useladder_draft");
             }
             setCheckingAuth(false);
-        });
+        })();
+        return () => {
+            cancelled = true;
+        };
     }, [router]);
 
     const activeRolesList = useMemo(() => {

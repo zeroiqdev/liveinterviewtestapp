@@ -3,22 +3,28 @@
    One shared engine; per-role behavior is
    data (blueprint + pool + persona).
 
-   Turn sequence (per spec):
+   Turn sequence:
      1. candidate's answer comes in
-     2. running notes + probe evaluation
-     3. park / let_go / probe_now (+budget)
-     4. continue section or advance
+     2. sections advance if their planned depth is covered
+     3. IN PARALLEL: selector picks the next planned question,
+        conversational engine assesses the answer + drafts a probe
+     4. probe policy decides: follow up (bounded) or move on
      5. all coverage complete → finalize
    ══════════════════════════════════════ */
 
 import { randomUUID } from "crypto";
 import { computePacing } from "./timeGovernor";
 import { selectQuestion, type SelectionResult } from "./selector";
-import { enforceBudget, evaluateAnswer } from "./probe";
-import { generateFollowUp } from "./followUp";
 import { generalPool, getBlueprint, queryPool } from "./data";
 import { getSession, saveSession } from "./sessionStore";
-import { executeConversationalTurn, type ConversationalTurnOutput, type InterviewToolCall } from "./conversationalEngine";
+import {
+    executeConversationalTurn,
+    fallbackProbe,
+    type ConversationalTurnOutput,
+    type InterviewToolCall,
+} from "./conversationalEngine";
+import { decideProbe, probeLimits, type ProbeVerdict } from "./probePolicy";
+import { detectVoiceCommand } from "./voiceCommands";
 import { traceTurn } from "./turnTrace";
 import type {
     AuditEntry,
@@ -27,6 +33,8 @@ import type {
     Competency,
     EnginePrompt,
     PacingDirective,
+    ProbeDepth,
+    ProbeFinding,
     PublicSessionState,
     SessionDoc,
 } from "./types";
@@ -35,10 +43,25 @@ const GENERAL_ID = "general_behavioral";
 const GENERAL_LABEL = "General behavioral";
 
 // A preview is created while endpointing is still deciding whether the
-// candidate has finished. It is keyed to the exact transcript and expires
-// quickly, so it can only accelerate the identical, subsequently submitted
-// answer; it can never advance a live session on its own.
-const preparedTurns = new Map<string, { answerText: string; result: ConversationalTurnOutput; selection: SelectionResult; expiresAt: number }>();
+// candidate has finished. It is keyed to the exact transcript and turn and
+// expires quickly, so it can only accelerate the identical, subsequently
+// submitted answer; it can never advance a live session on its own.
+// Holds the in-flight promise, so a submit that lands while preparation is
+// still running joins it instead of repeating both LLM calls.
+type Decision = { conv: ConversationalTurnOutput; selection: SelectionResult };
+const preparedTurns = new Map<
+    string,
+    { answerText: string; turnCount: number; decision: Promise<Decision>; expiresAt: number }
+>();
+
+const EMPTY_SELECTION: SelectionResult = {
+    choice: "question_id",
+    questionId: null,
+    parkedIndex: null,
+    questionText: null,
+    bridge: null,
+    reason: "not needed for this turn",
+};
 
 /* ── helpers ── */
 
@@ -68,22 +91,6 @@ function currentCompetency(session: SessionDoc, blueprint: Blueprint): Competenc
     return blueprint.competencies[session.currentCompetencyIndex] ?? null;
 }
 
-function sectionAskedCount(session: SessionDoc): number {
-    if (session.currentCompetencyIndex < 0)
-        return session.generalAsked.questionIds.length;
-    return (
-        session.topicProgress[session.currentCompetencyIndex]?.askedQuestionIds
-            .length ?? 0
-    );
-}
-
-function sectionRange(session: SessionDoc, blueprint: Blueprint) {
-    const comp = currentCompetency(session, blueprint);
-    return comp
-        ? comp.targetQuestionRange
-        : blueprint.generalBehavioral.targetQuestionRange;
-}
-
 function recordAsked(session: SessionDoc, id: string) {
     if (session.currentCompetencyIndex < 0) {
         session.generalAsked.questionIds.push(id);
@@ -96,15 +103,50 @@ function nextScriptedQuestion(nextPoolQuestion: string | null): string {
     return nextPoolQuestion || "Let's move to the next area. Can you share another relevant example from your experience?";
 }
 
+/**
+ * Moves past sections whose planned depth is covered. Returns true when the
+ * whole blueprint is covered (caller finalizes).
+ */
+function advanceCoveredSections(session: SessionDoc, blueprint: Blueprint, pacing: PacingDirective): boolean {
+    // Keep the broad background stage until its planned minimum is covered.
+    if (
+        session.currentCompetencyIndex < 0 &&
+        session.generalAsked.questionIds.length >= blueprint.generalBehavioral.targetQuestionRange.min &&
+        blueprint.competencies.length > 0
+    ) {
+        session.currentCompetencyIndex = 0;
+        session.topicProgress[0].status = "in_progress";
+    }
+
+    // A section advances only after its planned depth has been covered.
+    while (session.currentCompetencyIndex >= 0 && session.currentCompetencyIndex < blueprint.competencies.length) {
+        const active = blueprint.competencies[session.currentCompetencyIndex];
+        const progress = session.topicProgress[session.currentCompetencyIndex];
+        if (!active || !progress || progress.askedQuestionIds.length < active.targetQuestionRange.max) break;
+        progress.status = "complete";
+        session.currentCompetencyIndex++;
+        if (session.currentCompetencyIndex >= blueprint.competencies.length) break;
+        const next = blueprint.competencies[session.currentCompetencyIndex];
+        if (pacing.skipOptional && next.priority === "optional") {
+            session.topicProgress[session.currentCompetencyIndex].status = "skipped";
+            continue;
+        }
+        session.topicProgress[session.currentCompetencyIndex].status = "in_progress";
+    }
+    return session.currentCompetencyIndex >= blueprint.competencies.length;
+}
+
 /* ── session init ── */
 
 export async function startSession(opts: {
     candidateId: string;
+    ownerId?: string | null;
     blueprintId: string;
     profile: CandidateProfile | null;
     interviewType?: string | null;
     candidateName?: string | null;
     companyName?: string | null;
+    probeDepth?: ProbeDepth | null;
 }): Promise<{ session: SessionDoc; prompt: EnginePrompt }> {
     const blueprint = getBlueprint(opts.blueprintId);
     if (!blueprint) throw new Error(`unknown blueprintId: ${opts.blueprintId}`);
@@ -139,6 +181,7 @@ export async function startSession(opts: {
     const session: SessionDoc = {
         sessionId: randomUUID(),
         candidateId,
+        ownerId: opts.ownerId ?? null,
         candidateName: opts.candidateName ?? null,
         company: opts.companyName ?? null,
         interviewType: opts.interviewType ?? null,
@@ -160,6 +203,9 @@ export async function startSession(opts: {
         generalAsked: { questionIds: [], categories: [] },
         runningNotes: [],
         parkingLot: [],
+        probeDepth: opts.probeDepth === "deep" ? "deep" : "standard",
+        probeThread: null,
+        probeFindings: [],
         elapsedSeconds: 0,
         startedAt: now,
         lastTurnAt: now,
@@ -198,7 +244,7 @@ export async function startSession(opts: {
         }
     }
 
-    saveSession(session);
+    await saveSession(session);
 
     const pacing = computePacing(session, blueprint);
     const prompt = await askNextQuestion(session, blueprint, pacing, profile);
@@ -271,6 +317,12 @@ async function askNextQuestion(
         kind: isOpening ? "opening" : "scripted",
         questionId: selection.questionId,
     };
+    session.probeThread = {
+        rootQuestion: questionText,
+        competencyId: comp?.id ?? GENERAL_ID,
+        followUps: 0,
+        lastVerdict: null,
+    };
     session.transcript.push({
         role: "interviewer",
         text: questionText,
@@ -278,7 +330,7 @@ async function askNextQuestion(
         kind: isOpening ? "opening" : "scripted",
         timestamp: new Date().toISOString(),
     });
-    saveSession(session);
+    await saveSession(session);
 
     return {
         type: "question",
@@ -323,27 +375,28 @@ async function advance(
     }
 
     if (next >= blueprint.competencies.length) {
-        return finalize(session, blueprint);
+        return finalize(session);
     }
 
     session.currentCompetencyIndex = next;
     session.topicProgress[next].status = "in_progress";
     session.phase = "ask_scripted";
-    saveSession(session);
+    await saveSession(session);
     return askNextQuestion(session, blueprint, pacing, profile);
 }
 
-function finalize(session: SessionDoc, blueprint: Blueprint): EnginePrompt {
+async function finalize(session: SessionDoc): Promise<EnginePrompt> {
     session.phase = "complete";
     session.complete = true;
     session.pendingQuestion = null;
+    closeProbeThread(session, null, null);
     audit(
         session,
         "finalizer",
         "complete",
         `all required coverage met in ${Math.round(session.elapsedSeconds / 60)}min`
     );
-    saveSession(session);
+    await saveSession(session);
     return {
         type: "complete",
         text: "That's everything I needed — thank you for walking me through all of that. We'll be in touch soon.",
@@ -354,6 +407,167 @@ function finalize(session: SessionDoc, blueprint: Blueprint): EnginePrompt {
     };
 }
 
+/* ── probing ── */
+
+/**
+ * Ends the follow-up chain on the current question. Records a finding when
+ * the topic was probed or left unproven, and parks unproven claims so a later
+ * section can return to them.
+ */
+function closeProbeThread(
+    session: SessionDoc,
+    conv: ConversationalTurnOutput | null,
+    verdict: ProbeVerdict | null
+) {
+    const thread = session.probeThread;
+    session.probeThread = null;
+    if (!thread) return;
+    // The opening sets context and is never probed — nothing to report.
+    if (session.pendingQuestion?.kind === "opening") return;
+
+    const assessment = conv?.assessment ?? null;
+    const unproven = assessment && (assessment.verdict === "vague" || assessment.verdict === "evasive");
+    if (thread.followUps === 0 && !unproven && !assessment?.saidDontKnow) return;
+    if (!assessment && thread.followUps === 0) return;
+
+    const outcome: ProbeFinding["outcome"] = assessment?.saidDontKnow
+        ? "said_dont_know"
+        : assessment?.verdict === "verified" || assessment?.verdict === "partial"
+          ? "verified"
+          : verdict?.wanted && !verdict.allow
+            ? "budget_exhausted"
+            : "unresolved";
+
+    session.probeFindings = session.probeFindings ?? [];
+    session.probeFindings.push({
+        turn: session.turnCount,
+        competencyId: thread.competencyId,
+        question: thread.rootQuestion,
+        claimSummary: assessment?.claimSummary || conv?.cleanExtraction || "",
+        verdict: assessment?.verdict ?? thread.lastVerdict ?? "vague",
+        followUps: thread.followUps,
+        outcome,
+    });
+    audit(session, "probe", `close_${outcome}`, `${thread.followUps} follow-up(s) on "${thread.rootQuestion.slice(0, 80)}"`);
+
+    // Park unproven claims for a later section to revisit.
+    if ((outcome === "unresolved" || outcome === "budget_exhausted") && assessment?.claimSummary) {
+        const blueprint = getBlueprint(session.blueprintId);
+        const nextPending = blueprint?.competencies.find(
+            (c, i) => i > session.currentCompetencyIndex && session.topicProgress[i]?.status === "pending"
+        );
+        if (nextPending) {
+            session.parkingLot.push({
+                topicSummary: `Earlier answer left unproven: ${assessment.claimSummary}`,
+                sourceCompetency: thread.competencyId,
+                targetCompetency: nextPending.id,
+                turnParked: session.turnCount,
+                resolved: false,
+            });
+        }
+    }
+}
+
+type TurnPlan =
+    | { kind: "end"; conv: ConversationalTurnOutput }
+    | { kind: "repeat"; conv: ConversationalTurnOutput }
+    | { kind: "probe"; conv: ConversationalTurnOutput; text: string; verdict: ProbeVerdict }
+    | { kind: "next"; conv: ConversationalTurnOutput; text: string; verdict: ProbeVerdict | null; skipped: boolean };
+
+/** Pure: decides what the interviewer does next from both model outputs. */
+function planTurn(
+    session: SessionDoc,
+    pacing: PacingDirective,
+    conv: ConversationalTurnOutput,
+    selection: SelectionResult
+): TurnPlan {
+    if (conv.intent === "end_interview") return { kind: "end", conv };
+    if (conv.intent === "repeat_question") return { kind: "repeat", conv };
+
+    const nextQuestion = nextScriptedQuestion(selection.questionText);
+
+    if (conv.intent === "skip_question") {
+        // The selector's bridge references the answer; drop it after a skip.
+        const bare =
+            selection.bridge && nextQuestion.startsWith(selection.bridge)
+                ? nextQuestion.slice(selection.bridge.length).trim()
+                : nextQuestion;
+        return { kind: "next", conv, text: `No problem, let's move right along. ${bare}`, verdict: null, skipped: true };
+    }
+
+    const thread = session.probeThread;
+    const probeText =
+        conv.probeText ||
+        (conv.assessment ? fallbackProbe(conv.assessment.weakestDimension, thread?.followUps ?? 0) : "");
+    const verdict = decideProbe({
+        session,
+        pacing,
+        assessment: conv.assessment,
+        modelWantsProbe: conv.suggestedTool === "push_back",
+        hasProbeText: Boolean(probeText),
+    });
+    if (verdict.allow) return { kind: "probe", conv, text: probeText, verdict };
+    return { kind: "next", conv, text: nextQuestion, verdict, skipped: false };
+}
+
+/** Runs the selector and the conversational engine in parallel. */
+async function decideTurn(opts: {
+    session: SessionDoc;
+    blueprint: Blueprint;
+    pacing: PacingDirective;
+    answerText: string;
+    profile: CandidateProfile | null;
+    turnId?: string;
+    mode: "prepare" | "submit";
+    /** No next question exists (coverage complete) — only assess the answer. */
+    skipSelection?: boolean;
+}): Promise<{ conv: ConversationalTurnOutput; selection: SelectionResult }> {
+    const { session, blueprint, pacing, answerText, profile, turnId, mode } = opts;
+    const competency = currentCompetency(session, blueprint);
+    const pool = competency ? queryPool(competency.questionPoolFilter) : generalPool();
+    const thread = session.probeThread;
+    const limits = probeLimits(session.probeDepth, pacing);
+
+    // "Repeat" and "end" never move on, so they don't need a next question.
+    const command = detectVoiceCommand(answerText);
+    const needsSelection = !opts.skipSelection && command !== "end_call" && command !== "repeat_question";
+
+    traceTurn(turnId, "decide_started", { mode, parallel: needsSelection });
+    const [selection, conv] = await Promise.all([
+        needsSelection
+            ? selectQuestion({
+                  session,
+                  blueprint,
+                  competency,
+                  pool,
+                  pacing,
+                  profile,
+                  diversityNote: competency
+                      ? undefined
+                      : "Interview arc: establish background and motivation first, then values or work style. Do not use salary or closing questions at this stage.",
+              })
+            : Promise.resolve(EMPTY_SELECTION),
+        executeConversationalTurn({
+            session,
+            blueprint,
+            competency,
+            answerText,
+            profile,
+            probe:
+                thread && session.pendingQuestion?.kind !== "opening"
+                    ? {
+                          rootQuestion: thread.rootQuestion,
+                          followUpsSoFar: thread.followUps,
+                          maxFollowUps: limits.perQuestion,
+                          depth: session.probeDepth ?? "standard",
+                      }
+                    : null,
+        }),
+    ]);
+    traceTurn(turnId, "decide_completed", { mode, tool: conv.suggestedTool, verdict: conv.assessment?.verdict });
+    return { conv, selection };
+}
+
 /* ── the turn itself ── */
 
 export async function prepareAnswer(opts: {
@@ -361,80 +575,62 @@ export async function prepareAnswer(opts: {
     answerText: string;
     profile: CandidateProfile | null;
     turnId?: string;
-}): Promise<{ spokenText: string; action: ConversationalTurnOutput["action"]; questionId: string | null; bridge: string | null } | null> {
-    const source = getSession(opts.sessionId);
+    /** Already-loaded session (saves a database read). */
+    session?: SessionDoc;
+}): Promise<{ spokenText: string; action: TurnPlan["kind"]; questionId: string | null; bridge: string | null } | null> {
+    const source = opts.session ?? (await getSession(opts.sessionId));
     if (!source || source.complete) return null;
     const blueprint = getBlueprint(source.blueprintId);
     if (!blueprint) return null;
 
     const answerText = opts.answerText.trim();
     if (!answerText) return null;
-    const cacheKey = opts.sessionId;
-    const cached = preparedTurns.get(cacheKey);
-    if (cached && cached.answerText === answerText && cached.expiresAt > Date.now()) {
-        return { spokenText: cached.result.spokenText, action: cached.result.action, questionId: cached.selection.questionId, bridge: cached.selection.bridge };
-    }
-    traceTurn(opts.turnId, "prepare_started");
 
-    // The conversational engine only reads the session. Clone anyway to make
-    // the non-mutating contract explicit as this pipeline evolves.
+    // The engine only reads the session here. Clone anyway to make the
+    // non-mutating contract explicit.
     const preview = structuredClone(source);
-    if (preview.currentCompetencyIndex < 0 && preview.generalAsked.questionIds.length >= blueprint.generalBehavioral.targetQuestionRange.min && blueprint.competencies.length > 0) {
-        preview.currentCompetencyIndex = 0;
-        preview.topicProgress[0].status = "in_progress";
-    }
-    const previewPacing = computePacing(preview, blueprint);
-    while (preview.currentCompetencyIndex >= 0 && preview.currentCompetencyIndex < blueprint.competencies.length) {
-        const active = blueprint.competencies[preview.currentCompetencyIndex];
-        const progress = preview.topicProgress[preview.currentCompetencyIndex];
-        if (!active || !progress || progress.askedQuestionIds.length < active.targetQuestionRange.max) break;
-        progress.status = "complete";
-        preview.currentCompetencyIndex++;
-        if (preview.currentCompetencyIndex >= blueprint.competencies.length) return null;
-        const next = blueprint.competencies[preview.currentCompetencyIndex];
-        if (previewPacing.skipOptional && next.priority === "optional") {
-            preview.topicProgress[preview.currentCompetencyIndex].status = "skipped";
-            continue;
-        }
-        preview.topicProgress[preview.currentCompetencyIndex].status = "in_progress";
-    }
-    const competency = currentCompetency(preview, blueprint);
-    // Mirror the read context used by submitAnswer. This keeps references to
-    // earlier turns and the just-finished answer coherent in the warm result.
+    const pacing = computePacing(preview, blueprint);
+    if (advanceCoveredSections(preview, blueprint, pacing)) return null;
+    // Mirror submitAnswer's read context so the warm result is coherent.
     preview.transcript.push({
         role: "candidate",
         text: answerText,
-        competencyId: competency?.id ?? GENERAL_ID,
+        competencyId: currentCompetency(preview, blueprint)?.id ?? GENERAL_ID,
         kind: "answer",
         timestamp: new Date().toISOString(),
     });
-    const pool = competency ? queryPool(competency.questionPoolFilter) : generalPool();
-    traceTurn(opts.turnId, "selector_started", { mode: "prepare" });
-    const selection = await selectQuestion({
-        session: preview,
-        blueprint,
-        competency,
-        pool,
-        pacing: previewPacing,
-        profile: opts.profile,
-        diversityNote: competency ? undefined : "Interview arc: establish background and motivation first, then values or work style. Do not use salary or closing questions at this stage.",
-    });
-    traceTurn(opts.turnId, "selector_completed", { mode: "prepare" });
-    const nextPoolQuestion = selection.questionText;
-    traceTurn(opts.turnId, "conversation_started", { mode: "prepare" });
-    const result = await executeConversationalTurn({
-        session: preview,
-        blueprint,
-        competency,
-        answerText,
-        profile: opts.profile,
-        nextPoolQuestion,
-        exactBankTransition: selection.questionText,
-    });
-    traceTurn(opts.turnId, "conversation_completed", { mode: "prepare", action: result.action });
-    preparedTurns.set(cacheKey, { answerText, result, selection, expiresAt: Date.now() + 20_000 });
-    traceTurn(opts.turnId, "prepare_completed", { action: result.action });
-    return { spokenText: result.spokenText, action: result.action, questionId: selection.questionId, bridge: selection.bridge };
+
+    let cached = preparedTurns.get(opts.sessionId);
+    if (!cached || cached.answerText !== answerText || cached.turnCount !== source.turnCount || cached.expiresAt <= Date.now()) {
+        traceTurn(opts.turnId, "prepare_started");
+        const decision = decideTurn({
+            session: preview,
+            blueprint,
+            pacing,
+            answerText,
+            profile: opts.profile,
+            turnId: opts.turnId,
+            mode: "prepare",
+        });
+        const entry = { answerText, turnCount: source.turnCount, decision, expiresAt: Date.now() + 20_000 };
+        preparedTurns.set(opts.sessionId, entry);
+        // Never let a failed warm-up be reused.
+        decision.catch(() => {
+            if (preparedTurns.get(opts.sessionId) === entry) preparedTurns.delete(opts.sessionId);
+        });
+        cached = entry;
+    }
+
+    const { conv, selection } = await cached.decision;
+    const plan = planTurn(preview, pacing, conv, selection);
+    traceTurn(opts.turnId, "prepare_completed", { action: plan.kind });
+    const spokenText = plan.kind === "probe" || plan.kind === "next" ? plan.text : conv.spokenText;
+    return {
+        spokenText,
+        action: plan.kind,
+        questionId: plan.kind === "next" ? selection.questionId : null,
+        bridge: plan.kind === "next" ? selection.bridge : null,
+    };
 }
 
 export async function submitAnswer(opts: {
@@ -442,8 +638,10 @@ export async function submitAnswer(opts: {
     answerText: string;
     profile: CandidateProfile | null;
     turnId?: string;
+    /** Already-loaded session (saves a database read). */
+    session?: SessionDoc;
 }): Promise<{ session: SessionDoc; prompt: EnginePrompt; pacing: PacingDirective; toolCall?: InterviewToolCall }> {
-    const session = getSession(opts.sessionId);
+    const session = opts.session ?? (await getSession(opts.sessionId));
     if (!session) throw new Error(`unknown sessionId: ${opts.sessionId}`);
     const blueprint = getBlueprint(session.blueprintId);
     if (!blueprint) throw new Error(`unknown blueprintId: ${session.blueprintId}`);
@@ -463,249 +661,169 @@ export async function submitAnswer(opts: {
     }
 
     const answerText = opts.answerText.trim() || "(no answer given)";
-    const comp = currentCompetency(session, blueprint);
+    const turnCountAtStart = session.turnCount;
     touch(session);
 
-    // Record the answer
     session.transcript.push({
         role: "candidate",
         text: answerText,
-        competencyId: comp?.id ?? GENERAL_ID,
+        competencyId: currentCompetency(session, blueprint)?.id ?? GENERAL_ID,
         kind: "answer",
         timestamp: new Date().toISOString(),
     });
-    if (session.currentCompetencyIndex >= 0) {
-        const tp = session.topicProgress[session.currentCompetencyIndex];
-        if (tp) tp.timeSpentSeconds += 0; // time tracked at session level
-    }
 
     // Time Governor — every turn, never on a fixed schedule
     const pacing = computePacing(session, blueprint);
 
-    // Keep the broad background stage intact until its planned minimum is
-    // covered. Previously this switched to competency questions immediately
-    // after the opening, which made the interview arc feel abrupt.
-    if (
-        session.currentCompetencyIndex < 0 &&
-        session.generalAsked.questionIds.length >= blueprint.generalBehavioral.targetQuestionRange.min &&
-        blueprint.competencies.length > 0
-    ) {
-        session.currentCompetencyIndex = 0;
-        session.topicProgress[0].status = "in_progress";
-    }
+    // When this answer completes the last section there is no next question,
+    // but the answer is still assessed: a vague final answer can be probed
+    // before the interview wraps up.
+    const coverageComplete = advanceCoveredSections(session, blueprint, pacing);
 
-    // A section advances only after its planned depth has been covered. This
-    // gives each interview the same broad-to-deep progression while allowing
-    // the selector and targeted probes to vary the actual conversation.
-    while (session.currentCompetencyIndex >= 0 && session.currentCompetencyIndex < blueprint.competencies.length) {
-        const active = blueprint.competencies[session.currentCompetencyIndex];
-        const progress = session.topicProgress[session.currentCompetencyIndex];
-        if (!active || !progress || progress.askedQuestionIds.length < active.targetQuestionRange.max) break;
-        progress.status = "complete";
-        session.currentCompetencyIndex++;
-        if (session.currentCompetencyIndex >= blueprint.competencies.length) break;
-        const next = blueprint.competencies[session.currentCompetencyIndex];
-        if (pacing.skipOptional && next.priority === "optional") {
-            session.topicProgress[session.currentCompetencyIndex].status = "skipped";
-            continue;
-        }
-        session.topicProgress[session.currentCompetencyIndex].status = "in_progress";
-    }
-    if (session.currentCompetencyIndex >= blueprint.competencies.length) {
-        return { session, prompt: finalize(session, blueprint), pacing };
-    }
-
-    const currentComp = currentCompetency(session, blueprint);
-    const pool = currentComp ? queryPool(currentComp.questionPoolFilter) : generalPool();
-    const askedIds = new Set(
-        currentComp
-            ? (session.topicProgress[session.currentCompetencyIndex]?.askedQuestionIds ?? [])
-            : session.generalAsked.questionIds
-    );
-    const unaskedPool = pool.filter((q) => !askedIds.has(q.id));
-    const prepared = preparedTurns.get(opts.sessionId);
-    const canUsePrepared = prepared?.answerText === answerText && (prepared?.expiresAt ?? 0) > Date.now();
+    const prepared = coverageComplete ? undefined : preparedTurns.get(opts.sessionId);
+    const canUsePrepared =
+        prepared?.answerText === answerText &&
+        prepared.turnCount === turnCountAtStart &&
+        prepared.expiresAt > Date.now();
     if (prepared) preparedTurns.delete(opts.sessionId);
     traceTurn(opts.turnId, canUsePrepared ? "prepare_reused" : "prepare_discarded");
-    let selection: SelectionResult;
-    if (canUsePrepared) {
-        selection = prepared!.selection;
-    } else {
-        traceTurn(opts.turnId, "selector_started");
-        selection = await selectQuestion({
+
+    const fresh = () =>
+        decideTurn({
             session,
             blueprint,
-            competency: currentComp,
-            pool,
             pacing,
-            profile: opts.profile,
-            diversityNote: currentComp
-                ? undefined
-                : "Interview arc: establish background and motivation first, then values or work style. Do not use salary or closing questions at this stage.",
-        });
-        traceTurn(opts.turnId, "selector_completed");
-    }
-    const nextPoolQuestion = selection.questionText;
-    let convResult = canUsePrepared
-        ? prepared!.result
-        : await (async () => {
-            traceTurn(opts.turnId, "conversation_started");
-            const result = await executeConversationalTurn({
-            session,
-            blueprint,
-            competency: currentComp,
             answerText,
             profile: opts.profile,
-            nextPoolQuestion,
-            exactBankTransition: selection.questionText,
-            });
-            traceTurn(opts.turnId, "conversation_completed", { action: result.action });
-            return result;
-        })();
-
-    // The conversational model can suggest a clarification, but it cannot
-    // replace the interview plan. A probe is allowed only within the explicit
-    // section budget and never immediately after another probe.
-    if (convResult.action === "push_back" || convResult.action === "follow_up") {
-        const budget = enforceBudget({
-            session,
-            competency: currentComp,
-            pacing,
-            decision: {
-                noteworthy: true,
-                immediacy: "probe_now",
-                reason: "conversational engine requested a clarification",
-                best_fit_competency_if_parked: null,
-                topic_summary: convResult.cleanExtraction || null,
-                contradiction: false,
-                note_summary: convResult.noteSummary,
-            },
+            turnId: opts.turnId,
+            mode: "submit",
+            skipSelection: coverageComplete,
         });
-        const previousQuestionWasFollowUp = session.pendingQuestion?.kind === "follow_up";
-        const hasScriptedCoverage = sectionAskedCount(session) > 0;
+    // Join the warm-up (finished or still running); recompute if it failed.
+    const { conv, selection } = canUsePrepared ? await prepared!.decision.catch(fresh) : await fresh();
 
-        if (!budget.allow || previousQuestionWasFollowUp || !hasScriptedCoverage) {
-            const reason = previousQuestionWasFollowUp
-                ? "follow-up already asked — returning to the scripted plan"
-                : !hasScriptedCoverage
-                    ? "no scripted question covered yet — returning to the planned question"
-                : budget.reason;
-            audit(session, "budget", "suppress_follow_up", reason);
-            convResult = {
-                ...convResult,
-                action: "next_question",
-                spokenText: nextScriptedQuestion(nextPoolQuestion),
-                advanceSection: false,
-                toolCall: {
-                    tool: "ask_question",
-                    reason,
-                    systemMessage: nextScriptedQuestion(nextPoolQuestion),
-                    cleanExtraction: convResult.cleanExtraction,
-                    noteSummary: convResult.noteSummary,
-                },
-            };
-        }
+    const plan = planTurn(session, pacing, conv, selection);
+    const currentComp = currentCompetency(session, blueprint);
+
+    if (coverageComplete && plan.kind === "next") {
+        closeProbeThread(session, conv, plan.verdict);
+        return { session, prompt: await finalize(session), pacing };
     }
 
-    // 1. Handle end_interview intent
-    if (convResult.intent === "end_interview") {
+    // 1. End the interview
+    if (plan.kind === "end") {
+        closeProbeThread(session, null, null);
         session.phase = "complete";
         session.complete = true;
         session.pendingQuestion = null;
         session.transcript.push({
             role: "interviewer",
-            text: convResult.spokenText,
+            text: conv.spokenText,
             competencyId: null,
             kind: "scripted",
             timestamp: new Date().toISOString(),
         });
-        audit(session, "finalizer", "end_call", convResult.endCallReason || "Candidate ended call");
-        saveSession(session);
+        audit(session, "finalizer", "end_call", conv.endCallReason || "Candidate ended call");
+        await saveSession(session);
         return {
             session,
             prompt: {
                 type: "complete",
-                text: convResult.spokenText,
+                text: conv.spokenText,
                 competencyId: null,
                 competencyLabel: null,
                 kind: null,
                 questionId: null,
             },
-            toolCall: convResult.toolCall,
+            toolCall: { tool: "end_call", reason: conv.endCallReason, systemMessage: conv.spokenText },
             pacing,
         };
     }
 
-    // 2. Handle repeat_question intent
-    if (convResult.intent === "repeat_question") {
+    // 2. Repeat the question (no state change beyond the transcript)
+    if (plan.kind === "repeat") {
         session.transcript.push({
             role: "interviewer",
-            text: convResult.spokenText,
-            competencyId: currentComp?.id ?? GENERAL_ID,
+            text: conv.spokenText,
+            competencyId: session.pendingQuestion?.competencyId ?? currentComp?.id ?? GENERAL_ID,
             kind: "scripted",
             timestamp: new Date().toISOString(),
         });
         audit(session, "selector", "repeat", "Candidate requested question repeat");
-        saveSession(session);
+        await saveSession(session);
         return {
             session,
             prompt: {
                 type: "question",
-                text: convResult.spokenText,
+                text: conv.spokenText,
                 competencyId: currentComp?.id ?? GENERAL_ID,
                 competencyLabel: currentComp?.label ?? GENERAL_LABEL,
                 kind: "scripted",
                 questionId: session.pendingQuestion?.questionId ?? null,
             },
-            toolCall: convResult.toolCall,
+            toolCall: { tool: "repeat_question", reason: "Candidate asked for question repetition", systemMessage: conv.spokenText },
             pacing,
         };
     }
 
-    // 3. Handle push_back / follow_up action
-    if (convResult.action === "push_back" || convResult.action === "follow_up") {
+    // 3. Follow up on the same question
+    if (plan.kind === "probe") {
+        const thread = session.probeThread!;
+        thread.followUps++;
+        thread.lastVerdict = conv.assessment?.verdict ?? null;
         session.turnCount++;
         session.phase = "follow_up";
-        if (session.currentCompetencyIndex >= 0) {
-            const tp = session.topicProgress[session.currentCompetencyIndex];
-            if (tp) tp.followUpsUsed++;
+        const sectionIndex = blueprint.competencies.findIndex((c) => c.id === thread.competencyId);
+        if (sectionIndex >= 0 && session.topicProgress[sectionIndex]) {
+            session.topicProgress[sectionIndex].followUpsUsed++;
         }
         session.pendingQuestion = {
-            text: convResult.spokenText,
-            competencyId: currentComp?.id ?? GENERAL_ID,
+            text: plan.text,
+            competencyId: thread.competencyId,
             kind: "follow_up",
             questionId: null,
         };
         session.transcript.push({
             role: "interviewer",
-            text: convResult.spokenText,
-            competencyId: currentComp?.id ?? GENERAL_ID,
+            text: plan.text,
+            competencyId: thread.competencyId,
             kind: "follow_up",
             timestamp: new Date().toISOString(),
         });
         session.runningNotes.push({
             turn: session.turnCount,
-            competencyId: currentComp?.id ?? GENERAL_ID,
-            summary: convResult.noteSummary,
+            competencyId: thread.competencyId,
+            summary: conv.noteSummary,
         });
-        audit(session, "follow_up", convResult.action, convResult.cleanExtraction || "pushback probe");
-        saveSession(session);
+        if (plan.verdict.override) audit(session, "budget", "override", plan.verdict.reason);
+        audit(session, "probe", "follow_up", plan.verdict.reason);
+        await saveSession(session);
         return {
             session,
             prompt: {
                 type: "follow_up",
-                text: convResult.spokenText,
-                competencyId: currentComp?.id ?? GENERAL_ID,
+                text: plan.text,
+                competencyId: thread.competencyId,
                 competencyLabel: currentComp?.label ?? GENERAL_LABEL,
                 kind: "follow_up",
                 questionId: null,
             },
-            toolCall: convResult.toolCall,
+            toolCall: {
+                tool: "push_back",
+                reason: plan.verdict.reason,
+                systemMessage: plan.text,
+                cleanExtraction: conv.cleanExtraction,
+                noteSummary: conv.noteSummary,
+            },
             pacing,
         };
     }
 
-    // 4. Handle next_question action with clean extraction
+    // 4. Move on to the next planned question
+    closeProbeThread(session, conv, plan.verdict);
+    if (plan.verdict && !plan.verdict.allow && plan.verdict.wanted) {
+        audit(session, "budget", "suppress_follow_up", plan.verdict.reason);
+    }
     session.turnCount++;
     session.phase = "awaiting_answer";
     if (selection.choice === "parked_topic" && selection.parkedIndex !== null) {
@@ -715,14 +833,20 @@ export async function submitAnswer(opts: {
         recordAsked(session, selection.questionId);
     }
     session.pendingQuestion = {
-        text: convResult.spokenText,
+        text: plan.text,
         competencyId: currentComp?.id ?? GENERAL_ID,
         kind: "scripted",
         questionId: selection.questionId,
     };
+    session.probeThread = {
+        rootQuestion: plan.text,
+        competencyId: currentComp?.id ?? GENERAL_ID,
+        followUps: 0,
+        lastVerdict: null,
+    };
     session.transcript.push({
         role: "interviewer",
-        text: convResult.spokenText,
+        text: plan.text,
         competencyId: currentComp?.id ?? GENERAL_ID,
         kind: "scripted",
         timestamp: new Date().toISOString(),
@@ -730,21 +854,27 @@ export async function submitAnswer(opts: {
     session.runningNotes.push({
         turn: session.turnCount,
         competencyId: currentComp?.id ?? GENERAL_ID,
-        summary: convResult.noteSummary,
+        summary: conv.noteSummary,
     });
-    audit(session, "selector", "next_question", convResult.cleanExtraction || "bridged to next question");
-    saveSession(session);
+    audit(session, "selector", plan.skipped ? "skip" : "next_question", conv.cleanExtraction || selection.reason);
+    await saveSession(session);
     return {
         session,
         prompt: {
             type: "question",
-            text: convResult.spokenText,
+            text: plan.text,
             competencyId: currentComp?.id ?? GENERAL_ID,
             competencyLabel: currentComp?.label ?? GENERAL_LABEL,
             kind: "scripted",
-        questionId: selection.questionId,
+            questionId: selection.questionId,
         },
-        toolCall: convResult.toolCall,
+        toolCall: {
+            tool: plan.skipped ? "skip_question" : "ask_question",
+            reason: plan.skipped ? "Candidate skipped the question" : selection.reason,
+            systemMessage: plan.text,
+            cleanExtraction: conv.cleanExtraction,
+            noteSummary: conv.noteSummary,
+        },
         pacing,
     };
 }

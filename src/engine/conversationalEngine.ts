@@ -1,11 +1,25 @@
 /* ══════════════════════════════════════════════════════════════
-   Unified Conversational Turn Engine (Jobmentis-Caliber)
-   Single high-speed LLM call for intent detection, depth analysis,
-   pushback/probes, clean verbatim extractions, and natural bridges.
+   Unified Conversational Turn Engine
+   One LLM call per candidate turn: intent detection, a rubric
+   assessment of the answer, and a targeted follow-up question.
+
+   It deliberately does NOT see or choose the next bank question —
+   the selector does that in parallel. This engine decides whether
+   to move on; the orchestrator binds the selector's question into
+   the spoken text afterwards (see orchestrator.planTurn).
    ══════════════════════════════════════════════════════════════ */
 
 import { callJSON } from "./llm";
-import type { Blueprint, CandidateProfile, Competency, SessionDoc } from "./types";
+import { detectVoiceCommand } from "./voiceCommands";
+import type {
+    AnswerAssessment,
+    AnswerVerdict,
+    Blueprint,
+    CandidateProfile,
+    Competency,
+    ProbeDimension,
+    SessionDoc,
+} from "./types";
 
 export type InterviewToolName =
     | "end_call"
@@ -24,13 +38,24 @@ export interface InterviewToolCall {
 
 export interface ConversationalTurnOutput {
     intent: "answer" | "repeat_question" | "end_interview" | "skip_question";
-    action: "push_back" | "follow_up" | "next_question" | "repeat" | "end_call" | "skip";
-    cleanExtraction?: string;
+    /** What the model suggested. The orchestrator makes the final call. */
+    suggestedTool: InterviewToolName;
+    /** Fixed text for end/repeat; empty for answer/skip (bound later). */
     spokenText: string;
+    /** Targeted follow-up aimed at the weakest dimension, if any. */
+    probeText: string;
+    assessment: AnswerAssessment | null;
+    cleanExtraction?: string;
     noteSummary: string;
     endCallReason?: string;
-    advanceSection?: boolean;
-    toolCall?: InterviewToolCall;
+}
+
+/** Context about the follow-up chain on the current question. */
+export interface ProbeContext {
+    rootQuestion: string;
+    followUpsSoFar: number;
+    maxFollowUps: number;
+    depth: "standard" | "deep";
 }
 
 function stripBold(text: string): string {
@@ -51,62 +76,119 @@ export function cleanSpokenAudioText(text: string): string {
         .trim();
 }
 
-const SYSTEM_PROMPT = `You are a professional, authentic AI interviewer. You listen attentively to the candidate's actual words and respond like a seasoned human interviewer.
-You are equipped with SPEECH-TO-ACTION TOOL CALLING functions.
+const SYSTEM_PROMPT = `You are a seasoned, fair interviewer. You listen to the candidate's actual words, judge whether they have really demonstrated what they claim, and ask sharp follow-up questions when they have not.
 
-AVAILABLE TOOLS:
-1. end_call:
-   Triggered when candidate explicitly wants to stop, end, or conclude the call (e.g. "I am done with the interview", "end the call", "that'll be all for now, thank you", "I have to stop now").
-   Args:
-     - reason: "The candidate explicitly requested to end the interview"
-     - system__message_to_speak: "Understood, <candidateName>. Thank you for taking the time to speak with me today. Have a great rest of your day!"
+STEP 1 — ASSESS the candidate's latest answer on four dimensions, 0 to 3 each:
+- specificity: 0 = generalities only; 1 = a situation named but vague; 2 = concrete situation with some detail; 3 = concrete systems, people, numbers, constraints.
+- ownership: 0 = only "we"/"the team"; 1 = unclear personal role; 2 = clear personal actions; 3 = clear personal decisions and why they made them.
+- depth: 0 = buzzwords; 1 = describes what, not how; 2 = explains how; 3 = explains why, trade-offs, alternatives, what went wrong.
+- evidence: 0 = no outcome; 1 = vague outcome ("it went well"); 2 = concrete outcome; 3 = measured outcome plus a lesson learned.
+Then a verdict:
+- "verified": they clearly demonstrated real, first-hand knowledge for this question.
+- "partial": real but thin in one dimension; acceptable to move on.
+- "vague": mostly generalities, no concrete example, or claims without substance.
+- "evasive": sidesteps the question, answers a different question, or deflects.
+Also report: weakest_dimension, said_dont_know (they admitted not knowing or not having done it), contradiction (conflicts with something they said earlier or with their profile), claim_summary (one short phrase: what they claimed).
 
-2. repeat_question:
-   Triggered when candidate asks to repeat, clarify, or re-read the question (e.g. "can you repeat the question?", "what was the question again?", "could you say that one more time?").
-   Args:
-     - system__message_to_speak: "No problem at all! I asked: <repeat the question clearly>. Take your time."
+The transcript comes from live speech recognition and may contain misheard words. Judge the substance, never penalise garbled words or grammar.
 
-3. skip_question:
-   Triggered when candidate asks to skip or pass on the current question (e.g. "can we skip this question?", "I'd like to pass on this one", "let's go to the next question").
-   Args:
-     - reason: "Candidate requested to skip question"
-     - system__message_to_speak: "No problem, let's move right along. <ask the next question>"
+STEP 2 — PICK A TOOL:
+- end_call: ONLY when they clearly want to end the WHOLE interview ("end the interview", "I have to stop the interview now"). "I'm done", "that's all", "that's it" after an answer mean the ANSWER is complete — not end_call.
+- repeat_question: they ask to hear or clarify the question again.
+- skip_question: they ask to skip or pass on this question.
+- push_back: the answer is vague, evasive, or contradictory and a follow-up is needed before they have proven it.
+- ask_question: the answer is verified or good enough — move on. The system will ask the next planned question itself; do not write it.
 
-4. push_back:
-   Triggered rarely: only when the candidate's answer to the CURRENT question is materially incomplete or evasive and one concise clarification is essential before moving on. Do not use it merely because another detail could be interesting.
-   Args:
-     - clean_extraction: "<quote or summarize candidate's specific mention>"
-     - system__message_to_speak: "Got it. But let me push back a bit on that. You mentioned <clean_extraction>, but I want to understand your specific, hands-on contribution. What was a specific roadblock or failure mode you encountered in that initiative, how did you personally address it, and how did you measure success?"
-     - note_summary: "<1-2 sentence running note>"
+STEP 3 — WRITE probe_question whenever the verdict is not "verified" and they did not say they don't know (even if you picked ask_question; the controller may still use it). Rules:
+- Target the weakest dimension and quote or reference their own words ("You mentioned ...").
+- Escalate with the number of follow-ups already asked on this question:
+  0 so far → clarify / get the concrete example ("Can you walk me through a specific time...", "What exactly did you change?").
+  1 so far → mechanism / reasoning ("Why that approach over ...?", "How did it actually work?", "What went wrong along the way?").
+  2+ so far → verification ("If X doubled tomorrow, what would fail first?", "What would you do differently?", "How did you know it worked?").
+- Never repeat a follow-up already asked (see the transcript). One focused question, 1 to 2 spoken sentences.
+- Curious and professional, never accusatory. From the second follow-up on, you may add that it is fine to say if they have not done something.
+- Plain spoken text only — no markdown, no lists.
 
-5. ask_question:
-   Default after a substantive answer. Ask the supplied "Next Question In Section Pool" so the structured interview plan remains the backbone of the conversation.
-   Args:
-     - clean_extraction: "<quote or summarize a specific highlight from candidate's answer>"
-     - system__message_to_speak: "<natural continuation into nextPoolQuestion, grounded in clean_extraction>"
-     - note_summary: "<1-2 sentence running note>"
-
-OUTPUT JSON SCHEMA:
+OUTPUT ONLY THIS JSON:
 {
+  "assessment": {
+    "specificity": 0-3, "ownership": 0-3, "depth": 0-3, "evidence": 0-3,
+    "verdict": "verified" | "partial" | "vague" | "evasive",
+    "weakest_dimension": "specificity" | "ownership" | "depth" | "evidence" | null,
+    "said_dont_know": true | false,
+    "contradiction": true | false,
+    "claim_summary": "<short phrase>"
+  },
   "tool_call": {
     "tool": "end_call" | "repeat_question" | "skip_question" | "push_back" | "ask_question",
     "args": {
-      "reason": "<reason string if applicable>",
-      "system__message_to_speak": "<the exact natural spoken response to speak to candidate>",
-      "clean_extraction": "<exact phrase or topic extracted from candidate's words, or null>",
-      "note_summary": "<1-2 sentence running note of candidate's points, or null>"
+      "reason": "<why>",
+      "clean_extraction": "<exact phrase from their answer worth noting, or null>",
+      "note_summary": "<1-2 sentence running note on what they demonstrated>"
     }
   },
-  "advance_section": true or false
+  "probe_question": "<follow-up question, or empty string>"
+}`;
+
+const VERDICTS: AnswerVerdict[] = ["verified", "partial", "vague", "evasive"];
+const DIMENSIONS: ProbeDimension[] = ["specificity", "ownership", "depth", "evidence"];
+
+function clampScore(value: unknown): number {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.max(0, Math.min(3, Math.round(n))) : 0;
 }
 
-Rules:
-- Be authentic, responsive, and original. NEVER use canned scripts or mention topics the candidate never spoke about. Ground your reaction in what the candidate ACTUALLY said.
-- Use natural spoken language. 1 to 3 spoken sentences max.
-- A short bridge may already have played while you were thinking. Do not restart with "Thanks", "Got it", or "Moving on". Continue naturally into the question, for example: "On that point, walk me through..." or "I want to understand how you handled...".
-- The scripted pool is authoritative: when using ask_question, ask the supplied next pool question. You may add at most one short, neutral transition, but do not replace it with a new question based only on the latest answer.
-- Favor ask_question. The controller may reject push_back when its follow-up budget is exhausted or the previous turn was already a follow-up.
-- Plain text only (no markdown asterisks ** or bullet lists).`;
+function parseAssessment(raw: unknown): AnswerAssessment | null {
+    if (!raw || typeof raw !== "object") return null;
+    const a = raw as Record<string, unknown>;
+    const verdict = VERDICTS.includes(a.verdict as AnswerVerdict) ? (a.verdict as AnswerVerdict) : null;
+    if (!verdict) return null;
+    const weakest = DIMENSIONS.includes(a.weakest_dimension as ProbeDimension)
+        ? (a.weakest_dimension as ProbeDimension)
+        : null;
+    return {
+        specificity: clampScore(a.specificity),
+        ownership: clampScore(a.ownership),
+        depth: clampScore(a.depth),
+        evidence: clampScore(a.evidence),
+        verdict,
+        weakestDimension: weakest,
+        saidDontKnow: a.said_dont_know === true,
+        contradiction: a.contradiction === true,
+        claimSummary: typeof a.claim_summary === "string" ? a.claim_summary.slice(0, 200) : "",
+    };
+}
+
+/** Deterministic follow-up used when the model gives none (offline/mock). */
+export function fallbackProbe(dimension: ProbeDimension | null, followUpsSoFar: number): string {
+    if (followUpsSoFar >= 2) {
+        return "Let me test that a little further: if you had to do it again tomorrow, what is the first thing you would change, and why?";
+    }
+    switch (dimension) {
+        case "ownership":
+            return "You've described what the team did. What were the specific decisions you made yourself?";
+        case "depth":
+            return "Walk me through how that actually worked. Why did you choose that approach over the alternatives?";
+        case "evidence":
+            return "How did you know it worked? What was the measurable result?";
+        default:
+            return "Can you give me a specific example? Walk me through one situation and exactly what you did.";
+    }
+}
+
+function endCallOutput(candidateName: string, answerText: string): ConversationalTurnOutput {
+    const systemMessage = `Understood, ${candidateName}. Thank you for taking the time to speak with me today. Have a great rest of your day!`;
+    const reason = `The candidate explicitly indicated they want to end the call by saying '${answerText.slice(0, 80)}'`;
+    return {
+        intent: "end_interview",
+        suggestedTool: "end_call",
+        spokenText: `end_call{reason:${reason},system__message_to_speak:${systemMessage}}`,
+        probeText: "",
+        assessment: null,
+        noteSummary: "Candidate requested to end interview.",
+        endCallReason: reason,
+    };
+}
 
 export async function executeConversationalTurn(opts: {
     session: SessionDoc;
@@ -114,183 +196,140 @@ export async function executeConversationalTurn(opts: {
     competency: Competency | null;
     answerText: string;
     profile: CandidateProfile | null;
-    nextPoolQuestion?: string | null;
-    /** The selector's immutable bridge + classified bank question. For an
-     * ordinary bank transition, the decision engine may choose the action but
-     * may not rewrite this utterance. */
-    exactBankTransition?: string | null;
+    probe: ProbeContext | null;
 }): Promise<ConversationalTurnOutput> {
-    const { session, blueprint, competency, answerText, profile, nextPoolQuestion, exactBankTransition } = opts;
+    const { session, blueprint, competency, answerText, profile, probe } = opts;
     const candidateName = session.candidateName || "Candidate";
     const companyName = session.company && session.company !== "General" ? session.company : "our company";
     const roleName = session.interviewType || blueprint.role || "this role";
-    const compLabel = competency?.label || "Core Competency";
+    const compLabel = competency?.label || "General background";
 
     const lastInterviewerTurn = session.transcript
         .filter((t) => t.role === "interviewer")
         .slice(-1)[0]?.text || session.pendingQuestion?.text || "Initial question";
 
-    // Recent conversation transcript (last 6 turns for immediate context)
+    // Fast paths: explicit voice commands never need the model.
+    const command = detectVoiceCommand(answerText);
+    if (command === "end_call") return endCallOutput(candidateName, answerText);
+    if (command === "repeat_question") {
+        return {
+            intent: "repeat_question",
+            suggestedTool: "repeat_question",
+            spokenText: `No problem at all! I asked: ${lastInterviewerTurn} Take your time.`,
+            probeText: "",
+            assessment: null,
+            noteSummary: "Candidate requested question repetition.",
+        };
+    }
+    if (command === "skip_question") {
+        return {
+            intent: "skip_question",
+            suggestedTool: "skip_question",
+            spokenText: "",
+            probeText: "",
+            assessment: null,
+            noteSummary: "Candidate requested to skip question.",
+        };
+    }
+
     const recentHistory = session.transcript
-        .slice(-6)
+        .slice(-8)
         .map((t) => `${t.role === "interviewer" ? "Interviewer" : candidateName}: ${t.text}`)
         .join("\n");
 
-    const userPrompt = `Candidate Name: ${candidateName}
+    const probeBlock = probe
+        ? `Original question for this thread: "${probe.rootQuestion}"
+Follow-ups already asked on it: ${probe.followUpsSoFar} (maximum ${probe.maxFollowUps}; probing intensity: ${probe.depth})`
+        : "This is the opening/background answer — assess it, but follow-ups are not used here.";
+
+    const userPrompt = `Candidate: ${candidateName}
 Company: ${companyName}
 Role: ${roleName}
-Interviewer: AI Interviewer
-Current Turn Number: ${session.turnCount}
-Current Section/Competency: ${compLabel}
+Current section: ${compLabel}
 
-Pending Question Asked:
+Question just asked:
 "${lastInterviewerTurn}"
 
-Candidate's Latest Utterance:
+${probeBlock}
+
+Candidate's latest answer:
 "${answerText}"
 
-Candidate Profile Highlights (if any):
-${profile?.claims?.slice(0, 3).map((c) => `- ${c.text}`).join("\n") || "None provided"}
+Candidate profile highlights (if any):
+${profile?.claims?.slice(0, 4).map((c) => `- ${c.text}`).join("\n") || "None provided"}
 
-Next Question In Section Pool:
-"${nextPoolQuestion || "Tell me about a complex project where you had to handle conflicting stakeholder requirements and deliver under a tight deadline."}"
-
-Recent Transcript:
+Recent transcript:
 ${recentHistory || "(Start of conversation)"}`;
 
-    const textLower = answerText.toLowerCase().trim();
-
-    // 1. FAST-PATH: Speech-to-action "end_call" (e.g. "I am done with the interview")
-    if (/\b(i am done|i'm done|done with the interview|end the interview|end the call|stop the interview|stop the call|wrap it up|wrap up|that'll be all|that will be all|all for now)\b/i.test(textLower)) {
-        const systemMessage = `Understood, ${candidateName}. Thank you for taking the time to speak with me today. Have a great rest of your day!`;
-        return {
-            intent: "end_interview",
-            action: "end_call",
-            spokenText: `end_call{reason:The user explicitly indicated they want to end the call by saying '${answerText.slice(0, 60)}',system__message_to_speak:${systemMessage}}`,
-            noteSummary: "Candidate requested to end interview.",
-            endCallReason: `The candidate explicitly indicated they want to end the call by saying '${answerText}'`,
-            advanceSection: false,
-            toolCall: {
-                tool: "end_call",
-                reason: `The candidate explicitly indicated they want to end the call by saying '${answerText}'`,
-                systemMessage,
-            },
-        };
-    }
-
-    // 2. FAST-PATH: Speech-to-action "repeat_question"
-    if (/\b(repeat|say that again|one more time|pardon|didn't catch|did not catch|can you repeat|could you repeat)\b/i.test(textLower)) {
-        const systemMessage = `No problem at all! I asked: ${lastInterviewerTurn} Take your time.`;
-        return {
-            intent: "repeat_question",
-            action: "repeat",
-            spokenText: systemMessage,
-            noteSummary: "Candidate requested question repetition.",
-            advanceSection: false,
-            toolCall: {
-                tool: "repeat_question",
-                reason: "Candidate asked for question repetition",
-                systemMessage,
-            },
-        };
-    }
-
-    // 3. FAST-PATH: Speech-to-action "skip_question"
-    if (/\b(skip this question|skip question|pass on this|next question please|can we skip)\b/i.test(textLower)) {
-        const systemMessage = `No problem, let's move right along. ${nextPoolQuestion || "Tell me about another situation where you had to solve a complex challenge under pressure."}`;
-        return {
-            intent: "skip_question",
-            action: "next_question",
-            spokenText: systemMessage,
-            noteSummary: "Candidate requested to skip question.",
-            advanceSection: true,
-            toolCall: {
-                tool: "skip_question",
-                reason: "Candidate skipped the question",
-                systemMessage,
-            },
-        };
-    }
-
     try {
-        const raw = await callJSON<any>({
+        const raw = await callJSON<{
+            assessment?: unknown;
+            tool_call?: { tool?: string; args?: Record<string, unknown> };
+            probe_question?: string;
+        }>({
             system: SYSTEM_PROMPT,
             user: userPrompt,
-            maxTokens: 350,
+            maxTokens: 450,
             mock: {
+                assessment: {
+                    specificity: answerText.length > 200 ? 2 : 1,
+                    ownership: 2,
+                    depth: answerText.length > 200 ? 2 : 1,
+                    evidence: 1,
+                    verdict: answerText.length > 200 ? "partial" : "vague",
+                    weakest_dimension: "evidence",
+                    said_dont_know: false,
+                    contradiction: false,
+                    claim_summary: answerText.slice(0, 60),
+                },
                 tool_call: {
                     tool: "ask_question",
-                    args: {
-                        clean_extraction: answerText.slice(0, 40),
-                        system__message_to_speak: `On that point, ${nextPoolQuestion || "could you tell me about a time you had to make a difficult trade-off under tight constraints?"}`,
-                        note_summary: `Discussed: ${answerText.slice(0, 80)}`,
-                    },
+                    args: { reason: "mock", clean_extraction: answerText.slice(0, 40), note_summary: `Discussed: ${answerText.slice(0, 80)}` },
                 },
-                advance_section: true,
+                probe_question: "",
             },
         });
 
-        if (raw.tool_call) {
-            const tool = raw.tool_call.tool as InterviewToolName;
-            const args = raw.tool_call.args || {};
-            const generatedMessage = stripBold(args.system__message_to_speak || raw.spokenText || "");
-            // Bank questions are selected and bridged before this decision.
-            // Preserve that exact utterance for cache identity and avoid a
-            // second model-created acknowledgement or altered question.
-            const systemMessage = tool === "ask_question" && exactBankTransition
-                ? exactBankTransition
-                : generatedMessage;
-            return {
-                intent: tool === "end_call" ? "end_interview" : tool === "repeat_question" ? "repeat_question" : tool === "skip_question" ? "skip_question" : "answer",
-                action: tool === "end_call" ? "end_call" : tool === "repeat_question" ? "repeat" : tool === "push_back" ? "push_back" : "next_question",
-                cleanExtraction: args.clean_extraction,
-                spokenText: tool === "end_call" ? `end_call{reason:${args.reason || "Candidate requested to end call"},system__message_to_speak:${systemMessage}}` : systemMessage,
-                noteSummary: args.note_summary || answerText.slice(0, 100),
-                endCallReason: args.reason,
-                advanceSection: !!raw.advance_section || !!raw.advanceSection,
-                toolCall: {
-                    tool,
-                    reason: args.reason,
-                    systemMessage,
-                    cleanExtraction: args.clean_extraction,
-                    noteSummary: args.note_summary,
-                },
-            };
-        }
+        const tool = (raw.tool_call?.tool as InterviewToolName) || "ask_question";
+        const args = raw.tool_call?.args || {};
+        const reason = typeof args.reason === "string" ? args.reason : undefined;
+        const assessment = parseAssessment(raw.assessment);
+        const probeText = stripBold(typeof raw.probe_question === "string" ? raw.probe_question.trim() : "");
+        const noteSummary =
+            (typeof args.note_summary === "string" && args.note_summary) || answerText.slice(0, 100);
+        const cleanExtraction = typeof args.clean_extraction === "string" ? args.clean_extraction : undefined;
 
-        if (raw.spokenText && raw.spokenText.trim()) {
-            const isEndCall = raw.spokenText.includes("end_call{") || raw.intent === "end_interview" || raw.action === "end_call";
+        if (tool === "end_call") return endCallOutput(candidateName, answerText);
+        if (tool === "repeat_question") {
             return {
-                intent: isEndCall ? "end_interview" : raw.intent || "answer",
-                action: isEndCall ? "end_call" : raw.action || "next_question",
-                cleanExtraction: raw.cleanExtraction || undefined,
-                spokenText: stripBold(raw.spokenText.trim()),
-                noteSummary: raw.noteSummary || answerText.slice(0, 100),
-                endCallReason: raw.endCallReason || undefined,
-                advanceSection: !!raw.advanceSection,
-                toolCall: {
-                    tool: isEndCall ? "end_call" : raw.action === "push_back" ? "push_back" : "ask_question",
-                    reason: raw.endCallReason,
-                    systemMessage: cleanSpokenAudioText(raw.spokenText),
-                    cleanExtraction: raw.cleanExtraction,
-                    noteSummary: raw.noteSummary,
-                },
+                intent: "repeat_question",
+                suggestedTool: tool,
+                spokenText: `No problem at all! I asked: ${lastInterviewerTurn} Take your time.`,
+                probeText: "",
+                assessment,
+                noteSummary,
             };
         }
-        throw new Error("Empty spokenText from conversational engine");
-    } catch (err) {
-        console.warn("[conversationalEngine] Fallback triggered:", err);
 
         return {
+            intent: tool === "skip_question" ? "skip_question" : "answer",
+            suggestedTool: tool,
+            spokenText: "",
+            probeText,
+            assessment,
+            cleanExtraction,
+            noteSummary,
+            endCallReason: reason,
+        };
+    } catch (err) {
+        console.warn("[conversationalEngine] Fallback triggered:", err);
+        return {
             intent: "answer",
-            action: "next_question",
-            spokenText: `Building on that, ${nextPoolQuestion || "can you tell me about another situation where you had to solve a complex challenge under pressure?"}`,
+            suggestedTool: "ask_question",
+            spokenText: "",
+            probeText: "",
+            assessment: null,
             noteSummary: `Answered: ${answerText.slice(0, 80)}`,
-            advanceSection: true,
-            toolCall: {
-                tool: "ask_question",
-                systemMessage: `Building on that, ${nextPoolQuestion || "can you tell me about another situation where you had to solve a complex challenge under pressure?"}`,
-            },
         };
     }
 }

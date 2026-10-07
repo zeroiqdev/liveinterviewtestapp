@@ -78,7 +78,9 @@ export function useAgentActivity({
         onConfirmInterruption: () => void,
         onPausePlayback: () => void
     ) => {
-        if (stateRef.current !== "speaking" && stateRef.current !== "thinking") return;
+        // Only interviewer speech can be interrupted. Interrupting "thinking"
+        // would drop a turn the server has already applied.
+        if (stateRef.current !== "speaking") return;
         if (falseInterruptionTimerRef.current) return; // Already verifying
 
         // Pause first. The surrounding turn remains intact until the short

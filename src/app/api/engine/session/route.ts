@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { startSession, toPublicState } from "@/engine/orchestrator";
 import { getBlueprint } from "@/engine/data";
 import { getProfile } from "@/engine/sessionStore";
+import { ownerIdFor } from "@/engine/sessionAccess";
 import { requireAuth } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
@@ -12,8 +13,10 @@ export async function POST(req: NextRequest) {
         }
 
         const body = await req.json();
-        const { candidateId: bodyCandidateId, blueprintId, interviewType, candidateName, companyName } = body || {};
-        const candidateId = bodyCandidateId || authResult.session.userId || authResult.session.email;
+        const { blueprintId, interviewType, candidateName, companyName, probeDepth } = body || {};
+        // Identity comes from the auth cookie, never the request body, so a
+        // client cannot start a session against someone else's profile.
+        const candidateId = ownerIdFor(authResult.session);
 
         if (!candidateId || !blueprintId) {
             return NextResponse.json(
@@ -29,15 +32,17 @@ export async function POST(req: NextRequest) {
         }
 
         // Profile is enrichment, not dependency — null is a first-class case.
-        const profile = getProfile(candidateId);
+        const profile = await getProfile(candidateId);
 
         const { session, prompt } = await startSession({
             candidateId,
+            ownerId: candidateId,
             blueprintId,
             profile,
             interviewType,
             candidateName,
             companyName,
+            probeDepth: probeDepth === "deep" ? "deep" : "standard",
         });
 
         return NextResponse.json({

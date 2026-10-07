@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/engine/sessionStore";
+import type { ProbeFinding } from "@/engine/types";
 import { callJSON } from "@/engine/llm";
 import { blueprintForRole } from "@/engine/roleMapping";
 import { getBlueprint } from "@/engine/data";
@@ -167,10 +168,14 @@ export async function POST(req: NextRequest) {
         // 1. In-memory session doc
         let sessionBlueprintId: string | null = null;
         let sessionTranscript: Array<{ role: string; text: string }> = [];
+        let probeFindings: ProbeFinding[] = [];
         if (sessionId) {
-            const session = getSession(sessionId);
-            if (session) {
+            const session = await getSession(sessionId);
+            const owner = authResult.session.userId || authResult.session.email;
+            // Only use the server transcript when it belongs to this user.
+            if (session && (!session.ownerId || session.ownerId === owner || authResult.session.isAdmin)) {
                 sessionBlueprintId = session.blueprintId;
+                probeFindings = session.probeFindings ?? [];
                 if (Array.isArray(session.transcript) && session.transcript.length > 0) {
                     sessionTranscript = session.transcript.map((t) => ({
                         role: t.role,
@@ -266,7 +271,22 @@ Carefully evaluate how directly the candidate's answers demonstrated readiness t
                   .join("\n\n")
             : "";
 
-        const userContext = `Role: ${role || blueprint?.role || "Software Engineer"}\nExperience Level: ${experience || "Mid-Level"}\nDomain: ${domain || "General Tech"}${rubricBlock}${companyContextBlock}\n\nTRANSCRIPT:\n${conversationText}${questionsPromptBlock}`;
+        // What live follow-up probing established about each claim. Weigh
+        // unproven claims in the scores and name them in improvement areas.
+        const outcomeLabel: Record<ProbeFinding["outcome"], string> = {
+            verified: "demonstrated under follow-up",
+            unresolved: "NOT demonstrated after follow-up",
+            budget_exhausted: "still vague when follow-ups ran out",
+            said_dont_know: "candidate said they did not know / had not done it",
+        };
+        const probeBlock = probeFindings.length > 0
+            ? `\n\nDEPTH PROBING RESULTS (the interviewer followed up live to test whether claims were real). Treat claims marked NOT demonstrated or still vague as unproven: lower the related scores, call them out specifically in weaknesses/improvement areas, and suggest what concrete detail would have proven them. Credit honest "I don't know" answers over bluffing:\n` +
+              probeFindings
+                  .map((f) => `- "${f.claimSummary || f.question.slice(0, 100)}" — ${outcomeLabel[f.outcome]} (${f.followUps} follow-up${f.followUps === 1 ? "" : "s"}, final answer: ${f.verdict})`)
+                  .join("\n")
+            : "";
+
+        const userContext = `Role: ${role || blueprint?.role || "Software Engineer"}\nExperience Level: ${experience || "Mid-Level"}\nDomain: ${domain || "General Tech"}${rubricBlock}${companyContextBlock}${probeBlock}\n\nTRANSCRIPT:\n${conversationText}${questionsPromptBlock}`;
 
         const report = await callJSON<FeedbackReportData>({
             system: SYSTEM_PROMPT,

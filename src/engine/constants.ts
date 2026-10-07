@@ -30,6 +30,15 @@ export const AVG_SECONDS_PER_FOLLOWUP = 75;
     (contradictions). Keeps "contradiction always probes" bounded. */
 export const MAX_BUDGET_OVERRIDES_PER_SESSION = 2;
 
+/* ── Depth probing ──
+   perQuestion: max follow-ups chained on one scripted question.
+   perSection:  max follow-ups across one competency section.
+   Both scale with pacing (tightening halves them, compressed = 0). */
+export const PROBE_LIMITS: Record<"standard" | "deep", { perQuestion: number; perSection: number }> = {
+    standard: { perQuestion: 2, perSection: 4 },
+    deep: { perQuestion: 4, perSection: 8 },
+};
+
 /** Running notes are trimmed to the last N entries in prompts. */
 export const NOTES_WINDOW = 8;
 

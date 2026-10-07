@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { submitAnswer, toPublicState } from "@/engine/orchestrator";
-import { getProfile, getSession } from "@/engine/sessionStore";
-import { getCachedAudio } from "@/services/ttsService";
+import { getProfile } from "@/engine/sessionStore";
+import { loadOwnedSession } from "@/engine/sessionAccess";
+import { getCachedAudio, lookupCachedAudio } from "@/services/ttsService";
 import type { Persona } from "@/config/voiceConfig";
 
 import { cleanSpokenAudioText } from "@/engine/conversationalEngine";
 import { traceTurn } from "@/engine/turnTrace";
 
-const QUICK_AUDIO_BUDGET_MS = 240;
+// Cold synthesis (Azure en-NG) takes ~1–1.7s. Waiting for it here returns
+// real audio in the turn payload; a shorter budget sends the client to the
+// robotic browser-voice fallback for nearly every freshly generated line.
+const QUICK_AUDIO_BUDGET_MS = 2500;
 
 async function getQuickAudio(
     text: string,
@@ -35,19 +39,21 @@ export async function POST(
         const { id } = await params;
         const turnId = req.headers.get("x-onscript-turn-id");
         traceTurn(turnId, "turn_request_received");
+        const access = await loadOwnedSession(req, id);
+        if ("errorResponse" in access) return access.errorResponse;
         const body = await req.json();
         const answerText = typeof body?.answerText === "string" ? body.answerText : "";
 
         // Profile is read fresh each turn from the stored static doc —
         // no re-extraction, just a richer input to the orchestrator.
-        const existing = getSession(id);
-        const profile = existing ? getProfile(existing.candidateId) : null;
+        const profile = await getProfile(access.session.candidateId);
 
         const { session, prompt, pacing, toolCall } = await submitAnswer({
             sessionId: id,
             answerText,
             profile,
             turnId: turnId || undefined,
+            session: access.session,
         });
         traceTurn(turnId, "engine_completed");
 
@@ -81,8 +87,11 @@ export async function POST(
                 // bridge + question text. Prefer that clip first: it gives
                 // the prepared bridge immediate playback with no segment gap.
                 const isBankTransition = prompt?.kind === "scripted" && toolCall?.tool !== "repeat_question";
+                // Only reuse a clip that already exists (warmed by /prepare or
+                // the cache script). Waiting on a fresh full-length synthesis
+                // here and then again for the first sentence doubled latency.
                 const fullClip = isBankTransition
-                    ? await getQuickAudio(textToSynthesize, persona, jobRegion, turnId)
+                    ? await lookupCachedAudio(textToSynthesize, persona, jobRegion, turnId || undefined)
                     : null;
                 if (fullClip) {
                     audioUrl = fullClip.audioUrl;

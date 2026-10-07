@@ -140,6 +140,50 @@ export interface ParkingLotEntry {
     resolved: boolean;
 }
 
+/* ── Depth probing ── */
+
+/** How hard the interviewer pushes on vague answers. */
+export type ProbeDepth = "standard" | "deep";
+
+export type AnswerVerdict = "verified" | "partial" | "vague" | "evasive";
+
+export type ProbeDimension = "specificity" | "ownership" | "depth" | "evidence";
+
+/** Per-answer rubric, 0–3 per dimension. */
+export interface AnswerAssessment {
+    specificity: number;
+    ownership: number;
+    depth: number;
+    evidence: number;
+    verdict: AnswerVerdict;
+    weakestDimension: ProbeDimension | null;
+    /** Candidate said they don't know / haven't done it — stop probing. */
+    saidDontKnow: boolean;
+    /** Answer conflicts with an earlier answer or a profile claim. */
+    contradiction: boolean;
+    /** Short description of what the answer claimed, for notes/feedback. */
+    claimSummary: string;
+}
+
+/** The chain of follow-ups on one scripted question. */
+export interface ProbeThread {
+    rootQuestion: string;
+    competencyId: string;
+    followUps: number;
+    lastVerdict: AnswerVerdict | null;
+}
+
+/** Outcome of one probed topic, surfaced in the feedback report. */
+export interface ProbeFinding {
+    turn: number;
+    competencyId: string;
+    question: string;
+    claimSummary: string;
+    verdict: AnswerVerdict;
+    followUps: number;
+    outcome: "verified" | "unresolved" | "said_dont_know" | "budget_exhausted";
+}
+
 export interface TranscriptTurn {
     role: "interviewer" | "candidate";
     text: string;
@@ -159,6 +203,8 @@ export interface AuditEntry {
 export interface SessionDoc {
     sessionId: string;
     candidateId: string;
+    /** Authenticated user that started the session; only they may drive it. */
+    ownerId?: string | null;
     blueprintId: string;
     hasProfile: { resume: boolean; linkedin: boolean; portfolio: boolean };
     phase: SessionPhase;
@@ -168,6 +214,12 @@ export interface SessionDoc {
     generalAsked: { questionIds: string[]; categories: string[] };
     runningNotes: RunningNote[];
     parkingLot: ParkingLotEntry[];
+    /** Probing intensity chosen at setup (default "standard"). */
+    probeDepth?: ProbeDepth;
+    /** Follow-up chain for the question currently being answered. */
+    probeThread?: ProbeThread | null;
+    /** Per-topic probing outcomes for the feedback report. */
+    probeFindings?: ProbeFinding[];
     elapsedSeconds: number;
     startedAt: number;
     lastTurnAt: number;

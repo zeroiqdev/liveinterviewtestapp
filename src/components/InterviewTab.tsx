@@ -5,12 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useInterview } from "../context/InterviewContext";
 import { useMediaRecorder } from "../hooks/useMediaRecorder";
 import styles from "./interview.module.css";
-import { db } from "../services/database";
 import { blueprintForRole } from "../engine/roleMapping";
-import type { EnginePrompt, PublicSessionState } from "../engine/types";
-import { useTtsAudio } from "../hooks/useTtsAudio";
+import type { EnginePrompt, ProbeDepth, PublicSessionState } from "../engine/types";
+import { getStoredJobRegion, useTtsAudio } from "../hooks/useTtsAudio";
 import { useTurnDetection } from "../hooks/useTurnDetection";
 import { useAgentActivity } from "../hooks/useAgentActivity";
+import { useVoiceActivity } from "../hooks/useVoiceActivity";
+import { detectVoiceCommand } from "../engine/voiceCommands";
 import {
     PhoneDisconnect,
     VideoCamera,
@@ -116,6 +117,7 @@ export default function InterviewTab() {
     const {
         previewStream,
         startStream,
+        getStream,
         startRecording,
         stopRecording,
         stopStream,
@@ -192,6 +194,28 @@ export default function InterviewTab() {
 
     const [micChecked, setMicChecked] = useState(false);
     const [micTestStatus, setMicTestStatus] = useState<"idle" | "listening" | "success" | "error">("idle");
+    const [micTestError, setMicTestError] = useState<string | null>(null);
+    // How hard the interviewer follows up on vague answers (remembered per browser).
+    const [probeDepth, setProbeDepth] = useState<ProbeDepth>("standard");
+    useEffect(() => {
+        const fromQuery = searchParams.get("probe");
+        if (fromQuery === "deep" || fromQuery === "standard") {
+            setProbeDepth(fromQuery);
+            return;
+        }
+        try {
+            const saved = localStorage.getItem("useladder_probe_depth");
+            if (saved === "deep" || saved === "standard") setProbeDepth(saved);
+        } catch { /* ignore */ }
+    }, [searchParams]);
+    const chooseProbeDepth = (depth: ProbeDepth) => {
+        setProbeDepth(depth);
+        try {
+            localStorage.setItem("useladder_probe_depth", depth);
+        } catch { /* ignore */ }
+    };
+    // Live speech-recognition problems (blocked mic, unsupported browser, …)
+    const [recognitionError, setRecognitionError] = useState<string | null>(null);
     const [faceInFrameChecked, setFaceInFrameChecked] = useState(false);
     const [goodLightingChecked, setGoodLightingChecked] = useState(false);
     const [cameraChecked, setCameraChecked] = useState(false);
@@ -238,56 +262,97 @@ export default function InterviewTab() {
         }
     }, [previewStream]);
 
+    // Tests the *selected* mic and only passes when it actually hears speech.
     const handleTestMic = async () => {
         setMicTestStatus("listening");
+        setMicTestError(null);
+        setMicChecked(false);
         try {
-            let stream = previewStream;
-            if (!stream || !stream.getAudioTracks().length) {
-                const ok = await startStream();
-                if (!ok) {
-                    setMicTestStatus("error");
-                    return;
-                }
+            const ok = await startStream({ audioDeviceId: selectedAudioInput, videoDeviceId: selectedVideoInput });
+            if (!ok) {
+                setMicTestError("Microphone access was blocked. Allow mic access for this site in your browser's address bar, then try again.");
+                setMicTestStatus("error");
+                return;
             }
             await loadDevices();
 
-            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+            const track = getStream()?.getAudioTracks().find((t) => t.readyState === "live");
+            if (!track) {
+                setMicTestError("No live microphone found. Check the mic is plugged in and selected above.");
+                setMicTestStatus("error");
+                return;
+            }
+
+            const AudioCtx =
+                window.AudioContext ||
+                (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
             if (!AudioCtx) {
-                setTimeout(() => {
-                    setMicTestStatus("success");
-                    setMicChecked(true);
-                }, 1200);
+                setMicTestStatus("success");
+                setMicChecked(true);
                 return;
             }
 
             const ctx = new AudioCtx();
-            const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const source = ctx.createMediaStreamSource(micStream);
+            const source = ctx.createMediaStreamSource(new MediaStream([track]));
             const analyser = ctx.createAnalyser();
-            analyser.fftSize = 256;
+            analyser.fftSize = 1024;
             source.connect(analyser);
 
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            let checks = 0;
+            const samples = new Float32Array(analyser.fftSize);
+            const startedAt = Date.now();
+            let heardMs = 0;
             const timer = setInterval(() => {
-                analyser.getByteFrequencyData(dataArray);
+                analyser.getFloatTimeDomainData(samples);
                 let sum = 0;
-                for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-                const avg = sum / dataArray.length;
-                checks++;
-                if (avg > 12 || checks >= 30) {
+                for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
+                const rms = Math.sqrt(sum / samples.length);
+                if (rms > 0.02) heardMs += 100;
+
+                const heard = heardMs >= 400; // ~0.4s of real speech
+                const timedOut = Date.now() - startedAt >= 8000;
+                if (heard || timedOut) {
                     clearInterval(timer);
+                    source.disconnect();
                     ctx.close().catch(() => {});
-                    micStream.getTracks().forEach((t) => t.stop());
-                    setMicTestStatus("success");
-                    setMicChecked(true);
+                    if (heard) {
+                        setMicTestStatus("success");
+                        setMicChecked(true);
+                    } else {
+                        setMicTestError(
+                            `We couldn't hear anything from "${track.label || "your microphone"}". Speak while testing, check it isn't muted (including in Discord or your headset), or pick a different mic above.`
+                        );
+                        setMicTestStatus("error");
+                    }
                 }
             }, 100);
         } catch (e) {
             console.warn("Mic test error:", e);
+            setMicTestError("Couldn't start the microphone test. Check mic permissions and try again.");
             setMicTestStatus("error");
         }
     };
+
+    // Picking a different mic reopens the stream on it and requires a re-test.
+    const handleMicChange = async (deviceId: string) => {
+        setSelectedAudioInput(deviceId);
+        setMicChecked(false);
+        setMicTestStatus("idle");
+        setMicTestError(null);
+        if (previewStream) {
+            await startStream({ audioDeviceId: deviceId, videoDeviceId: selectedVideoInput });
+        }
+    };
+
+    // Browser speech recognition always listens on the browser's *default*
+    // mic, not the one picked here. Warn when they differ.
+    const recognitionMicMismatch = useMemo(() => {
+        if (!selectedAudioInput || selectedAudioInput === "default") return null;
+        const defaultEntry = devices.audioInputs.find((d) => d.deviceId === "default");
+        const picked = devices.audioInputs.find((d) => d.deviceId === selectedAudioInput);
+        if (!defaultEntry || !picked?.label) return null;
+        if (defaultEntry.label.includes(picked.label)) return null;
+        return defaultEntry.label.replace(/^Default\s*-\s*/i, "");
+    }, [selectedAudioInput, devices.audioInputs]);
 
     const handlePlayTestSound = () => {
         try {
@@ -317,7 +382,7 @@ export default function InterviewTab() {
 
     const handleRestartDevices = async () => {
         stopStream();
-        const ok = await startStream();
+        const ok = await startStream({ audioDeviceId: selectedAudioInput, videoDeviceId: selectedVideoInput });
         await loadDevices();
         if (ok) {
             setCameraChecked(true);
@@ -471,7 +536,7 @@ export default function InterviewTab() {
         prefetchFillers,
         primeAudioCache,
         stopAudio,
-        restoreAudio,
+        pauseAudio,
         resumeAudio,
         replayCurrentAudio,
         isPlaying: isAiSpeaking,
@@ -497,8 +562,12 @@ export default function InterviewTab() {
             setFinalTranscript("");
         },
         onFalseInterruption: () => {
-            resumeAudio();
-            restoreAudio();
+            // Playback was already resumed by handleCancelInterruption. Sound
+            // that vanishes as soon as playback pauses is usually speaker
+            // echo; after repeated hits, stop listening for barge-in on this
+            // utterance rather than stuttering the interviewer.
+            falseInterruptionsRef.current += 1;
+            if (falseInterruptionsRef.current >= 2) bargeInAllowedRef.current = false;
         },
     });
 
@@ -518,6 +587,10 @@ export default function InterviewTab() {
     const preparedTurnRef = useRef<{ text: string; controller: AbortController; turnId: string } | null>(null);
     const activeTurnIdRef = useRef<string | null>(null);
     const endpointAtRef = useRef<Map<string, number>>(new Map());
+    // Barge-in is allowed per utterance: never on the closing message (its
+    // end triggers handleComplete), and disabled after repeated echo hits.
+    const bargeInAllowedRef = useRef(true);
+    const falseInterruptionsRef = useRef(0);
     const recognitionEnabled = sessionStarted && !isMuted && agentActivity.isListening;
 
     const stopRecognition = useCallback(() => {
@@ -540,14 +613,21 @@ export default function InterviewTab() {
         }
 
         const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-        if (!SpeechRecognition) return;
+        if (!SpeechRecognition) {
+            setRecognitionError(
+                "This browser can't transcribe speech. Use Google Chrome or Microsoft Edge to answer by voice."
+            );
+            return;
+        }
 
         isRecognitionActiveRef.current = true;
         const recognition = new SpeechRecognition();
         recognitionRef.current = recognition;
         recognition.continuous = true;
         recognition.interimResults = true;
-        recognition.lang = "en-US";
+        // Nigerian English recognition is noticeably more accurate for Nigerian accents.
+        recognition.lang = /nigeria/i.test(getStoredJobRegion()) ? "en-NG" : "en-US";
+        recognition.onaudiostart = () => setRecognitionError(null);
 
         recognition.onresult = (event: any) => {
             // A delayed final result can arrive just after a turn transition.
@@ -575,9 +655,21 @@ export default function InterviewTab() {
         };
 
         recognition.onerror = (e: any) => {
-            if (e.error !== "no-speech" && e.error !== "aborted") {
-                console.warn("[SpeechRecognition] error:", e.error);
+            if (e.error === "no-speech" || e.error === "aborted") return;
+            console.warn("[SpeechRecognition] error:", e.error);
+            if (e.error === "language-not-supported" && recognition.lang !== "en-US") {
+                // en-NG unavailable here — the auto-restart in onend retries in en-US.
+                recognition.lang = "en-US";
+                return;
             }
+            const messages: Record<string, string> = {
+                "not-allowed": "Microphone access is blocked for this site. Click the mic icon in the address bar, allow it, then reload.",
+                "service-not-allowed": "Speech recognition is disabled in this browser. Use Google Chrome or Microsoft Edge.",
+                "audio-capture": "No microphone could be opened for transcription. Check your browser's default mic (Settings → Privacy → Site settings → Microphone) and that no app has exclusive control of it.",
+                network: "Speech recognition couldn't reach its service. Check your connection; Brave and some privacy browsers block it — use Chrome or Edge.",
+                "language-not-supported": "Speech recognition doesn't support this language setting in your browser.",
+            };
+            setRecognitionError(messages[e.error] || `Speech recognition error: ${e.error}`);
         };
 
         recognition.onend = () => {
@@ -617,11 +709,28 @@ export default function InterviewTab() {
         }
     }, [engineState?.upcomingQuestions, prefetchTts]);
 
+    // Candidate talking over the interviewer: pause playback, verify it is
+    // sustained speech, then hand the turn to the candidate.
+    useVoiceActivity({
+        stream: previewStream,
+        enabled: sessionStarted && !isMuted && !showEndModal && agentActivity.isSpeaking,
+        onSpeechStart: () => {
+            if (!bargeInAllowedRef.current) return;
+            agentActivity.handlePotentialInterruption(() => undefined, pauseAudio);
+        },
+        onSpeechEnd: () => {
+            agentActivity.handleCancelInterruption(resumeAudio);
+        },
+    });
+
     const speakQuestion = (
         text: string,
         onDone?: () => void,
-        segments?: Array<{ text: string; audioUrl: string }>
+        segments?: Array<{ text: string; audioUrl: string }>,
+        opts?: { interruptible?: boolean }
     ) => {
+        bargeInAllowedRef.current = opts?.interruptible ?? true;
+        falseInterruptionsRef.current = 0;
         stopRecognition();
         accumulatedFinalTranscriptRef.current = "";
         agentActivity.transitionTo("speaking", "Starting question playback");
@@ -707,6 +816,7 @@ export default function InterviewTab() {
                 interviewType: interviewType || queryInterviewType || undefined,
                 candidateName: candidateDisplayName,
                 companyName: targetCompany,
+                probeDepth,
             }),
         });
         if (!res.ok) return null;
@@ -720,7 +830,7 @@ export default function InterviewTab() {
             return;
         }
         setIsConnecting(true);
-        const granted = await startStream();
+        const granted = await startStream({ audioDeviceId: selectedAudioInput, videoDeviceId: selectedVideoInput });
         if (!granted) {
             setIsConnecting(false);
             return;
@@ -794,6 +904,9 @@ export default function InterviewTab() {
                 body: JSON.stringify({
                     answerText: candidateText,
                     persona: "recruiter",
+                    // Same region the client uses for the opening question, so
+                    // server-synthesized turns keep the same voice.
+                    jobRegion: getStoredJobRegion(),
                 }),
             });
             if (!res.ok) throw new Error("turn failed");
@@ -838,7 +951,7 @@ export default function InterviewTab() {
             const playNext = () => {
                 if (data.prompt.type === "complete" || data.state.complete || data.endCall) {
                     if (data.prompt.text) {
-                        speakQuestion(data.prompt.text, () => handleComplete(), data.audioSegments);
+                        speakQuestion(data.prompt.text, () => handleComplete(), data.audioSegments, { interruptible: false });
                     } else {
                         handleComplete();
                     }
@@ -875,27 +988,42 @@ export default function InterviewTab() {
         setIsListening(false);
         setCurrentAnswer("");
 
-        // Mock interviews stay uninterrupted. The score is generated only in
-        // the explicit live-coaching mode and never blocks the voice turn.
-        if (interviewMode === "live_coaching") {
+        // Mock interviews stay uninterrupted. Live coaching pauses after each
+        // answer to show feedback; the candidate then retries or continues.
+        // Voice commands ("repeat that", "end the interview") skip coaching.
+        if (interviewMode === "live_coaching" && !detectVoiceCommand(candidateText)) {
+            // Idle stops recognition and endpointing while feedback is shown.
+            agentActivity.transitionTo("idle", "Reviewing coaching feedback");
+            setIsGeneratingInstantFeedback(true);
             setIsStarScoring(true);
-            void fetch("/api/interview/instant-feedback", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                question: currentPrompt?.text || "Interview question",
-                answer: candidateText,
-                role: user?.role || "Software Engineer",
-                companyName: targetCompany || "Top Tech",
-                category: queryCategory || "General Interview",
-            }),
-            })
-                .then((res) => res.ok ? res.json() : null)
-                .then((data) => {
-                    if (data?.feedback?.star) setLatestStarScore(data.feedback.star);
-                })
-                .catch(() => undefined)
-                .finally(() => setIsStarScoring(false));
+            let feedback: InstantQuestionFeedback | null = null;
+            try {
+                const res = await fetch("/api/interview/instant-feedback", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        question: currentPrompt?.text || "Interview question",
+                        answer: candidateText,
+                        role: user?.role || "Software Engineer",
+                        companyName: targetCompany || "Top Tech",
+                        category: queryCategory || "General Interview",
+                    }),
+                });
+                const data = res.ok ? await res.json() : null;
+                feedback = data?.feedback ?? null;
+            } catch {
+                feedback = null;
+            } finally {
+                setIsGeneratingInstantFeedback(false);
+                setIsStarScoring(false);
+            }
+
+            if (feedback) {
+                setInstantFeedback(feedback);
+                if (feedback.star) setLatestStarScore(feedback.star);
+                return; // handleRetryAnswer / handleContinueAfterCoaching take over
+            }
+            // Coaching unavailable — keep the interview moving.
         }
 
         await submitTurnToEngine(candidateText);
@@ -908,8 +1036,8 @@ export default function InterviewTab() {
         isEngineBusy: agentActivity.isThinking || isEngineBusy,
         activityTranscript: currentAnswer,
         currentTranscript: finalTranscript,
-        minDelayMs: 3600,
-        maxDelayMs: 8000,
+        minDelayMs: 2200,
+        maxDelayMs: 4500,
         alpha: 0.35,
         minWords: 5,
         onTurnLikelyComplete: (transcript) => {
@@ -964,6 +1092,7 @@ export default function InterviewTab() {
         setInstantFeedback(null);
         accumulatedFinalTranscriptRef.current = "";
         setCurrentAnswer("");
+        setFinalTranscript("");
         setIsListening(true);
         agentActivity.transitionTo("listening", "Retrying answer with coach tips");
     };
@@ -986,9 +1115,8 @@ export default function InterviewTab() {
         stopRecording();
         stopStream();
 
-        const userId = user?.email || "anonymous";
+        // Stats are recorded on the feedback page once the real score exists.
         const minutes = Math.max(1, Math.round(elapsedTick / 60));
-        await db.recordInterviewSession(userId, 82, minutes);
         setStatus("completed");
 
         const finalTurns = [...localTranscript];
@@ -1008,6 +1136,7 @@ export default function InterviewTab() {
                 experience: user?.seniority || "Mid",
                 domain: user?.domain || "General Tech",
                 companyName: targetCompany || "Top Tech",
+                durationMinutes: minutes,
                 responsibilities: briefing?.decodedResponsibilities?.map((r) => r.responsibility) || [],
             })
         );
@@ -1174,7 +1303,7 @@ export default function InterviewTab() {
                                             <select
                                                 className={styles.preInterviewDeviceSelect}
                                                 value={selectedAudioInput}
-                                                onChange={(e) => setSelectedAudioInput(e.target.value)}
+                                                onChange={(e) => void handleMicChange(e.target.value)}
                                             >
                                                 {devices.audioInputs.length > 0 ? (
                                                     devices.audioInputs.map((d, i) => (
@@ -1354,10 +1483,23 @@ export default function InterviewTab() {
                                                 )}
                                                 {micTestStatus === "error" && (
                                                     <span className={styles.preInterviewMicResult} style={{ color: "#EF4444" }}>
-                                                        <Warning size={15} weight="fill" /> Mic access needed
+                                                        <Warning size={15} weight="fill" /> {micTestError ? "Mic test failed" : "Mic access needed"}
                                                     </span>
                                                 )}
                                             </div>
+                                            {micTestStatus === "error" && micTestError && (
+                                                <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: "#EF4444", lineHeight: 1.4 }}>
+                                                    {micTestError}
+                                                </p>
+                                            )}
+                                            {recognitionMicMismatch && (
+                                                <p style={{ margin: "0.5rem 0 0", fontSize: "0.8rem", color: "#B45309", lineHeight: 1.4 }}>
+                                                    Heads up: answers are transcribed from your browser&apos;s default mic
+                                                    (&ldquo;{recognitionMicMismatch}&rdquo;), not the one selected. Make your
+                                                    selected mic the default in your browser&apos;s site settings or in Windows
+                                                    Sound settings.
+                                                </p>
+                                            )}
                                         </div>
 
                                         {/* Check 2: Face in frame */}
@@ -1410,6 +1552,43 @@ export default function InterviewTab() {
                                             <span className={styles.preInterviewCheckLabel}>
                                                 <strong>Steady camera:</strong> Set your device on a desk or table
                                             </span>
+                                        </div>
+
+                                        {/* Probing depth */}
+                                        <div style={{ marginBottom: "0.85rem" }}>
+                                            <div style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.4rem" }}>
+                                                Follow-up depth
+                                            </div>
+                                            <div role="radiogroup" aria-label="Follow-up depth" style={{ display: "flex", gap: "0.5rem" }}>
+                                                {([
+                                                    { value: "standard", title: "Standard", hint: "Up to 2 follow-ups on vague answers" },
+                                                    { value: "deep", title: "Deep dive", hint: "Up to 4 — keeps pushing until you prove it" },
+                                                ] as const).map((opt) => {
+                                                    const selected = probeDepth === opt.value;
+                                                    return (
+                                                        <button
+                                                            key={opt.value}
+                                                            type="button"
+                                                            role="radio"
+                                                            aria-checked={selected}
+                                                            onClick={() => chooseProbeDepth(opt.value)}
+                                                            style={{
+                                                                flex: 1,
+                                                                textAlign: "left",
+                                                                padding: "0.55rem 0.7rem",
+                                                                borderRadius: 10,
+                                                                border: `1.5px solid ${selected ? "#2563EB" : "rgba(148, 163, 184, 0.45)"}`,
+                                                                background: selected ? "rgba(37, 99, 235, 0.08)" : "transparent",
+                                                                color: "inherit",
+                                                                cursor: "pointer",
+                                                            }}
+                                                        >
+                                                            <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>{opt.title}</div>
+                                                            <div style={{ fontSize: "0.72rem", opacity: 0.75, marginTop: 2 }}>{opt.hint}</div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
 
                                         {/* Primary Start CTA */}
@@ -1697,7 +1876,7 @@ export default function InterviewTab() {
                                     </div>
                                 )}
 
-                                {((isListening && !isAiSpeaking) || currentAnswer.trim()) && (
+                                {((isListening && !isAiSpeaking) || currentAnswer.trim() || recognitionError) && (
                                     <div className={`${styles.liveSpeechBox} ${currentAnswer.trim() ? styles.liveSpeechActive : ""}`}>
                                         <div className={styles.liveSpeechHeader}>
                                             <span className={styles.speechPulseDot} />
@@ -1712,7 +1891,11 @@ export default function InterviewTab() {
                                             {currentAnswer.trim() ? (
                                                 <p className={styles.liveSpeechText}>{currentAnswer}</p>
                                             ) : (
-                                                <p className={styles.liveSpeechPlaceholder}>Speak your answer… (audio is captured automatically)</p>
+                                                recognitionError ? (
+                                                    <p className={styles.liveSpeechPlaceholder} style={{ color: "#EF4444" }} role="alert">{recognitionError}</p>
+                                                ) : (
+                                                    <p className={styles.liveSpeechPlaceholder}>Speak your answer… (audio is captured automatically)</p>
+                                                )
                                             )}
                                         </div>
                                     </div>

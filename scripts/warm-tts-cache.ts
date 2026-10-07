@@ -8,6 +8,7 @@
  *   npm run warm-tts-cache               # Full warm
  *   npm run warm-tts-cache -- --dry-run   # Count combos without synthesizing
  *   npm run warm-tts-cache -- --limit 10  # Warm only first N combos
+ *   npm run warm-tts-cache -- --persona recruiter --region nigeria  # One voice only
  *
  * Idempotent — safe to re-run, skips already-cached entries.
  * Processes sequentially to respect ElevenLabs rate limits.
@@ -19,6 +20,7 @@ import { resolve } from "path";
 // Load env before anything else
 import { config } from "dotenv";
 config({ path: resolve(process.cwd(), ".env.local") });
+config({ path: resolve(process.cwd(), ".env") }); // fills anything .env.local did not set
 
 // Now import modules that need env vars
 import dbConnect from "../src/lib/mongodb";
@@ -42,6 +44,15 @@ const isDryRun = args.includes("--dry-run");
 const limitArg = args.find((a) => a.startsWith("--limit"));
 const limit = limitArg ? parseInt(limitArg.split("=")[1] || args[args.indexOf("--limit") + 1] || "0", 10) : 0;
 
+function stringArg(name: string): string | null {
+  const arg = args.find((a) => a.startsWith(`--${name}`));
+  if (!arg) return null;
+  return arg.split("=")[1] || args[args.indexOf(arg) + 1] || null;
+}
+// Narrow the warm to one voice, e.g. --persona recruiter --region nigeria
+const personaFilter = stringArg("persona");
+const regionFilter = stringArg("region");
+
 // ─── Main ───────────────────────────────────────────────────────────
 
 async function main() {
@@ -61,7 +72,8 @@ async function main() {
   const combos: Array<{ question: BankQuestion; persona: Persona; region: string }> = [];
 
   for (const persona of personas) {
-    const regions = getSupportedRegions(persona);
+    if (personaFilter && persona !== personaFilter) continue;
+    const regions = getSupportedRegions(persona).filter((r) => !regionFilter || r === regionFilter);
     for (const region of regions) {
       for (const question of questions) {
         combos.push({ question, persona, region });

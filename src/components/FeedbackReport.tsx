@@ -6,6 +6,7 @@ import { useInterview } from "../context/InterviewContext";
 import styles from "./feedback.module.css";
 import type { FeedbackReportData } from "@/app/api/feedback/generate/route";
 import { sanitizeReportData } from "@/lib/feedbackSanitizer";
+import { db } from "../services/database";
 import {
     CheckCircle,
     Warning,
@@ -379,6 +380,17 @@ export default function FeedbackReport({
                         setReportData(clean);
                         localStorage.setItem(`useladder_feedback_${sessionId}`, JSON.stringify(clean));
                         localStorage.setItem("useladder_last_feedback", JSON.stringify(clean));
+                        // Record dashboard stats with the real score, once per session.
+                        const statsKey = `useladder_stats_recorded_${sessionId}`;
+                        if (!localStorage.getItem(statsKey)) {
+                            localStorage.setItem(statsKey, "1");
+                            let statsUserId = "anonymous";
+                            try {
+                                statsUserId = JSON.parse(localStorage.getItem("useladder_user") || "{}").email || "anonymous";
+                            } catch {}
+                            const minutes = typeof meta.durationMinutes === "number" ? meta.durationMinutes : 1;
+                            void db.recordInterviewSession(statsUserId, clean.overallScore, minutes);
+                        }
                         setIsLoading(false);
                         return;
                     }

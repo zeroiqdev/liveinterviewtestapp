@@ -15,14 +15,27 @@ import type { VoiceSettings } from "@/lib/elevenlabs";
 // ─── Types ──────────────────────────────────────────────────────────
 
 export type Persona = "coach" | "recruiter";
-export type VoiceProvider = "elevenlabs" | "yarngpt";
+export type VoiceProvider = "elevenlabs" | "yarngpt" | "azure";
+
+/** Azure SSML pacing. Part of the TTS cache key, so changing it re-synthesizes. */
+export interface AzureProsody {
+  /** SSML prosody rate, e.g. "-5%" (slower) or "0%". */
+  rate?: string;
+  /** Extra pause inserted after sentence-ending punctuation. */
+  sentenceBreakMs?: number;
+}
 
 export interface VoiceEntry {
   provider?: VoiceProvider; // Defaults to "elevenlabs"
   voiceId: string;
   voiceSettings?: VoiceSettings;
+  prosody?: AzureProsody; // Azure only
   label: string; // Human-readable, for logs/debugging
 }
+
+// Interview pacing: a touch slower than the voice default, with a clear beat
+// between sentences so questions are easy to follow.
+const INTERVIEW_PROSODY: AzureProsody = { rate: "-6%", sentenceBreakMs: 250 };
 
 // ─── Voice Map ──────────────────────────────────────────────────────
 
@@ -33,10 +46,13 @@ export interface VoiceEntry {
  */
 const VOICE_MAP: Record<Persona, Record<string, VoiceEntry>> = {
   recruiter: {
+    // Azure Nigerian English neural voice: ~1s synthesis, fast enough for live
+    // turns. YarnGPT alternative (slower, async jobs): provider "yarngpt", voiceId "osagie".
     nigeria: {
-      provider: "yarngpt",
-      voiceId: "Osagie",
-      label: "Nigerian recruiter (YarnGPT - Osagie)",
+      provider: "azure",
+      voiceId: "en-NG-AbeoNeural",
+      prosody: INTERVIEW_PROSODY,
+      label: "Nigerian recruiter (Azure - Abeo)",
     },
     uk: {
       provider: "elevenlabs",
@@ -58,10 +74,12 @@ const VOICE_MAP: Record<Persona, Record<string, VoiceEntry>> = {
     },
   },
   coach: {
+    // YarnGPT alternative: provider "yarngpt", voiceId "idera".
     nigeria: {
-      provider: "yarngpt",
-      voiceId: "Idera",
-      label: "Nigerian coach (YarnGPT - Idera)",
+      provider: "azure",
+      voiceId: "en-NG-EzinneNeural",
+      prosody: INTERVIEW_PROSODY,
+      label: "Nigerian coach (Azure - Ezinne)",
     },
     uk: {
       provider: "elevenlabs",

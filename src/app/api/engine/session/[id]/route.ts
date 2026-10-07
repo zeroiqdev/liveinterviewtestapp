@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { toPublicState } from "@/engine/orchestrator";
-import { getSession } from "@/engine/sessionStore";
+import { loadOwnedSession } from "@/engine/sessionAccess";
 
 export async function GET(
-    _req: NextRequest,
+    req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id } = await params;
-    const session = getSession(id);
-    if (!session) {
-        return NextResponse.json({ error: "unknown session" }, { status: 404 });
-    }
+    const access = await loadOwnedSession(req, id);
+    if ("errorResponse" in access) return access.errorResponse;
+    const { session } = access;
     return NextResponse.json({
         state: toPublicState(session),
         // Fairness backstop: every probe/park/let-go decision with reasoning.
