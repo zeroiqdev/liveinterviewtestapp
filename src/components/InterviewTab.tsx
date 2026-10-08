@@ -214,7 +214,6 @@ export default function InterviewTab() {
     }, [interviewType, engineState?.role, queryRole, user?.role]);
     const [currentPrompt, setCurrentPrompt] = useState<EnginePrompt | null>(null);
     const [isEngineBusy, setIsEngineBusy] = useState(false);
-    const [activeToolCall, setActiveToolCall] = useState<{ tool: string; reason?: string; systemMessage?: string } | null>(null);
 
     // ── Live session UI state ──
     const [isListening, setIsListening] = useState(false);
@@ -1108,12 +1107,11 @@ export default function InterviewTab() {
         setIsEngineBusy(false);
 
         let started = false;
-        let committed: { prompt: EnginePrompt; state: PublicSessionState; toolCall?: { tool: string } } | null = null;
+        let committed: { prompt: EnginePrompt; state: PublicSessionState } | null = null;
         const applyCommitted = () => {
             if (!committed) return;
             setCurrentPrompt(committed.prompt);
             setEngineState(committed.state);
-            setActiveToolCall(committed.toolCall ?? null);
         };
         speakQuestion(
             segments.map((segment) => segment.text).join(" "),
@@ -1324,16 +1322,6 @@ export default function InterviewTab() {
                 ]);
                 setCurrentPrompt(data.prompt);
                 setEngineState(data.state);
-                if (data.toolCall) {
-                    setActiveToolCall(data.toolCall);
-                    if (data.toolCall.tool !== "end_call") {
-                        setTimeout(() => {
-                            setActiveToolCall((prev) => (prev?.tool === data.toolCall.tool ? null : prev));
-                        }, 4500);
-                    }
-                } else {
-                    setActiveToolCall(null);
-                }
             };
 
             const playNext = () => {
@@ -1634,9 +1622,6 @@ export default function InterviewTab() {
     const timeRemaining = Math.max(0, (engineState?.totalTimeBudgetSeconds ?? 1800) - elapsedTick);
     const timerTone = timeRemaining <= 120 ? styles.timerCritical : timeRemaining <= 300 ? styles.timerWarning : "";
 
-    const sectionProgress = engineState
-        ? `Section ${engineState.sectionIndex + 1} of ${engineState.sectionCount}`
-        : "";
 
     return (
         <div className={styles.interviewPage}>
@@ -2281,20 +2266,6 @@ export default function InterviewTab() {
                                     </div>
                                 </div>
 
-                                {activeToolCall && (
-                                    <div className={`${styles.toolCallBadge} ${activeToolCall.tool === "end_call" ? styles.toolCallBadgeEnding : ""}`}>
-                                        <span>
-                                            {activeToolCall.tool === "end_call"
-                                                ? "⚡ Action: Ending Interview (Voice command detected)"
-                                                : activeToolCall.tool === "repeat_question"
-                                                ? "⚡ Action: Repeating Question"
-                                                : activeToolCall.tool === "skip_question"
-                                                ? "⚡ Action: Skipping to Next Question"
-                                                : `⚡ Action: ${activeToolCall.tool}`}
-                                        </span>
-                                    </div>
-                                )}
-
                                 <div className={styles.questionSection}>
                                     <div className={styles.interviewerHeader}>
                                         <div className={styles.questionAvatarWrap}>
@@ -2318,11 +2289,6 @@ export default function InterviewTab() {
                                             new one replaces it when it starts playing. */}
                                         {currentPrompt?.text ?? ""}
                                     </h2>
-                                    {questionNumber > 0 && (
-                                        <div className={styles.questionMetaBelow}>
-                                            Question {questionNumber}{engineState?.sectionCount ? ` · ${sectionProgress}` : ""}
-                                        </div>
-                                    )}
                                 </div>
 
                                 {currentPrompt?.text && !isAiSpeaking && !isLoadingAudio && (
@@ -2385,9 +2351,8 @@ export default function InterviewTab() {
                                 )}
 
                                 <div className={styles.cardFooter}>
-                                    <span style={{ fontSize: '0.8rem', color: '#555' }}>
-                                        {`${sectionProgress}${engineState?.pacing !== "normal" && engineState ? ` · pacing: ${engineState.pacing}` : ""}`}
-                                    </span>
+                                    {/* Keeps "Done speaking" right-aligned. */}
+                                    <span />
                                     {!isAiSpeaking && !isEngineBusy && (isListening || isCountingDown) && (
                                         <button
                                             type="button"

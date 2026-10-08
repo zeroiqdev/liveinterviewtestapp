@@ -425,3 +425,27 @@ describe("callJSON model racing", () => {
         }
     });
 });
+
+describe("spoken drafts commit what was said", () => {
+    it("keeps a drafted follow-up even when pacing now says to move on", async () => {
+        const { planTurnForTest } = await import("../src/engine/orchestrator");
+        const conv = {
+            intent: "answer",
+            suggestedTool: "push_back",
+            spokenText: "",
+            probeText: "What was your personal part in that?",
+            assessment: assessment(),
+            noteSummary: "",
+        } as never;
+        const selection = { choice: "question_id", questionId: "q2", parkedIndex: null, questionText: "Tell me about a conflict.", bridge: null, reason: "" } as never;
+        const compressed = { ...NORMAL, mode: "compressed" as const, followUpAllowanceMultiplier: 0 };
+        // Live decision under compressed pacing: no follow-ups allowed.
+        assert.equal(planTurnForTest(session(), compressed, conv, selection).kind, "next");
+        // The draft that was spoken was a follow-up: commit exactly that.
+        const forced = planTurnForTest(session(), compressed, conv, selection, "probe");
+        assert.equal(forced.kind, "probe");
+        assert.equal((forced as { text: string }).text, "What was your personal part in that?");
+        // And a spoken "next" stays next even when a probe is now allowed.
+        assert.equal(planTurnForTest(session(), NORMAL, conv, selection, "next").kind, "next");
+    });
+});
