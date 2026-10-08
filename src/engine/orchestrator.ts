@@ -39,8 +39,8 @@ import type {
     SessionDoc,
 } from "./types";
 
-const GENERAL_ID = "general_behavioral";
-const GENERAL_LABEL = "General behavioral";
+export const GENERAL_ID = "general_behavioral";
+export const GENERAL_LABEL = "General behavioral";
 
 // A preview is created while endpointing is still deciding whether the
 // candidate has finished. It is keyed to the exact transcript and turn and
@@ -65,7 +65,7 @@ const EMPTY_SELECTION: SelectionResult = {
 
 /* ── helpers ── */
 
-function audit(
+export function audit(
     session: SessionDoc,
     module: AuditEntry["module"],
     decision: string,
@@ -80,18 +80,18 @@ function audit(
     });
 }
 
-function touch(session: SessionDoc) {
+export function touch(session: SessionDoc) {
     const now = Date.now();
     session.elapsedSeconds = Math.floor((now - session.startedAt) / 1000);
     session.lastTurnAt = now;
 }
 
-function currentCompetency(session: SessionDoc, blueprint: Blueprint): Competency | null {
+export function currentCompetency(session: SessionDoc, blueprint: Blueprint): Competency | null {
     if (session.currentCompetencyIndex < 0) return null;
     return blueprint.competencies[session.currentCompetencyIndex] ?? null;
 }
 
-function recordAsked(session: SessionDoc, id: string) {
+export function recordAsked(session: SessionDoc, id: string) {
     if (session.currentCompetencyIndex < 0) {
         session.generalAsked.questionIds.push(id);
     } else {
@@ -107,7 +107,7 @@ function nextScriptedQuestion(nextPoolQuestion: string | null): string {
  * Moves past sections whose planned depth is covered. Returns true when the
  * whole blueprint is covered (caller finalizes).
  */
-function advanceCoveredSections(session: SessionDoc, blueprint: Blueprint, pacing: PacingDirective): boolean {
+export function advanceCoveredSections(session: SessionDoc, blueprint: Blueprint, pacing: PacingDirective): boolean {
     // Keep the broad background stage until its planned minimum is covered.
     if (
         session.currentCompetencyIndex < 0 &&
@@ -385,7 +385,7 @@ async function advance(
     return askNextQuestion(session, blueprint, pacing, profile);
 }
 
-async function finalize(session: SessionDoc): Promise<EnginePrompt> {
+export async function finalize(session: SessionDoc): Promise<EnginePrompt> {
     session.phase = "complete";
     session.complete = true;
     session.pendingQuestion = null;
@@ -414,7 +414,7 @@ async function finalize(session: SessionDoc): Promise<EnginePrompt> {
  * the topic was probed or left unproven, and parks unproven claims so a later
  * section can return to them.
  */
-function closeProbeThread(
+export function closeProbeThread(
     session: SessionDoc,
     conv: ConversationalTurnOutput | null,
     verdict: ProbeVerdict | null

@@ -22,7 +22,7 @@ export interface SessionPayload {
 /**
  * Returns HMAC secret key as Uint8Array for jose
  */
-function getJwtSecretKey(): Uint8Array {
+export function getJwtSecretKey(): Uint8Array {
     const secret =
         process.env.AUTH_SECRET ||
         process.env.JWT_SECRET ||
