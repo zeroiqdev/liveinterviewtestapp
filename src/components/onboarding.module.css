@@ -819,3 +819,56 @@
     text-align: center;
     font-size: 20px;
 }
+
+/* Password rules checklist (sign-up and reset) */
+.passwordChecklist {
+    list-style: none;
+    margin: 0.5rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.9rem;
+}
+
+.passwordRule {
+    display: flex;
+    white-space: nowrap;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: 'Kumbh Sans', sans-serif;
+    font-size: 12px;
+    color: #94A3B8;
+    transition: color 0.15s ease;
+}
+
+.passwordRuleMet {
+    color: #475569;
+}
+
+.passwordRuleIcon {
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    border-radius: 9999px;
+    border: 1.5px solid #CBD5E1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #FFFFFF;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.passwordRuleMet .passwordRuleIcon {
+    background: #4782F6;
+    border-color: #4782F6;
+}
+
+.srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+

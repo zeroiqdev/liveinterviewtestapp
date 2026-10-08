@@ -24,7 +24,14 @@ export async function sendEmail(email: Email): Promise<void> {
     const from = process.env.EMAIL_FROM;
 
     if (!apiKey || !from) {
-        if (process.env.NODE_ENV === "production") throw new EmailNotConfiguredError();
+        if (process.env.NODE_ENV === "production") {
+            // For whoever reads the logs; users get a friendly message instead.
+            console.error(
+                `[email] Not sent: ${!apiKey ? "RESEND_API_KEY" : "EMAIL_FROM"} is not set in this environment. ` +
+                    "Add it (Vercel → Settings → Environment Variables) and redeploy."
+            );
+            throw new EmailNotConfiguredError();
+        }
         console.info(`[email] (not sent — RESEND_API_KEY unset) to=${email.to} subject="${email.subject}"\n${email.text}`);
         return;
     }

@@ -13,6 +13,8 @@ import {
 import { useInterview, type InterviewRole } from "../context/InterviewContext";
 import { normalizeUserRoleFamily } from "@/utils/locationDetector";
 import styles from "./onboarding.module.css";
+import PasswordChecklist from "./PasswordChecklist";
+import { isStrongPassword } from "@/lib/passwordPolicy";
 
 /* ── Personas Assets ── */
 const TEAM = {
@@ -64,7 +66,6 @@ const EXPERIENCE_OPTIONS = [
 ] as const;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MIN_PASSWORD_LENGTH = 8;
 
 export default function OnboardingPage() {
     const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -204,8 +205,8 @@ export default function OnboardingPage() {
         (step === 1 &&
             fullName.trim().length >= 2 &&
             EMAIL_RE.test(email.trim()) &&
-            // Email sign-ups need a password; Google sign-ups skip this step.
-            password.trim().length >= MIN_PASSWORD_LENGTH) ||
+            // Email sign-ups need a strong password; Google sign-ups skip this step.
+            isStrongPassword(password.trim())) ||
         (step === 2 && !!selectedRole) ||
         (step === 3 && !!experience) ||
         step === 4;
@@ -608,21 +609,23 @@ export default function OnboardingPage() {
                             </div>
 
                             <div className={styles.inputGroup}>
-                                <label className={styles.inputLabel}>
+                                <label className={styles.inputLabel} htmlFor="signup-password">
                                     Password{" "}
                                     <span style={{ fontWeight: 400, color: "#94A3B8" }}>
-                                        ({MIN_PASSWORD_LENGTH}+ characters, or use Continue with Google)
+                                        (or use Continue with Google)
                                     </span>
                                 </label>
                                 <input
+                                    id="signup-password"
                                     type="password"
                                     className={styles.formInput}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     autoComplete="new-password"
-                                    minLength={MIN_PASSWORD_LENGTH}
+                                    aria-describedby="signup-password-rules"
                                     required
                                 />
+                                <PasswordChecklist password={password.trim()} id="signup-password-rules" />
                             </div>
 
                             <button

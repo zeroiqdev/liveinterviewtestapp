@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
-import { MIN_PASSWORD_LENGTH, hashPassword } from "@/lib/password";
+import { hashPassword } from "@/lib/password";
+import { passwordProblem } from "@/lib/passwordPolicy";
 import { normalizeCode, verifyEmailCode } from "@/lib/emailCode";
 import { loginResponse, revocationCutoff } from "@/lib/session";
 import { LIMITS, clientIp, rateLimit } from "@/lib/rateLimit";
@@ -24,12 +25,8 @@ export async function POST(req: NextRequest) {
         if (!email || !code || !password) {
             return NextResponse.json({ error: "Email, reset code and new password are required." }, { status: 400 });
         }
-        if (password.length < MIN_PASSWORD_LENGTH) {
-            return NextResponse.json(
-                { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` },
-                { status: 400 }
-            );
-        }
+        const problem = passwordProblem(password);
+        if (problem) return NextResponse.json({ error: problem, code: "weak_password" }, { status: 400 });
 
         const limited = await rateLimit(LIMITS.login, `ip:${clientIp(req)}`, `email:${email}`);
         if (limited) return limited;

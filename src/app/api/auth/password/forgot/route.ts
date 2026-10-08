@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
         });
     } catch (err) {
         if (err instanceof EmailNotConfiguredError) {
-            return serverError("api/auth/password/forgot", err, "Password reset is temporarily unavailable.", 503);
+            return serverError("api/auth/password/forgot", err, "We couldn't send your reset code right now. Please try again in a few minutes, or sign in with Google if that's how you joined.", 503);
         }
         return serverError("api/auth/password/forgot", err, "Could not send a reset code");
     }
