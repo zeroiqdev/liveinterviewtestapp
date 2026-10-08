@@ -10,6 +10,8 @@ import {
     SpinnerGap,
 } from "@phosphor-icons/react";
 import styles from "../../components/onboarding.module.css";
+import PasswordChecklist from "../../components/PasswordChecklist";
+import { isStrongPassword } from "@/lib/passwordPolicy";
 
 interface GoogleTokenResponse {
     access_token?: string;
@@ -62,7 +64,6 @@ interface SafeUser {
  */
 type Mode = "login" | "forgot" | "reset" | "verify";
 
-const MIN_PASSWORD_LENGTH = 8;
 
 function LoginForm() {
     const [email, setEmail] = useState("");
@@ -452,8 +453,7 @@ function LoginForm() {
                     {mode === "reset" && (
                         <div className={styles.inputGroup}>
                             <label className={styles.inputLabel} htmlFor="login-new-password">
-                                New password{" "}
-                                <span style={{ fontWeight: 400, color: "#94A3B8" }}>({MIN_PASSWORD_LENGTH}+ characters)</span>
+                                New password
                             </label>
                             <input
                                 id="login-new-password"
@@ -462,9 +462,10 @@ function LoginForm() {
                                 value={newPassword}
                                 onChange={(e) => setNewPassword(e.target.value)}
                                 autoComplete="new-password"
-                                minLength={MIN_PASSWORD_LENGTH}
+                                aria-describedby="login-new-password-rules"
                                 required
                             />
+                            <PasswordChecklist password={newPassword.trim()} id="login-new-password-rules" />
                         </div>
                     )}
 
@@ -476,7 +477,7 @@ function LoginForm() {
                             authLoading !== null ||
                             (mode === "login" && !password.trim()) ||
                             ((mode === "reset" || mode === "verify") && code.length !== 6) ||
-                            (mode === "reset" && newPassword.trim().length < MIN_PASSWORD_LENGTH)
+                            (mode === "reset" && !isStrongPassword(newPassword.trim()))
                         }
                     >
                         {authLoading === "email" || authLoading === "send-code" ? (

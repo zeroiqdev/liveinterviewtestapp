@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 
 const SALT_ROUNDS = 10;
-export const MIN_PASSWORD_LENGTH = 8;
+export { MIN_PASSWORD_LENGTH } from "@/lib/passwordPolicy";
 
 /**
  * Hash a plain text password using bcrypt

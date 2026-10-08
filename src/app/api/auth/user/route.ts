@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import User, { type IResume, type IUser } from "@/models/User";
 import { normalizeUserRoleFamily } from "@/utils/locationDetector";
-import { MIN_PASSWORD_LENGTH, hashPassword, verifyPassword } from "@/lib/password";
+import { hashPassword, verifyPassword } from "@/lib/password";
+import { passwordProblem } from "@/lib/passwordPolicy";
 import { issueEmailCode } from "@/lib/emailCode";
 import { EmailNotConfiguredError } from "@/lib/email";
 import {
@@ -88,12 +89,8 @@ async function applyPasswordChange(user: IUser, body: any, isSelf: boolean): Pro
     if (!isSelf) {
         return NextResponse.json({ error: "Passwords can only be changed by the account owner." }, { status: 403 });
     }
-    if (password.length < MIN_PASSWORD_LENGTH) {
-        return NextResponse.json(
-            { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` },
-            { status: 400 }
-        );
-    }
+    const problem = passwordProblem(password);
+    if (problem) return NextResponse.json({ error: problem, code: "weak_password" }, { status: 400 });
     if (user.password && !(await verifyPassword(str(body.currentPassword) || "", user.password))) {
         return NextResponse.json({ error: "Your current password is incorrect." }, { status: 401 });
     }
@@ -209,12 +206,14 @@ export async function POST(req: NextRequest) {
 
         // Email sign-ups always have a password; the only passwordless sign-in is Google.
         const password = str(body.password)?.trim() || "";
-        if (password.length < MIN_PASSWORD_LENGTH) {
+        if (!password) {
             return NextResponse.json(
-                { error: `Choose a password of at least ${MIN_PASSWORD_LENGTH} characters, or continue with Google.` },
+                { error: "Choose a password, or continue with Google.", code: "weak_password" },
                 { status: 400 }
             );
         }
+        const problem = passwordProblem(password);
+        if (problem) return NextResponse.json({ error: problem, code: "weak_password" }, { status: 400 });
 
         await dbConnect();
         const existing = await User.findOne({ email });
@@ -253,7 +252,7 @@ export async function POST(req: NextRequest) {
         });
     } catch (err) {
         if (err instanceof EmailNotConfiguredError) {
-            return serverError("api/auth/user POST", err, "Sign-up is temporarily unavailable.", 503);
+            return serverError("api/auth/user POST", err, "We couldn't send your verification email right now. Please try again in a few minutes, or continue with Google.", 503);
         }
         return serverError("api/auth/user POST", err, "Failed to create account");
     }

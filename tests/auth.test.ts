@@ -121,3 +121,23 @@ describe("session revocation", () => {
         assert.ok(session?.iat && session.iat > 1);
     });
 });
+
+describe("password policy", () => {
+    it("accepts passwords meeting every rule", async () => {
+        const { isStrongPassword, passwordProblem } = await import("../src/lib/passwordPolicy");
+        for (const p of ["Sunny#Day9", "Abcdefg1!", "P@ssw0rdOK"]) {
+            assert.equal(isStrongPassword(p), true, p);
+            assert.equal(passwordProblem(p), null);
+        }
+    });
+
+    it("explains exactly what is missing", async () => {
+        const { isStrongPassword, passwordProblem, unmetPasswordRules } = await import("../src/lib/passwordPolicy");
+        assert.equal(isStrongPassword("password1"), false);
+        assert.deepEqual(unmetPasswordRules("password1").map((r) => r.id), ["uppercase", "special"]);
+        assert.deepEqual(unmetPasswordRules("SHORT1!").map((r) => r.id), ["length", "lowercase"]);
+        assert.match(passwordProblem("abcdefgh")!, /^Your password needs one uppercase letter, one number and one special character/);
+        // Spaces don't count as the special character.
+        assert.equal(isStrongPassword("Abcdefg1 "), false);
+    });
+});

@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
         });
     } catch (err) {
         if (err instanceof EmailNotConfiguredError) {
-            return serverError("api/auth/verify/resend", err, "Email is temporarily unavailable.", 503);
+            return serverError("api/auth/verify/resend", err, "We couldn't send a new code right now. Please try again in a few minutes.", 503);
         }
         return serverError("api/auth/verify/resend", err, "Could not send a verification code");
     }
