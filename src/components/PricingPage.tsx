@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import styles from "./pricing.module.css";
 import footerStyles from "./landing.module.css";
+import Link from "next/link";
 
 export default function PricingPage() {
     const [customPasses, setCustomPasses] = useState<number>(10);
@@ -44,7 +45,7 @@ export default function PricingPage() {
             {/* ── Top Navigation (Identical to Landing Page) ── */}
             <header className={styles.nav}>
                 <div className={styles.navInner}>
-                    <a href="/#top" className={styles.logo}>
+                    <Link href="/#top" className={styles.logo}>
                         <div className={styles.logoMark}>
                             <img
                                 src="https://res.cloudinary.com/dyg7neetr/image/upload/v1790510817/Vector_10_thljja.png"
@@ -53,14 +54,14 @@ export default function PricingPage() {
                             />
                         </div>
                         <span className={styles.logoType}>get prepped</span>
-                    </a>
+                    </Link>
                     <nav className={styles.navLinks}>
-                        <a href="/#products" className={styles.navLink}>Products</a>
-                        <a href="/pricing" className={`${styles.navLink} ${styles.navLinkActive}`}>Pricing</a>
-                        <a href="/#resources" className={styles.navLink}>Resources</a>
+                        <Link href="/#products" className={styles.navLink}>Products</Link>
+                        <Link href="/pricing" className={`${styles.navLink} ${styles.navLinkActive}`}>Pricing</Link>
+                        <Link href="/#resources" className={styles.navLink}>Resources</Link>
                     </nav>
                     <div className={styles.navActions}>
-                        <a href="/onboarding" className={styles.navCta}>Practice</a>
+                        <Link href="/onboarding" className={styles.navCta}>Practice</Link>
                     </div>
                 </div>
             </header>
@@ -144,9 +145,9 @@ export default function PricingPage() {
                         </div>
 
                         <div className={styles.cardBottom}>
-                            <a href="/onboarding?plan=day" className={styles.btnDefault}>
+                            <Link href="/onboarding?plan=day" className={styles.btnDefault}>
                                 Get Day Pass
-                            </a>
+                            </Link>
                         </div>
                     </div>
 
@@ -220,9 +221,9 @@ export default function PricingPage() {
                         </div>
 
                         <div className={styles.cardBottom}>
-                            <a href="/onboarding?plan=week" className={styles.btnPrimary}>
+                            <Link href="/onboarding?plan=week" className={styles.btnPrimary}>
                                 Get 1-Week Bundle
-                            </a>
+                            </Link>
                         </div>
                     </div>
 
@@ -338,10 +339,10 @@ export default function PricingPage() {
                         <div className={footerStyles.cleanFooterCol}>
                             <h3 className={footerStyles.cleanFooterColTitle}>Company</h3>
                             <div className={footerStyles.cleanFooterLinks}>
-                                <a href="/#products" className={footerStyles.cleanFooterLink}>Products</a>
-                                <a href="/pricing" className={footerStyles.cleanFooterLink}>Pricing</a>
-                                <a href="/#resources" className={footerStyles.cleanFooterLink}>Resources</a>
-                                <a href="/onboarding" className={footerStyles.cleanFooterLink}>Practice</a>
+                                <Link href="/#products" className={footerStyles.cleanFooterLink}>Products</Link>
+                                <Link href="/pricing" className={footerStyles.cleanFooterLink}>Pricing</Link>
+                                <Link href="/#resources" className={footerStyles.cleanFooterLink}>Resources</Link>
+                                <Link href="/onboarding" className={footerStyles.cleanFooterLink}>Practice</Link>
                             </div>
                         </div>
 
@@ -383,9 +384,9 @@ export default function PricingPage() {
                             Copyright © 2026 Zero and One Solutions Limited. All rights reserved.
                         </p>
                         <div className={footerStyles.cleanFooterLegal}>
-                            <a href="/terms" className={footerStyles.cleanFooterLegalLink}>Terms & Conditions</a>
+                            <Link href="/terms" className={footerStyles.cleanFooterLegalLink}>Terms & Conditions</Link>
                             <span className={footerStyles.cleanFooterLegalDot} aria-hidden="true">•</span>
-                            <a href="/privacy" className={footerStyles.cleanFooterLegalLink}>Privacy Policy</a>
+                            <Link href="/privacy" className={footerStyles.cleanFooterLegalLink}>Privacy Policy</Link>
                         </div>
                     </div>
                 </div>

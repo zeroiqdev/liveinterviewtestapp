@@ -35,9 +35,108 @@ export const CONTEXTUAL_FILLER_CATEGORIES: Record<string, ContextualFillerCatego
   },
 };
 
-// Keep initial TTS warming bounded. Long bridges often contain candidate-specific
-// references, so browser speech is the fastest path for them.
-export const CONVERSATIONAL_FILLERS = Object.values(CONTEXTUAL_FILLER_CATEGORIES).flatMap((category) => category.phrases);
+/**
+ * Spoken the instant the candidate stops talking, while the reply is still
+ * being finished — like a person saying "Okay." before responding properly.
+ * Neutral ones fit short or vague answers; engaged ones only follow a real,
+ * substantive answer; objections get their own (below).
+ */
+export const NEUTRAL_ACKNOWLEDGEMENTS = ["Okay.", "Right.", "I see.", "Alright.", "Understood.", "Fair enough."];
+export const ENGAGED_ACKNOWLEDGEMENTS = [
+  "Got it.",
+  "Interesting.",
+  "Okay, that makes sense.",
+  "Thanks for walking me through that.",
+];
+export const ACKNOWLEDGEMENTS = [...NEUTRAL_ACKNOWLEDGEMENTS, ...ENGAGED_ACKNOWLEDGEMENTS];
+
+/**
+ * For an objection or correction ("there's no company here"): acknowledges
+ * their point, then the reply responds to it directly — no second line.
+ */
+export const OBJECTION_ACKNOWLEDGEMENTS = ["Fair point.", "Thanks for clarifying.", "Okay, noted.", "Understood."];
+
+/**
+ * What kind of turn the candidate just took, from their words alone:
+ * - "objection": pushes back, corrects the question, asks something back, or
+ *   says they don't know / haven't done it — never praise or "helpful context".
+ * - "brief": too short to react to with anything but a neutral "Okay."
+ * - "substantive": a real answer.
+ */
+export type AnswerKind = "objection" | "brief" | "substantive";
+
+const OBJECTION =
+  /\b(there (is|was|are|were)n?'?t? no|there isn'?t|there wasn'?t|no (company|employer|role|job) (was )?(given|cited|mentioned|specified)|you (didn'?t|did not) (say|mention|specify|give)|not (applicable|relevant)|doesn'?t apply|that'?s not (right|correct|what)|i (don'?t|do not) (know|understand|have)|not sure|what do you mean|can you (clarify|explain|rephrase)|i haven'?t|i have not|never (done|had|worked|been)|no idea|i can'?t (answer|say))\b/i;
+
+export function classifyAnswer(text: string): AnswerKind {
+  const trimmed = text.trim();
+  if (OBJECTION.test(trimmed) || /\?\s*$/.test(trimmed)) return "objection";
+  if (trimmed.split(/\s+/).filter(Boolean).length < 12) return "brief";
+  return "substantive";
+}
+
+/** Leads into the next bank question when no answer-specific lead-in is ready. */
+export const TRANSITIONS = [
+  "Let's move on to the next question.",
+  "Let me shift gears a little.",
+  "Let's look at a different area now.",
+  "Building on that, let's move to another topic.",
+  "Let's move into the next question then.",
+];
+
+/** Leads into a follow-up on the same answer while it is still being finished. */
+export const PROBE_LEADINS = [
+  "I'd like to dig into that a little more.",
+  "Let me go a bit deeper on that.",
+  "I want to stay on that for a moment.",
+  "Let me press on that a little.",
+];
+
+/**
+ * Second holding lines, only used if the reply is still not ready after the
+ * first one. Each fits only the direction the drafted reply is known to take,
+ * so whatever arrives next follows naturally.
+ */
+export const NEXT_QUESTION_HOLDS = [
+  "There's another area I'd like to explore with you.",
+  "I'd like to hear about a different side of your experience.",
+];
+export const PROBE_HOLDS = [
+  "There's one part of that I'd like to understand better.",
+  "I want to make sure I understand your part in that.",
+];
+
+const recentlyUsed: string[] = [];
+
+/** Picks from a list, avoiding the last few lines used so the interviewer doesn't repeat itself. */
+export function pickFresh(options: string[]): string {
+  const fresh = options.filter((o) => !recentlyUsed.includes(o));
+  const choice = pick(fresh.length ? fresh : options);
+  recentlyUsed.push(choice);
+  if (recentlyUsed.length > 6) recentlyUsed.shift();
+  return choice;
+}
+
+/**
+ * An acknowledgement that fits the answer. Engaged ones need a substantive
+ * answer that the draft (if any) didn't judge vague or evasive.
+ */
+export function pickAcknowledgement(kind: AnswerKind = "substantive", weakAnswer = false): string {
+  if (kind === "objection") return pickFresh(OBJECTION_ACKNOWLEDGEMENTS);
+  return pickFresh(kind === "substantive" && !weakAnswer ? ACKNOWLEDGEMENTS : NEUTRAL_ACKNOWLEDGEMENTS);
+}
+
+// Every phrase a filler can use. All are pre-synthesized in the interview's
+// voice, because fillers only play from cache (see useTtsAudio.playIfCached).
+export const CONVERSATIONAL_FILLERS = [
+  ...ACKNOWLEDGEMENTS,
+  ...TRANSITIONS,
+  ...PROBE_LEADINS,
+  ...OBJECTION_ACKNOWLEDGEMENTS,
+  ...NEXT_QUESTION_HOLDS,
+  ...PROBE_HOLDS,
+  ...Object.values(CONTEXTUAL_FILLER_CATEGORIES).flatMap((category) => category.phrases),
+];
 
 function matchesKeyword(textLower: string, keyword: string): boolean {
   if (keyword === "%") return textLower.includes("%");

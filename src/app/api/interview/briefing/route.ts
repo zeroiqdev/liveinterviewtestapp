@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callJSON } from "@/engine/llm";
 import { requireAuth } from "@/lib/session";
+import { LIMITS, rateLimit } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
 
 export interface DecodedResponsibility {
     responsibility: string;
@@ -101,6 +103,8 @@ export async function POST(req: NextRequest) {
         if ("errorResponse" in authResult) {
             return authResult.errorResponse;
         }
+        const limited = await rateLimit(LIMITS.llm, `user:${authResult.session.email}`);
+        if (limited) return limited;
 
         const body = await req.json();
         const {
@@ -140,10 +144,6 @@ Generate a concise, high-impact Pre-Interview Strategy Briefing tailored specifi
             briefing: result,
         });
     } catch (err) {
-        console.error("[api/interview/briefing] Error:", err);
-        return NextResponse.json(
-            { error: err instanceof Error ? err.message : "Failed to generate briefing" },
-            { status: 500 }
-        );
+        return serverError("api/interview/briefing", err, "Failed to generate briefing");
     }
 }

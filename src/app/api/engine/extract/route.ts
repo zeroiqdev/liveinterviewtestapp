@@ -4,6 +4,8 @@ import { saveProfile } from "@/engine/sessionStore";
 import { ownerIdFor } from "@/engine/sessionAccess";
 import { getBlueprint } from "@/engine/data";
 import { requireAuth } from "@/lib/session";
+import { LIMITS, rateLimit } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
 
 export async function POST(req: NextRequest) {
     try {
@@ -11,6 +13,8 @@ export async function POST(req: NextRequest) {
         if ("errorResponse" in authResult) {
             return authResult.errorResponse;
         }
+        const limited = await rateLimit(LIMITS.llm, `user:${authResult.session.email}`);
+        if (limited) return limited;
 
         const body = await req.json();
         const { blueprintId, resumeText, linkedinText, portfolioText } =
@@ -42,9 +46,6 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ profile });
     } catch (err) {
-        return NextResponse.json(
-            { error: err instanceof Error ? err.message : "extraction failed" },
-            { status: 500 }
-        );
+        return serverError("api/engine/extract", err, "extraction failed");
     }
 }

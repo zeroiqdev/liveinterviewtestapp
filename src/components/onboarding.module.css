@@ -7,6 +7,9 @@
 .splitWrapper {
     display: flex;
     min-height: 100vh;
+    /* Fixed height so the right panel scrolls instead of being clipped. */
+    height: 100vh;
+    height: 100dvh;
     width: 100vw;
     background: #ffffff;
     color: #0f172a;
@@ -749,6 +752,7 @@
         flex-direction: column;
         position: relative;
         overflow-y: auto;
+        height: auto;
     }
 
     .leftHeroPanel {
@@ -770,4 +774,48 @@
     .teamCardsGrid {
         grid-template-columns: 1fr;
     }
+}
+
+/* Emailed verification / reset codes */
+.authInfoBanner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    color: #1D4ED8;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: 'Kumbh Sans', sans-serif;
+    margin-bottom: 1.25rem;
+}
+
+.textLinkBtn {
+    background: none;
+    border: none;
+    padding: 0;
+    color: #4782F6;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    align-self: flex-start;
+    transition: color 0.15s ease;
+}
+
+.textLinkBtn:hover:not(:disabled) {
+    color: #2563EB;
+}
+
+.textLinkBtn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.codeInput {
+    letter-spacing: 0.5em;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    font-size: 20px;
 }

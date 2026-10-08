@@ -16,7 +16,18 @@ import { randomUUID } from "crypto";
 import { computePacing } from "./timeGovernor";
 import { selectQuestion, type SelectionResult } from "./selector";
 import { generalPool, getBlueprint, queryPool } from "./data";
-import { getSession, saveSession } from "./sessionStore";
+import {
+    clearPreparedTurns,
+    draftKey,
+    getSession,
+    saveSession,
+    savePreparedTurn,
+    takeBestPreparedTurn,
+    takePreparedTurn,
+} from "./sessionStore";
+import { draftCovers } from "./utterance";
+import { RESUME_QUESTION_ID, pickResumeQuestion, resumeQuestionDue } from "./resumeQuestion";
+import { questionsForCompany, realCompanyName } from "./company";
 import {
     executeConversationalTurn,
     fallbackProbe,
@@ -49,10 +60,26 @@ export const GENERAL_LABEL = "General behavioral";
 // Holds the in-flight promise, so a submit that lands while preparation is
 // still running joins it instead of repeating both LLM calls.
 type Decision = { conv: ConversationalTurnOutput; selection: SelectionResult };
-const preparedTurns = new Map<
-    string,
-    { answerText: string; turnCount: number; decision: Promise<Decision>; expiresAt: number }
->();
+type DraftEntry = { answerText: string; turnCount: number; decision: Promise<Decision>; expiresAt: number };
+/** Drafts on this instance, keyed by draftKey(sessionId, answer snapshot). */
+const preparedTurns = new Map<string, DraftEntry>();
+/** Most recently started draft per session (the one a submit can join while it runs). */
+const latestDraft = new Map<string, string>();
+/** Drafts stay usable this long — long enough for the client to speak one and commit it. */
+const DRAFT_TTL_MS = 120_000;
+
+/** The client spoke a draft that no longer exists here or in storage. */
+export class DraftUnavailableError extends Error {
+    constructor() {
+        super("drafted reply is no longer available");
+    }
+}
+
+function forgetDrafts(sessionId: string) {
+    latestDraft.delete(sessionId);
+    for (const key of preparedTurns.keys()) if (key.startsWith(`${sessionId}:`)) preparedTurns.delete(key);
+    clearPreparedTurns(sessionId);
+}
 
 const EMPTY_SELECTION: SelectionResult = {
     choice: "question_id",
@@ -64,6 +91,71 @@ const EMPTY_SELECTION: SelectionResult = {
 };
 
 /* ── helpers ── */
+
+/**
+ * The client says a short acknowledgement ("Got it.") the instant the
+ * candidate stops talking, so the reply must not open with another one.
+ */
+const LEADING_ACK =
+    /^\s*(?:(?:got it|okay|ok|alright|all right|right|i see|understood|great|thanks?(?: you)?(?: for sharing(?: that)?)?|thank you(?: for sharing(?: that)?)?)[,.!]\s+)+/i;
+
+/**
+ * Separates a next-question line into its spoken lead-in and the question
+ * itself, so the question's (pre-recorded) audio can be played on its own.
+ */
+function splitBridge(fullText: string, rawBridge: string | null): { text: string; bridge: string | null; question: string } {
+    const text = stripLeadingAcknowledgement(fullText);
+    const question = rawBridge && fullText.startsWith(rawBridge) ? fullText.slice(rawBridge.length).trim() : "";
+    if (!question || !text.endsWith(question)) return { text, bridge: null, question: text };
+    const bridge = text.slice(0, text.length - question.length).trim();
+    return { text, bridge: bridge || null, question };
+}
+
+export function stripLeadingAcknowledgement(text: string): string {
+    const stripped = text.replace(LEADING_ACK, "");
+    if (!stripped || stripped === text) return text;
+    return stripped.charAt(0).toUpperCase() + stripped.slice(1);
+}
+
+/** If a joined warm-up hasn't answered by then, start a fresh decision too. */
+export const PREPARE_HEDGE_MS = 2500;
+
+/**
+ * Resolve with the warm-up's decision, unless it fails or is still running
+ * after PREPARE_HEDGE_MS; then a fresh decision races it and the first
+ * successful one wins.
+ */
+export function joinOrHedge<T>(joined: Promise<T>, fresh: () => Promise<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        let settled = false;
+        let pending = 1;
+        let freshStarted = false;
+        const win = (value: T) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(hedgeTimer);
+            resolve(value);
+        };
+        const lose = (err: unknown) => {
+            pending -= 1;
+            if (!freshStarted) startFresh();
+            else if (pending === 0 && !settled) reject(err);
+        };
+        const startFresh = () => {
+            if (freshStarted || settled) return;
+            freshStarted = true;
+            pending += 1;
+            fresh().then(win, lose);
+        };
+        const hedgeTimer = setTimeout(startFresh, PREPARE_HEDGE_MS);
+        joined.then(win, lose);
+    });
+}
+
+/**
+ * Speech recognition often re-finalizes the same words with different
+ * casing or punctuation. A warm-up for those is still valid.
+ */
 
 export function audit(
     session: SessionDoc,
@@ -147,6 +239,7 @@ export async function startSession(opts: {
     candidateName?: string | null;
     companyName?: string | null;
     probeDepth?: ProbeDepth | null;
+    voiceRegion?: string;
 }): Promise<{ session: SessionDoc; prompt: EnginePrompt }> {
     const blueprint = getBlueprint(opts.blueprintId);
     if (!blueprint) throw new Error(`unknown blueprintId: ${opts.blueprintId}`);
@@ -183,7 +276,8 @@ export async function startSession(opts: {
         candidateId,
         ownerId: opts.ownerId ?? null,
         candidateName: opts.candidateName ?? null,
-        company: opts.companyName ?? null,
+        // Placeholder names ("General Industry Benchmark") mean no company.
+        company: realCompanyName(opts.companyName),
         interviewType: opts.interviewType ?? null,
         blueprintId: blueprint.blueprintId,
         hasProfile: profile?.hasProfile ?? {
@@ -204,6 +298,7 @@ export async function startSession(opts: {
         runningNotes: [],
         parkingLot: [],
         probeDepth: opts.probeDepth === "deep" ? "deep" : "standard",
+        voiceRegion: opts.voiceRegion,
         probeThread: null,
         probeFindings: [],
         elapsedSeconds: 0,
@@ -216,12 +311,20 @@ export async function startSession(opts: {
         complete: false,
     };
 
+    // One resume line is always asked about directly (when a resume exists).
+    session.resumeQuestion = pickResumeQuestion(profile);
+    if (session.resumeQuestion) {
+        audit(session, "initializer", "resume_question", `Will ask about: ${session.resumeQuestion.claim}`);
+    }
+
     // Pre-seed parking lot from vague profile claims — a vague resume claim is
     // treated exactly like something the candidate said live. Same mechanism.
     if (profile) {
         const competencyIds = new Set(blueprint.competencies.map((c) => c.id));
         for (const claim of profile.claims) {
             if (claim.specificity !== "vague") continue;
+            // Already covered by the dedicated resume question.
+            if (claim.text === session.resumeQuestion?.claim) continue;
             const target = claim.linkedCompetencies.find((id) =>
                 competencyIds.has(id)
             );
@@ -260,7 +363,7 @@ async function askNextQuestion(
     profile: CandidateProfile | null
 ): Promise<EnginePrompt> {
     const comp = currentCompetency(session, blueprint);
-    const pool = comp ? queryPool(comp.questionPoolFilter) : generalPool();
+    const pool = questionsForCompany(comp ? queryPool(comp.questionPoolFilter) : generalPool(), session.company);
 
     const selection = await selectQuestion({
         session,
@@ -303,9 +406,8 @@ async function askNextQuestion(
     if (isOpening) {
         const candidateGreeting = session.candidateName ? `Hello ${session.candidateName},` : "Hello,";
         const roleLabel = session.interviewType || blueprint.role || "this role";
-        const companySegment = session.company && session.company !== "General" && session.company !== "General Industry Benchmark"
-            ? ` with ${session.company}`
-            : "";
+        const company = realCompanyName(session.company);
+        const companySegment = company ? ` with ${company}` : "";
 
         const firstQuestion = selection.questionText || "could you share a bit about your background and what excites you about this role?";
         questionText = `${candidateGreeting} welcome! I'll be your interviewer today for the ${roleLabel} position${companySegment}. Over the next 20 to 30 minutes, we'll dive into your background and key competencies for the position. Take all the time you need to think through your answers. To get us started: ${firstQuestion.replace(/^[A-Z]/, (c) => c.toLowerCase())}`;
@@ -472,7 +574,16 @@ type TurnPlan =
     | { kind: "end"; conv: ConversationalTurnOutput }
     | { kind: "repeat"; conv: ConversationalTurnOutput }
     | { kind: "probe"; conv: ConversationalTurnOutput; text: string; verdict: ProbeVerdict }
-    | { kind: "next"; conv: ConversationalTurnOutput; text: string; verdict: ProbeVerdict | null; skipped: boolean };
+    | {
+          kind: "next";
+          conv: ConversationalTurnOutput;
+          text: string;
+          /** Spoken parts of text: lead-in (may be null) and the question itself. */
+          bridge: string | null;
+          question: string;
+          verdict: ProbeVerdict | null;
+          skipped: boolean;
+      };
 
 /** Pure: decides what the interviewer does next from both model outputs. */
 function planTurn(
@@ -492,7 +603,8 @@ function planTurn(
             selection.bridge && nextQuestion.startsWith(selection.bridge)
                 ? nextQuestion.slice(selection.bridge.length).trim()
                 : nextQuestion;
-        return { kind: "next", conv, text: `No problem, let's move right along. ${bare}`, verdict: null, skipped: true };
+        const bridge = "No problem, let's move right along.";
+        return { kind: "next", conv, text: `${bridge} ${bare}`, bridge, question: bare, verdict: null, skipped: true };
     }
 
     const thread = session.probeThread;
@@ -506,8 +618,8 @@ function planTurn(
         modelWantsProbe: conv.suggestedTool === "push_back",
         hasProbeText: Boolean(probeText),
     });
-    if (verdict.allow) return { kind: "probe", conv, text: probeText, verdict };
-    return { kind: "next", conv, text: nextQuestion, verdict, skipped: false };
+    if (verdict.allow) return { kind: "probe", conv, text: stripLeadingAcknowledgement(probeText), verdict };
+    return { kind: "next", conv, ...splitBridge(nextQuestion, selection.bridge), verdict, skipped: false };
 }
 
 /** Runs the selector and the conversational engine in parallel. */
@@ -524,17 +636,31 @@ async function decideTurn(opts: {
 }): Promise<{ conv: ConversationalTurnOutput; selection: SelectionResult }> {
     const { session, blueprint, pacing, answerText, profile, turnId, mode } = opts;
     const competency = currentCompetency(session, blueprint);
-    const pool = competency ? queryPool(competency.questionPoolFilter) : generalPool();
+    const pool = questionsForCompany(
+        competency ? queryPool(competency.questionPoolFilter) : generalPool(),
+        session.company
+    );
     const thread = session.probeThread;
     const limits = probeLimits(session.probeDepth, pacing);
 
     // "Repeat" and "end" never move on, so they don't need a next question.
     const command = detectVoiceCommand(answerText);
     const needsSelection = !opts.skipSelection && command !== "end_call" && command !== "repeat_question";
+    // When the resume question is due it is the next question; no selector call.
+    const resumeQuestion = needsSelection && resumeQuestionDue(session, pacing) ? session.resumeQuestion! : null;
 
     traceTurn(turnId, "decide_started", { mode, parallel: needsSelection });
     const [selection, conv] = await Promise.all([
-        needsSelection
+        resumeQuestion
+            ? Promise.resolve<SelectionResult>({
+                  choice: "question_id",
+                  questionId: RESUME_QUESTION_ID,
+                  parkedIndex: null,
+                  questionText: resumeQuestion.text,
+                  bridge: null,
+                  reason: `resume line: ${resumeQuestion.sourceLocation}`,
+              })
+            : needsSelection
             ? selectQuestion({
                   session,
                   blueprint,
@@ -577,7 +703,15 @@ export async function prepareAnswer(opts: {
     turnId?: string;
     /** Already-loaded session (saves a database read). */
     session?: SessionDoc;
-}): Promise<{ spokenText: string; action: TurnPlan["kind"]; questionId: string | null; bridge: string | null } | null> {
+}): Promise<{
+    spokenText: string;
+    action: TurnPlan["kind"];
+    questionId: string | null;
+    bridge: string | null;
+    question: string | null;
+    /** How the draft judged the answer (null for commands / no assessment). */
+    verdict: string | null;
+} | null> {
     const source = opts.session ?? (await getSession(opts.sessionId));
     if (!source || source.complete) return null;
     const blueprint = getBlueprint(source.blueprintId);
@@ -600,8 +734,9 @@ export async function prepareAnswer(opts: {
         timestamp: new Date().toISOString(),
     });
 
-    let cached = preparedTurns.get(opts.sessionId);
-    if (!cached || cached.answerText !== answerText || cached.turnCount !== source.turnCount || cached.expiresAt <= Date.now()) {
+    const key = draftKey(opts.sessionId, answerText);
+    let cached = preparedTurns.get(key);
+    if (!cached || cached.turnCount !== source.turnCount || cached.expiresAt <= Date.now()) {
         traceTurn(opts.turnId, "prepare_started");
         const decision = decideTurn({
             session: preview,
@@ -612,16 +747,29 @@ export async function prepareAnswer(opts: {
             turnId: opts.turnId,
             mode: "prepare",
         });
-        const entry = { answerText, turnCount: source.turnCount, decision, expiresAt: Date.now() + 20_000 };
-        preparedTurns.set(opts.sessionId, entry);
+        const now = Date.now();
+        for (const [k, entry] of preparedTurns) if (entry.expiresAt <= now) preparedTurns.delete(k);
+        const entry = { answerText, turnCount: source.turnCount, decision, expiresAt: now + DRAFT_TTL_MS };
+        preparedTurns.set(key, entry);
         // Never let a failed warm-up be reused.
         decision.catch(() => {
-            if (preparedTurns.get(opts.sessionId) === entry) preparedTurns.delete(opts.sessionId);
+            if (preparedTurns.get(key) === entry) preparedTurns.delete(key);
         });
         cached = entry;
     }
+    latestDraft.set(opts.sessionId, key);
 
-    const { conv, selection } = await cached.decision;
+    const resolved = await cached.decision;
+    // Stored before the client hears about it: a draft the client may speak
+    // must be committable from any instance.
+    await savePreparedTurn(opts.sessionId, {
+        answerText,
+        turnCount: cached.turnCount,
+        decision: resolved,
+        expiresAt: cached.expiresAt,
+    });
+
+    const { conv, selection } = resolved;
     const plan = planTurn(preview, pacing, conv, selection);
     traceTurn(opts.turnId, "prepare_completed", { action: plan.kind });
     const spokenText = plan.kind === "probe" || plan.kind === "next" ? plan.text : conv.spokenText;
@@ -629,7 +777,9 @@ export async function prepareAnswer(opts: {
         spokenText,
         action: plan.kind,
         questionId: plan.kind === "next" ? selection.questionId : null,
-        bridge: plan.kind === "next" ? selection.bridge : null,
+        bridge: plan.kind === "next" ? plan.bridge : null,
+        question: plan.kind === "next" ? plan.question : null,
+        verdict: conv.assessment?.verdict ?? null,
     };
 }
 
@@ -640,6 +790,12 @@ export async function submitAnswer(opts: {
     turnId?: string;
     /** Already-loaded session (saves a database read). */
     session?: SessionDoc;
+    /**
+     * The answer snapshot of a draft the client has already started speaking.
+     * That exact draft must be committed (so what was said is what is
+     * recorded); if it can't be found, nothing is changed.
+     */
+    spokenDraft?: string;
 }): Promise<{ session: SessionDoc; prompt: EnginePrompt; pacing: PacingDirective; toolCall?: InterviewToolCall }> {
     const session = opts.session ?? (await getSession(opts.sessionId));
     if (!session) throw new Error(`unknown sessionId: ${opts.sessionId}`);
@@ -662,6 +818,24 @@ export async function submitAnswer(opts: {
 
     const answerText = opts.answerText.trim() || "(no answer given)";
     const turnCountAtStart = session.turnCount;
+
+    // A spoken draft is resolved before anything changes, so a missing one
+    // leaves the session untouched for the client to resubmit.
+    let spoken: DraftEntry | undefined;
+    if (opts.spokenDraft) {
+        const key = draftKey(opts.sessionId, opts.spokenDraft);
+        spoken =
+            preparedTurns.get(key) ??
+            (await takePreparedTurn<Decision>(opts.sessionId, opts.spokenDraft).then((row) =>
+                row ? { ...row, decision: Promise.resolve(row.decision) } : undefined
+            ));
+        const usable =
+            spoken !== undefined &&
+            spoken.turnCount === turnCountAtStart &&
+            spoken.expiresAt > Date.now() &&
+            draftCovers(spoken.answerText, answerText);
+        if (!usable) throw new DraftUnavailableError();
+    }
     touch(session);
 
     session.transcript.push({
@@ -680,13 +854,29 @@ export async function submitAnswer(opts: {
     // before the interview wraps up.
     const coverageComplete = advanceCoveredSections(session, blueprint, pacing);
 
-    const prepared = coverageComplete ? undefined : preparedTurns.get(opts.sessionId);
+    // A spoken draft is used as-is. Otherwise prefer this instance's latest
+    // warm-up (it may still be running and can be joined), else the longest
+    // stored draft the final answer still matches.
+    const latestKey = latestDraft.get(opts.sessionId);
+    const local = spoken ?? (coverageComplete || !latestKey ? undefined : preparedTurns.get(latestKey));
+    const prepared: DraftEntry | undefined =
+        local ??
+        (coverageComplete
+            ? undefined
+            : await takeBestPreparedTurn<Decision>(opts.sessionId, turnCountAtStart, (draft) =>
+                  draftCovers(draft, answerText)
+              ).then((row) => (row ? { ...row, decision: Promise.resolve(row.decision) } : undefined)));
     const canUsePrepared =
-        prepared?.answerText === answerText &&
+        prepared !== undefined &&
+        draftCovers(prepared.answerText, answerText) &&
         prepared.turnCount === turnCountAtStart &&
         prepared.expiresAt > Date.now();
-    if (prepared) preparedTurns.delete(opts.sessionId);
-    traceTurn(opts.turnId, canUsePrepared ? "prepare_reused" : "prepare_discarded");
+    traceTurn(
+        opts.turnId,
+        spoken ? "draft_spoken" : canUsePrepared ? (local ? "prepare_reused" : "prepare_reused_shared") : "prepare_discarded"
+    );
+    // This turn is decided; its other drafts are now stale.
+    forgetDrafts(opts.sessionId);
 
     const fresh = () =>
         decideTurn({
@@ -699,8 +889,14 @@ export async function submitAnswer(opts: {
             mode: "submit",
             skipSelection: coverageComplete,
         });
-    // Join the warm-up (finished or still running); recompute if it failed.
-    const { conv, selection } = canUsePrepared ? await prepared!.decision.catch(fresh) : await fresh();
+    // Join the warm-up (finished or still running); recompute if it failed,
+    // and hedge with a fresh decision if it is running unusually long.
+    // A spoken draft is never swapped for a fresh decision.
+    const { conv, selection } = spoken
+        ? await spoken.decision
+        : canUsePrepared
+          ? await joinOrHedge(prepared!.decision, fresh)
+          : await fresh();
 
     const plan = planTurn(session, pacing, conv, selection);
     const currentComp = currentCompetency(session, blueprint);
@@ -831,6 +1027,9 @@ export async function submitAnswer(opts: {
         recordAsked(session, `parked_${selection.parkedIndex}`);
     } else if (selection.questionId) {
         recordAsked(session, selection.questionId);
+        if (selection.questionId === RESUME_QUESTION_ID && session.resumeQuestion) {
+            session.resumeQuestion.asked = true;
+        }
     }
     session.pendingQuestion = {
         text: plan.text,
@@ -867,6 +1066,8 @@ export async function submitAnswer(opts: {
             competencyLabel: currentComp?.label ?? GENERAL_LABEL,
             kind: "scripted",
             questionId: selection.questionId,
+            bridge: plan.bridge,
+            question: plan.question,
         },
         toolCall: {
             tool: plan.skipped ? "skip_question" : "ask_question",
@@ -891,7 +1092,7 @@ export function getUpcomingQuestionTexts(
     // 1. Current section questions remaining
     if (session.currentCompetencyIndex < 0) {
         const asked = new Set(session.generalAsked.questionIds);
-        const remaining = generalPool().filter((q) => !asked.has(q.id));
+        const remaining = questionsForCompany(generalPool(), session.company).filter((q) => !asked.has(q.id));
         for (const q of remaining.slice(0, 2)) {
             if (q.question) upcoming.push(q.question);
         }
@@ -900,7 +1101,9 @@ export function getUpcomingQuestionTexts(
         if (comp) {
             const tp = session.topicProgress[session.currentCompetencyIndex];
             const asked = new Set(tp?.askedQuestionIds ?? []);
-            const remaining = queryPool(comp.questionPoolFilter).filter((q) => !asked.has(q.id));
+            const remaining = questionsForCompany(queryPool(comp.questionPoolFilter), session.company).filter(
+                (q) => !asked.has(q.id)
+            );
             for (const q of remaining.slice(0, 2)) {
                 if (q.question) upcoming.push(q.question);
             }
@@ -912,7 +1115,7 @@ export function getUpcomingQuestionTexts(
     if (nextIdx < blueprint.competencies.length) {
         const nextComp = blueprint.competencies[nextIdx];
         if (nextComp) {
-            const nextPool = queryPool(nextComp.questionPoolFilter);
+            const nextPool = questionsForCompany(queryPool(nextComp.questionPoolFilter), session.company);
             for (const q of nextPool.slice(0, 1)) {
                 if (q.question && !upcoming.includes(q.question)) {
                     upcoming.push(q.question);

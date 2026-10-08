@@ -6,8 +6,19 @@ import { useInterview } from "../context/InterviewContext";
 import { useMediaRecorder } from "../hooks/useMediaRecorder";
 import styles from "./interview.module.css";
 import { blueprintForRole } from "../engine/roleMapping";
-import type { EnginePrompt, ProbeDepth, PublicSessionState } from "../engine/types";
-import { getStoredJobRegion, useTtsAudio } from "../hooks/useTtsAudio";
+import type { EnginePrompt, PublicSessionState } from "../engine/types";
+import { getStoredJobRegion, isAudioReady, lockVoiceRegion, useTtsAudio, waitForAudio } from "../hooks/useTtsAudio";
+import {
+    NEXT_QUESTION_HOLDS,
+    PROBE_HOLDS,
+    PROBE_LEADINS,
+    TRANSITIONS,
+    classifyAnswer,
+    getContextualFiller,
+    pickAcknowledgement,
+    pickFresh,
+} from "@/config/fillerConfig";
+import { draftCovers } from "@/engine/utterance";
 import { useTurnDetection } from "../hooks/useTurnDetection";
 import { useAgentActivity } from "../hooks/useAgentActivity";
 import { useVoiceActivity } from "../hooks/useVoiceActivity";
@@ -103,6 +114,52 @@ function isPlaceholderCompanyName(company: string | null | undefined): boolean {
     return !normalized || normalized === "target role" || normalized === "general";
 }
 
+/** "Nigerian recruiter (Azure - Abeo)" → "Abeo"; falls back to "Interviewer". */
+function interviewerNameFromVoice(voiceLabel: string | null | undefined): string {
+    const name = voiceLabel?.match(/-\s*([A-Za-z][A-Za-z' ]*?)\)?\s*$/)?.[1]?.trim();
+    return name || "Interviewer";
+}
+
+function initialsOf(name: string): string {
+    return name
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((word) => word.charAt(0).toUpperCase())
+        .join("");
+}
+
+/** A reply drafted while the candidate was still talking. */
+interface TurnDraft {
+    answer: string;
+    action: string | null;
+    bridge: string | null;
+    verdict: string | null;
+    /** The reply text as recorded on the server (no acknowledgement). */
+    replyText: string;
+    /** The reply as one flowing line (acknowledgement + reply), every clip recorded. */
+    spokenSegments: Array<{ text: string; audioUrl: string }> | null;
+    /** The same reply without the acknowledgement, for after a filler "Okay.". */
+    plainSegments: Array<{ text: string; audioUrl: string }> | null;
+}
+
+/** After the turn ends, how long fillers may cover for a draft still being made before asking the server directly. */
+const LATE_DRAFT_WAIT_MS = 4000;
+
+/** Steps shown while the interviewer "joins the call", in order. */
+const JOIN_STEPS = [
+    "Connecting your camera and microphone",
+    "Preparing your interview questions",
+    "Your interviewer is getting ready",
+] as const;
+/** Longest the join screen waits on audio downloads before starting anyway. */
+const JOIN_AUDIO_WAIT_MS = 4000;
+
+/** Give up waiting for /turn after this long and offer a retry. */
+const TURN_TIMEOUT_MS = 30_000;
+/** A filler never delays the next question by more than this. */
+const FILLER_MAX_MS = 4000;
+
 export default function InterviewTab() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -113,7 +170,7 @@ export default function InterviewTab() {
     const queryInterviewType = searchParams.get("interviewType");
 
     const { setStatus } = useInterview();
-    const videoRef = useRef<HTMLVideoElement>(null);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
     const {
         previewStream,
         startStream,
@@ -162,6 +219,12 @@ export default function InterviewTab() {
     // ── Live session UI state ──
     const [isListening, setIsListening] = useState(false);
     const [countdown, setCountdown] = useState<number | null>(null);
+    // "Joining the call" screen between Start and the countdown: index of the
+    // step in progress (JOIN_STEPS), or null when not shown.
+    const [joinStep, setJoinStep] = useState<number | null>(null);
+    // In-call tiles: who the interviewer is, and whether the candidate is talking.
+    const [interviewerName, setInterviewerName] = useState("Interviewer");
+    const [isUserSpeaking, setIsUserSpeaking] = useState(false);
     const [isTimerPaused, setIsTimerPaused] = useState(false);
     const [sessionStarted, setSessionStarted] = useState(false);
     const [isConnecting, setIsConnecting] = useState(false);
@@ -195,27 +258,10 @@ export default function InterviewTab() {
     const [micChecked, setMicChecked] = useState(false);
     const [micTestStatus, setMicTestStatus] = useState<"idle" | "listening" | "success" | "error">("idle");
     const [micTestError, setMicTestError] = useState<string | null>(null);
-    // How hard the interviewer follows up on vague answers (remembered per browser).
-    const [probeDepth, setProbeDepth] = useState<ProbeDepth>("standard");
-    useEffect(() => {
-        const fromQuery = searchParams.get("probe");
-        if (fromQuery === "deep" || fromQuery === "standard") {
-            setProbeDepth(fromQuery);
-            return;
-        }
-        try {
-            const saved = localStorage.getItem("useladder_probe_depth");
-            if (saved === "deep" || saved === "standard") setProbeDepth(saved);
-        } catch { /* ignore */ }
-    }, [searchParams]);
-    const chooseProbeDepth = (depth: ProbeDepth) => {
-        setProbeDepth(depth);
-        try {
-            localStorage.setItem("useladder_probe_depth", depth);
-        } catch { /* ignore */ }
-    };
     // Live speech-recognition problems (blocked mic, unsupported browser, …)
     const [recognitionError, setRecognitionError] = useState<string | null>(null);
+    // The next question couldn't be fetched; the answer is kept for a retry.
+    const [turnError, setTurnError] = useState<string | null>(null);
     const [faceInFrameChecked, setFaceInFrameChecked] = useState(false);
     const [goodLightingChecked, setGoodLightingChecked] = useState(false);
     const [cameraChecked, setCameraChecked] = useState(false);
@@ -501,12 +547,16 @@ export default function InterviewTab() {
         } catch { /* ignore */ }
     }, []);
 
-    // Bind video stream to <video> element
-    useEffect(() => {
-        if (videoRef.current && previewStream) {
-            videoRef.current.srcObject = previewStream;
-        }
-    }, [previewStream]);
+    // Attach the camera stream to whichever <video> is mounted (setup preview
+    // or in-call self-view). An effect keyed only on the stream missed the
+    // in-call element, which mounts later — leaving a black screen.
+    const bindVideo = useCallback(
+        (el: HTMLVideoElement | null) => {
+            videoRef.current = el;
+            if (el && previewStream && el.srcObject !== previewStream) el.srcObject = previewStream;
+        },
+        [previewStream]
+    );
 
     // Cleanup on unmount
     useEffect(() => {
@@ -534,6 +584,7 @@ export default function InterviewTab() {
         playPipelinedSpeech,
         prefetchTts,
         prefetchFillers,
+        playIfCached,
         primeAudioCache,
         stopAudio,
         pauseAudio,
@@ -591,6 +642,21 @@ export default function InterviewTab() {
     // end triggers handleComplete), and disabled after repeated echo hits.
     const bargeInAllowedRef = useRef(true);
     const falseInterruptionsRef = useRef(0);
+    // Mic-level voice activity during the candidate's turn (see useTurnDetection).
+    const candidateVoiceRef = useRef({ speaking: false, lastAt: 0 });
+    const isAiSpeakingRef = useRef(false);
+    isAiSpeakingRef.current = isAiSpeaking;
+    const speakIdRef = useRef(0);
+    const failedTurnRef = useRef<{ text: string; turnId: string } | null>(null);
+    // Filler currently playing between the answer and the next question.
+    const fillerPlayingRef = useRef<Promise<void> | null>(null);
+    // Latest reply drafted while the candidate was talking (from /prepare).
+    // Replies drafted while the candidate talks (from /prepare), by answer
+    // snapshot; and drafts still being made.
+    const draftsRef = useRef(new Map<string, TurnDraft>());
+    const pendingDraftsRef = useRef(new Map<string, Promise<TurnDraft | null>>());
+    // The commit of a spoken draft, so the next turn waits for it.
+    const commitRef = useRef<Promise<void> | null>(null);
     const recognitionEnabled = sessionStarted && !isMuted && agentActivity.isListening;
 
     const stopRecognition = useCallback(() => {
@@ -698,11 +764,11 @@ export default function InterviewTab() {
         };
     }, [recognitionEnabled, stopRecognition, agentActivity.stateRef]);
 
-    // Background pre-fetch conversational fillers & upcoming questions to eliminate dead air
-    useEffect(() => {
-        prefetchFillers({ persona: "recruiter" });
-    }, [prefetchFillers]);
+    // Release the interview's voice lock when leaving the page.
+    useEffect(() => () => lockVoiceRegion(null), []);
 
+    // Pre-fetch likely upcoming questions to eliminate dead air. (Fillers are
+    // fetched at session start, once the interview's voice is fixed.)
     useEffect(() => {
         if (engineState?.upcomingQuestions && engineState.upcomingQuestions.length > 0) {
             prefetchTts(engineState.upcomingQuestions, { persona: "recruiter" });
@@ -723,14 +789,73 @@ export default function InterviewTab() {
         },
     });
 
+    // Candidate's turn: the silence clock runs from when the mic last heard
+    // them, so pauses are measured as real quiet and a turn never ends while
+    // they're audibly speaking. Adaptive so quiet voices still register over
+    // the room's background level.
+    useVoiceActivity({
+        stream: previewStream,
+        enabled: sessionStarted && !isMuted && !showEndModal && agentActivity.isListening,
+        threshold: 0.012,
+        adaptive: true,
+        startMs: 100,
+        stopMs: 200,
+        onSpeechStart: () => {
+            candidateVoiceRef.current.speaking = true;
+            candidateVoiceRef.current.lastAt = Date.now();
+            setIsUserSpeaking(true);
+        },
+        onSpeechEnd: () => {
+            candidateVoiceRef.current.speaking = false;
+            candidateVoiceRef.current.lastAt = Date.now();
+            setIsUserSpeaking(false);
+        },
+    });
+    const getCandidateVoice = useCallback(() => candidateVoiceRef.current, []);
+
     const speakQuestion = (
         text: string,
         onDone?: () => void,
         segments?: Array<{ text: string; audioUrl: string }>,
-        opts?: { interruptible?: boolean }
+        opts?: { interruptible?: boolean; onStart?: () => void }
     ) => {
         bargeInAllowedRef.current = opts?.interruptible ?? true;
         falseInterruptionsRef.current = 0;
+        const speakId = ++speakIdRef.current;
+        let finished = false;
+        // Hand the turn back exactly once, whether playback ends normally or
+        // the watchdog below has to rescue it.
+        const finishSpeaking = () => {
+            if (finished || speakId !== speakIdRef.current) return;
+            finished = true;
+            clearTimeout(watchdog);
+            accumulatedFinalTranscriptRef.current = "";
+            setCurrentAnswer("");
+            agentActivity.transitionTo("listening", "Interviewer speech ended, listening for candidate");
+            onDone?.();
+        };
+        // Playback can fail to report its end (a stalled clip, or Chrome's
+        // speech synthesis dropping its onend), which used to leave the
+        // interview stuck on "speaking". Allow generous time for loading and
+        // speaking, then recover if nothing is still audibly playing.
+        const wordCount = text.split(/\s+/).filter(Boolean).length;
+        const watchdogMs = 8000 + wordCount * 500;
+        const checkStalled = () => {
+            if (finished || speakId !== speakIdRef.current) return;
+            // Barge-in or another transition already moved the turn on.
+            if (agentActivity.stateRef.current !== "speaking") return;
+            const stillPlaying =
+                isAiSpeakingRef.current ||
+                (typeof window !== "undefined" && window.speechSynthesis?.speaking);
+            if (stillPlaying) {
+                watchdog = setTimeout(checkStalled, 2000);
+                return;
+            }
+            console.warn("[interview] playback never reported its end; resuming the turn");
+            stopAudio();
+            finishSpeaking();
+        };
+        let watchdog = setTimeout(checkStalled, watchdogMs);
         stopRecognition();
         accumulatedFinalTranscriptRef.current = "";
         agentActivity.transitionTo("speaking", "Starting question playback");
@@ -750,22 +875,20 @@ export default function InterviewTab() {
                     }
                 }
                 accumulatedFinalTranscriptRef.current = "";
+                opts?.onStart?.();
                 agentActivity.transitionTo("speaking", "TTS audio playing");
                 setIsListening(false);
                 setCurrentAnswer("");
             },
             onEnd: () => {
-                // 500ms acoustic grace period to allow room reverb and speaker echo to die
-                setTimeout(() => {
-                    accumulatedFinalTranscriptRef.current = "";
-                    setCurrentAnswer("");
-                    agentActivity.transitionTo("listening", "Interviewer speech ended, listening for candidate");
-                    onDone?.();
-                }, 500);
+                // Short acoustic grace so speaker echo isn't transcribed as the answer.
+                setTimeout(finishSpeaking, 250);
             },
         };
 
-        if (segments && segments.length > 1) {
+        // Play prepared clips directly (even a single one) rather than
+        // re-requesting audio by text, which could mean a fresh synthesis.
+        if (segments && (segments.length > 1 || segments[0]?.audioUrl)) {
             playPipelinedSpeech(segments, playOptions);
         } else {
             playTts(text, playOptions);
@@ -786,7 +909,14 @@ export default function InterviewTab() {
 
     /* ── Engine calls ── */
 
-    const startEngineSession = async (): Promise<{ sessionId: string; prompt: EnginePrompt; state: PublicSessionState } | null> => {
+    const startEngineSession = async (): Promise<{
+        sessionId: string;
+        prompt: EnginePrompt;
+        state: PublicSessionState;
+        voiceRegion?: string;
+        audioSegments?: Array<{ text: string; audioUrl: string }>;
+        voiceLabel?: string | null;
+    } | null> => {
         const candidateId = user?.email || "anonymous";
         const hasSources =
             resumeText.trim() || linkedinText.trim() || portfolioText.trim();
@@ -816,7 +946,8 @@ export default function InterviewTab() {
                 interviewType: interviewType || queryInterviewType || undefined,
                 candidateName: candidateDisplayName,
                 companyName: targetCompany,
-                probeDepth,
+                // Fixes the interviewer's voice for the whole session.
+                jobRegion: getStoredJobRegion(),
             }),
         });
         if (!res.ok) return null;
@@ -830,19 +961,50 @@ export default function InterviewTab() {
             return;
         }
         setIsConnecting(true);
+        setJoinStep(0);
         const granted = await startStream({ audioDeviceId: selectedAudioInput, videoDeviceId: selectedVideoInput });
         if (!granted) {
             setIsConnecting(false);
+            setJoinStep(null);
             return;
         }
 
+        setJoinStep(1);
         setIsEngineBusy(true);
         const started = await startEngineSession();
         setIsEngineBusy(false);
         if (!started) {
             setIsConnecting(false);
+            setJoinStep(null);
             return;
         }
+
+        // One voice for the whole interview, matching what the server uses.
+        lockVoiceRegion(started.voiceRegion ?? null);
+        setInterviewerName(interviewerNameFromVoice(started.voiceLabel));
+        // The opening audio was generated during session start; cache it so
+        // the first question plays immediately.
+        started.audioSegments?.forEach((segment) => {
+            if (segment.audioUrl) primeAudioCache(segment.text, segment.audioUrl, started.voiceLabel, "recruiter");
+        });
+
+        // Only count down once the interviewer can actually speak: the opening
+        // question is downloaded and the fillers (which play only from cache)
+        // are loaded in this voice. Each wait is capped so a slow network
+        // can't hold the interview back.
+        setJoinStep(2);
+        const openingUrl = started.audioSegments?.find((segment) => segment.audioUrl)?.audioUrl;
+        await Promise.all([
+            openingUrl ? waitForAudio(openingUrl, JOIN_AUDIO_WAIT_MS) : Promise.resolve(),
+            Promise.race([
+                prefetchFillers({ persona: "recruiter" }),
+                new Promise((resolve) => setTimeout(resolve, JOIN_AUDIO_WAIT_MS)),
+            ]),
+        ]);
+        setJoinStep(JOIN_STEPS.length);
+        // Let the last tick register before the countdown takes over.
+        await new Promise((resolve) => setTimeout(resolve, 350));
+        setJoinStep(null);
 
         setSessionId(started.sessionId);
         setCurrentPrompt(started.prompt);
@@ -867,8 +1029,10 @@ export default function InterviewTab() {
                 const promptText = started.prompt.text;
                 if (promptText) {
                     setTimeout(() => {
-                        speakQuestion(promptText, () =>
-                            setIsListening(true)
+                        speakQuestion(
+                            promptText,
+                            () => setIsListening(true),
+                            started.audioSegments?.length ? started.audioSegments : undefined
                         );
                     }, 300);
                 }
@@ -878,12 +1042,203 @@ export default function InterviewTab() {
         }, 1000);
     };
 
+    /**
+     * Plays a pre-cached filler line in the interview voice. Returns a promise
+     * for its end (capped so a filler can never hold up the next question), or
+     * null if the line isn't cached — then nothing plays rather than a
+     * different voice.
+     */
+    const playFillerLine = (text: string): Promise<void> | null => {
+        let resolveDone!: () => void;
+        const done = new Promise<void>((resolve) => (resolveDone = resolve));
+        if (!playIfCached(text, { persona: "recruiter", onEnd: resolveDone })) return null;
+        const capped = Promise.race([done, new Promise<void>((resolve) => setTimeout(resolve, FILLER_MAX_MS))]);
+        fillerPlayingRef.current = capped;
+        void capped.then(() => {
+            if (fillerPlayingRef.current === capped) fillerPlayingRef.current = null;
+        });
+        return capped;
+    };
+
+    /** The longest draft the final answer still matches (optionally only speakable ones). */
+    const coveringDraft = (finalText: string, speakable = false): TurnDraft | null => {
+        let best: TurnDraft | null = null;
+        for (const draft of draftsRef.current.values()) {
+            if (!draftCovers(draft.answer, finalText)) continue;
+            if (speakable && !draft.spokenSegments) continue;
+            if (!best || draft.answer.length > best.answer.length) best = draft;
+        }
+        return best;
+    };
+
+    /** A drafted reply ready to speak this instant: covers the answer and its first clip is buffered. */
+    const readyDraft = (finalText: string): TurnDraft | null => {
+        const draft = coveringDraft(finalText, true);
+        const first = draft?.spokenSegments?.[0]?.audioUrl;
+        return draft && first && isAudioReady(first) ? draft : null;
+    };
+
+    const isAnswerReady = useCallback((answer: string) => readyDraft(answer) !== null, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const resetDrafts = () => {
+        draftsRef.current.clear();
+        pendingDraftsRef.current.clear();
+    };
+
+    /**
+     * Speak a drafted reply — acknowledgement and question as one flowing line
+     * (or, after a filler "Okay.", the reply alone) — and commit that exact
+     * draft on the server meanwhile. The screen keeps the previous question
+     * until this one starts playing. If the server no longer has the draft
+     * (rare), the answer is resubmitted normally.
+     */
+    const speakDraftAndCommit = (
+        candidateText: string,
+        draft: TurnDraft,
+        segments: Array<{ text: string; audioUrl: string }>
+    ) => {
+        const turnId = crypto.randomUUID();
+        activeTurnIdRef.current = turnId;
+        resetDrafts();
+        setIsListening(false);
+        accumulatedFinalTranscriptRef.current = "";
+        setCurrentAnswer("");
+        setFinalTranscript("");
+        setTurnError(null);
+        setIsEngineBusy(false);
+
+        let started = false;
+        let committed: { prompt: EnginePrompt; state: PublicSessionState; toolCall?: { tool: string } } | null = null;
+        const applyCommitted = () => {
+            if (!committed) return;
+            setCurrentPrompt(committed.prompt);
+            setEngineState(committed.state);
+            setActiveToolCall(committed.toolCall ?? null);
+        };
+        speakQuestion(
+            segments.map((segment) => segment.text).join(" "),
+            () => agentActivity.transitionTo("listening", "Interviewer speech ended, listening for candidate"),
+            segments,
+            {
+                onStart: () => {
+                    started = true;
+                    // Show the new question as it starts playing.
+                    setLocalTranscript((prev) => [
+                        ...prev,
+                        { role: "candidate" as const, text: candidateText },
+                        { role: "interviewer" as const, text: draft.replyText },
+                    ]);
+                    setCurrentPrompt((prev) => (prev ? { ...prev, text: draft.replyText } : prev));
+                    applyCommitted();
+                },
+            }
+        );
+
+        const commit = async (attempt: number): Promise<void> => {
+            const res = await fetch(`/api/engine/session/${sessionId}/turn`, {
+                method: "POST",
+                headers: { "content-type": "application/json", "x-onscript-turn-id": turnId },
+                body: JSON.stringify({ answerText: candidateText, spokenDraft: draft.answer, persona: "recruiter" }),
+                signal: AbortSignal.timeout(TURN_TIMEOUT_MS),
+            }).catch(() => null);
+            if (res?.status === 409) {
+                // The server lost the draft: let it decide normally (rare).
+                // Release the commit gate first, or the resubmit would wait on itself.
+                commitRef.current = null;
+                await submitTurnToEngine(candidateText);
+                return;
+            }
+            if (!res?.ok) {
+                // Same turn id, so a retry can't apply the answer twice.
+                if (attempt < 2) return commit(attempt + 1);
+                setTurnError("We couldn't save your last answer.");
+                return;
+            }
+            committed = await res.json();
+            // Don't change what's on screen before the question is heard.
+            if (started) applyCommitted();
+        };
+        const running = commit(1).finally(() => {
+            if (commitRef.current === running) commitRef.current = null;
+        });
+        commitRef.current = running;
+    };
+
+    /**
+     * Conversational filler while the next line is finished: an acknowledgement
+     * the instant the candidate stops, then — only if the reply still isn't
+     * ready — a line that leads where the drafted reply is going: into the
+     * next bank question, deeper into a follow-up, or reflecting their topic.
+     * Sets transitionSpoken when it already led into a new question.
+     */
+    const startTurnFiller = (
+        candidateText: string,
+        turnEpoch: number,
+        replyReady: { current: boolean },
+        transitionSpoken: { current: boolean }
+    ) => {
+        const stillWaiting = () => !replyReady.current && turnEpoch === turnEpochRef.current;
+        const draft = coveringDraft(candidateText);
+        // Match the filler to the answer: objections, "I don't know" and short
+        // or vague answers get neutral lines — never praise or "helpful context".
+        const kind = classifyAnswer(candidateText);
+        const weakAnswer = draft?.verdict === "vague" || draft?.verdict === "evasive";
+        // Lines play back to back while the reply isn't ready — no pauses —
+        // and each commits only to a direction already known from the draft:
+        //   follow-up coming   → "I'd like to dig into that…" → "There's one part…"
+        //   new bank question  → "Let me shift gears…" → "There's another area…"
+        //   reply has its own answer-specific lead-in → one topic reflection
+        //   direction unknown / objection / weak answer → acknowledgement only
+        const lines: string[] = [];
+        if (kind !== "objection") {
+            if (draft?.action === "probe") {
+                lines.push(pickFresh(PROBE_LEADINS), pickFresh(PROBE_HOLDS));
+            } else if (draft?.action === "next" && !draft.bridge) {
+                lines.push(pickFresh(TRANSITIONS), pickFresh(NEXT_QUESTION_HOLDS));
+            } else if (kind === "substantive" && !weakAnswer) {
+                lines.push(getContextualFiller(candidateText));
+            }
+        }
+        void (async () => {
+            await (playFillerLine(pickAcknowledgement(kind, weakAnswer)) ?? Promise.resolve());
+            for (const [index, line] of lines.entries()) {
+                if (!stillWaiting()) return;
+                if (index === 0 && draft?.action === "next" && !draft.bridge) transitionSpoken.current = true;
+                await (playFillerLine(line) ?? Promise.resolve());
+            }
+        })();
+    };
+
     // Hand answer to orchestrator engine with conversational filler to eliminate dead air
-    const submitTurnToEngine = async (candidateText: string) => {
+    const submitTurnToEngine = async (candidateText: string, opts?: { filler?: boolean }) => {
         if (!sessionId) return;
-        const turnId = preparedTurnRef.current?.text === candidateText
-            ? preparedTurnRef.current.turnId
-            : crypto.randomUUID();
+        // The previous turn's spoken draft must be recorded before this answer.
+        if (commitRef.current) await commitRef.current;
+
+        // A reply drafted while they talked and ready now: speak it straight
+        // away as one flowing line (acknowledgement + question).
+        const usesDrafts = Boolean(opts?.filler) && !detectVoiceCommand(candidateText);
+        if (usesDrafts) {
+            const ready = readyDraft(candidateText);
+            if (ready?.spokenSegments) {
+                speakDraftAndCommit(candidateText, ready, ready.spokenSegments);
+                return;
+            }
+        }
+        // A covering draft still being made: fillers cover for it below.
+        const lateDraft = usesDrafts
+            ? [...pendingDraftsRef.current.entries()].find(([answer]) => draftCovers(answer, candidateText))?.[1]
+            : undefined;
+
+        // A retry reuses the failed turn's id so the server can return the
+        // result it already produced instead of applying the answer twice.
+        const turnId = failedTurnRef.current?.text === candidateText
+            ? failedTurnRef.current.turnId
+            : preparedTurnRef.current?.text === candidateText
+              ? preparedTurnRef.current.turnId
+              : crypto.randomUUID();
+        failedTurnRef.current = null;
+        setTurnError(null);
         activeTurnIdRef.current = turnId;
         if (process.env.NEXT_PUBLIC_ONSCRIPT_TURN_TRACE === "1") {
             console.info(`[turn:${turnId}] endpoint_confirmed`);
@@ -892,14 +1247,44 @@ export default function InterviewTab() {
         const turnEpoch = turnEpochRef.current;
         setIsEngineBusy(true);
         agentActivity.transitionTo("thinking", "Candidate submitted turn, processing");
+        // Voice commands ("repeat that", "end the interview") get no filler.
+        const replyReady = { current: false };
+        const transitionSpoken = { current: false };
+        const withFiller = Boolean(opts?.filler) && !detectVoiceCommand(candidateText);
+        if (withFiller) startTurnFiller(candidateText, turnEpoch, replyReady, transitionSpoken);
+        resetDrafts();
         setIsListening(false);
         accumulatedFinalTranscriptRef.current = "";
         setCurrentAnswer("");
         setFinalTranscript("");
 
+        // The draft finishes while the filler plays: continue from the filler
+        // straight into the reply (recorded without its own acknowledgement).
+        if (lateDraft) {
+            const draft = await Promise.race([
+                lateDraft,
+                new Promise<null>((resolve) => setTimeout(() => resolve(null), LATE_DRAFT_WAIT_MS)),
+            ]);
+            if (turnEpoch !== turnEpochRef.current) return;
+            if (draft?.plainSegments && draftCovers(draft.answer, candidateText)) {
+                replyReady.current = true;
+                await (fillerPlayingRef.current ?? Promise.resolve());
+                if (turnEpoch !== turnEpochRef.current) return;
+                if (draft.action === "next" && !draft.bridge && !transitionSpoken.current) {
+                    await (playFillerLine(pickFresh(TRANSITIONS)) ?? Promise.resolve());
+                    if (turnEpoch !== turnEpochRef.current) return;
+                }
+                speakDraftAndCommit(candidateText, draft, draft.plainSegments);
+                return;
+            }
+        }
+
+        const timeout = new AbortController();
+        const timeoutId = setTimeout(() => timeout.abort(), TURN_TIMEOUT_MS);
         try {
             const res = await fetch(`/api/engine/session/${sessionId}/turn`, {
                 method: "POST",
+                signal: timeout.signal,
                 headers: { "content-type": "application/json", "x-onscript-turn-id": turnId },
                 body: JSON.stringify({
                     answerText: candidateText,
@@ -926,33 +1311,40 @@ export default function InterviewTab() {
                 primeAudioCache(data.prompt.text, data.audioUrl, data.voiceLabel, "recruiter");
             }
 
-            setLocalTranscript((prev) => [
-                ...prev,
-                ...(candidateText ? [{ role: "candidate" as const, text: candidateText }] : []),
-                ...(data.prompt.text ? [{ role: "interviewer" as const, text: data.prompt.text }] : []),
-            ]);
-
-            setCurrentPrompt(data.prompt);
-            setEngineState(data.state);
             setCurrentAnswer("");
             setIsEditingAnswer(false);
 
-            if (data.toolCall) {
-                setActiveToolCall(data.toolCall);
-                if (data.toolCall.tool !== "end_call") {
-                    setTimeout(() => {
-                        setActiveToolCall((prev) => (prev?.tool === data.toolCall.tool ? null : prev));
-                    }, 4500);
+            // The screen keeps the previous question while fillers play and
+            // switches when the new one starts being spoken.
+            const showReply = () => {
+                setLocalTranscript((prev) => [
+                    ...prev,
+                    ...(candidateText ? [{ role: "candidate" as const, text: candidateText }] : []),
+                    ...(data.prompt.text ? [{ role: "interviewer" as const, text: data.prompt.text }] : []),
+                ]);
+                setCurrentPrompt(data.prompt);
+                setEngineState(data.state);
+                if (data.toolCall) {
+                    setActiveToolCall(data.toolCall);
+                    if (data.toolCall.tool !== "end_call") {
+                        setTimeout(() => {
+                            setActiveToolCall((prev) => (prev?.tool === data.toolCall.tool ? null : prev));
+                        }, 4500);
+                    }
+                } else {
+                    setActiveToolCall(null);
                 }
-            } else {
-                setActiveToolCall(null);
-            }
+            };
 
             const playNext = () => {
                 if (data.prompt.type === "complete" || data.state.complete || data.endCall) {
                     if (data.prompt.text) {
-                        speakQuestion(data.prompt.text, () => handleComplete(), data.audioSegments, { interruptible: false });
+                        speakQuestion(data.prompt.text, () => handleComplete(), data.audioSegments, {
+                            interruptible: false,
+                            onStart: showReply,
+                        });
                     } else {
+                        showReply();
                         handleComplete();
                     }
                     return;
@@ -961,27 +1353,60 @@ export default function InterviewTab() {
                 if (data.prompt.text) {
                     speakQuestion(data.prompt.text, () => {
                         agentActivity.transitionTo("listening", "Interviewer speech ended, listening for candidate");
-                    }, data.audioSegments);
+                    }, data.audioSegments, { onStart: showReply });
                 } else {
+                    showReply();
                     agentActivity.transitionTo("listening", "No prompt text, listening");
                 }
             };
 
+            // Let a filler that's mid-line finish, then go straight into the reply.
+            replyReady.current = true;
+            await (fillerPlayingRef.current ?? Promise.resolve());
+            if (turnEpoch !== turnEpochRef.current) return;
+            // A new bank question with no answer-specific lead-in: lead into it
+            // with a transition so it doesn't land abruptly after "Okay."
+            const isBareNewQuestion =
+                data.prompt.kind === "scripted" && !data.prompt.bridge && !data.state.complete && !data.endCall;
+            if (withFiller && isBareNewQuestion && !transitionSpoken.current) {
+                await (playFillerLine(pickFresh(TRANSITIONS)) ?? Promise.resolve());
+                if (turnEpoch !== turnEpochRef.current) return;
+            }
             playNext();
         } catch (err) {
             console.error("submitTurnToEngine error:", err);
-            agentActivity.transitionTo("listening", "Engine turn error, re-enabling listening");
-            setIsListening(true);
+            replyReady.current = true;
+            if (turnEpoch !== turnEpochRef.current) return;
+            stopAudio();
+            // Keep the answer instead of silently dropping it; the candidate
+            // can retry without repeating themselves.
+            failedTurnRef.current = { text: candidateText, turnId };
+            setTurnError(
+                timeout.signal.aborted
+                    ? "The next question is taking too long to load."
+                    : "We couldn't load the next question."
+            );
+            agentActivity.transitionTo("idle", "Engine turn failed, waiting for retry");
         } finally {
+            clearTimeout(timeoutId);
             setIsEngineBusy(false);
         }
+    };
+
+    const retryFailedTurn = () => {
+        const failed = failedTurnRef.current;
+        if (!failed) return;
+        void submitTurnToEngine(failed.text);
     };
 
     // Candidate finished their answer — hand it to orchestrator or trigger instant coaching
     const handleNext = async (overrideText?: string) => {
         if (!sessionId || isEngineBusy) return;
 
-        const candidateText = (typeof overrideText === "string" ? overrideText : finalTranscript).trim();
+        // "Done speaking" can be pressed before speech recognition finalizes;
+        // use whichever of the final and live transcripts holds more.
+        const liveText = currentAnswer.trim().length > finalTranscript.trim().length ? currentAnswer : finalTranscript;
+        const candidateText = (typeof overrideText === "string" ? overrideText : liveText).trim();
         if (!candidateText) return;
         lastCandidateAnswerRef.current = candidateText;
         accumulatedFinalTranscriptRef.current = "";
@@ -1026,7 +1451,7 @@ export default function InterviewTab() {
             // Coaching unavailable — keep the interview moving.
         }
 
-        await submitTurnToEngine(candidateText);
+        await submitTurnToEngine(candidateText, { filler: true });
     };
 
     // Hands-free Voice Activity & Silence Detection (VAD)
@@ -1036,45 +1461,58 @@ export default function InterviewTab() {
         isEngineBusy: agentActivity.isThinking || isEngineBusy,
         activityTranscript: currentAnswer,
         currentTranscript: finalTranscript,
-        minDelayMs: 2200,
-        maxDelayMs: 4500,
-        alpha: 0.35,
+        // ~2s of real silence after a sentence, up to 3s when the answer is
+        // clearly unfinished. Sentence-boundary pauses are shorter than this.
+        minDelayMs: 2000,
+        maxDelayMs: 3000,
         minWords: 5,
+        getVoiceState: getCandidateVoice,
         onTurnLikelyComplete: (transcript) => {
             if (!sessionId || transcript.trim().length < 24) return;
             if (preparedTurnRef.current?.text === transcript) return;
-            preparedTurnRef.current?.controller.abort();
+            // Drafts are never aborted: an earlier one stays useful if the
+            // answer only grows a little.
             const controller = new AbortController();
             const turnId = crypto.randomUUID();
             preparedTurnRef.current = { text: transcript, controller, turnId };
             if (process.env.NEXT_PUBLIC_ONSCRIPT_TURN_TRACE === "1") {
                 console.info(`[turn:${turnId}] stt_snapshot_ready`);
             }
-            void fetch(`/api/engine/session/${sessionId}/prepare`, {
+            const pending: Promise<TurnDraft | null> = fetch(`/api/engine/session/${sessionId}/prepare`, {
                 method: "POST",
                 headers: { "content-type": "application/json", "x-onscript-turn-id": turnId },
-                body: JSON.stringify({ answerText: transcript }),
+                body: JSON.stringify({ answerText: transcript, persona: "recruiter" }),
                 signal: controller.signal,
             })
-                .then((res) => res.ok ? res.json() : null)
+                .then((res) => (res.ok ? res.json() : null))
                 .then((data) => {
-                    if (data?.preparedText && preparedTurnRef.current?.turnId === turnId) {
-                        // Warm the exact bridge + selected bank question while
-                        // endpointing is still protecting the candidate turn.
-                        prefetchTts([data.preparedText], { persona: "recruiter", turnId });
-                    }
+                    if (!data?.prepared) return null;
+                    const spokenSegments = (data.spokenSegments as TurnDraft["spokenSegments"]) ?? null;
+                    // Download the reply's clips now, while the candidate is still
+                    // talking, so it can start the instant their turn ends.
+                    spokenSegments?.forEach((segment) => primeAudioCache(segment.text, segment.audioUrl, null, "recruiter"));
+                    const plainSegments = (data.plainSegments as TurnDraft["plainSegments"]) ?? null;
+                    plainSegments?.forEach((segment) => primeAudioCache(segment.text, segment.audioUrl, null, "recruiter"));
+                    const draft: TurnDraft = {
+                        answer: transcript,
+                        action: data.action ?? null,
+                        bridge: data.bridge ?? null,
+                        verdict: data.verdict ?? null,
+                        replyText: data.preparedText ?? "",
+                        spokenSegments,
+                        plainSegments,
+                    };
+                    // Ignore drafts that land after the turn moved on.
+                    if (pendingDraftsRef.current.get(transcript) === pending) draftsRef.current.set(transcript, draft);
+                    return draft;
                 })
-                .catch(() => undefined);
+                .catch(() => null)
+                .finally(() => {
+                    if (pendingDraftsRef.current.get(transcript) === pending) pendingDraftsRef.current.delete(transcript);
+                });
+            pendingDraftsRef.current.set(transcript, pending);
         },
-        onTurnActivity: (transcript) => {
-            const prepared = preparedTurnRef.current;
-            if (!prepared || prepared.text === transcript) return;
-            prepared.controller.abort();
-            preparedTurnRef.current = null;
-            if (process.env.NEXT_PUBLIC_ONSCRIPT_TURN_TRACE === "1") {
-                console.info(`[turn:${prepared.turnId}] prepare_discarded`);
-            }
-        },
+        isAnswerReady,
         onTurnComplete: (transcript) => {
             handleNext(transcript);
         },
@@ -1202,6 +1640,41 @@ export default function InterviewTab() {
 
     return (
         <div className={styles.interviewPage}>
+            {/* Joining the call: shown from Start until the interview can begin */}
+            {joinStep !== null && (
+                <div className={styles.joiningOverlay} role="status" aria-live="polite">
+                    <div className={styles.joiningCard}>
+                        <div className={styles.joiningAvatarWrap}>
+                            <span className={styles.joiningPulse} aria-hidden="true" />
+                            <img src={RECRUITER_AVATAR} alt="" className={styles.joiningAvatar} draggable={false} />
+                        </div>
+                        <h2 className={styles.joiningTitle}>Your interviewer is joining the call</h2>
+                        <p className={styles.joiningSubtitle}>{headerInterviewTitle}</p>
+                        <ol className={styles.joiningSteps}>
+                            {JOIN_STEPS.map((label, i) => {
+                                const state = i < joinStep ? "done" : i === joinStep ? "active" : "waiting";
+                                return (
+                                    <li
+                                        key={label}
+                                        className={`${styles.joiningStep} ${styles[`joiningStep_${state}`]}`}
+                                        aria-current={state === "active" ? "step" : undefined}
+                                    >
+                                        <span className={styles.joiningStepIcon} aria-hidden="true">
+                                            {state === "done" ? (
+                                                <Check size={12} weight="bold" />
+                                            ) : state === "active" ? (
+                                                <span className={styles.joiningSpinner} />
+                                            ) : null}
+                                        </span>
+                                        <span>{label}</span>
+                                    </li>
+                                );
+                            })}
+                        </ol>
+                    </div>
+                </div>
+            )}
+
             {/* Countdown Overlay */}
             {countdown !== null && (
                 <div className={styles.countdownOverlay}>
@@ -1273,7 +1746,7 @@ export default function InterviewTab() {
                                     {previewStream && previewStream.getVideoTracks().length > 0 ? (
                                         <>
                                             <video
-                                                ref={videoRef}
+                                                ref={bindVideo}
                                                 className={styles.preInterviewVideoElement}
                                                 autoPlay
                                                 muted
@@ -1554,43 +2027,6 @@ export default function InterviewTab() {
                                             </span>
                                         </div>
 
-                                        {/* Probing depth */}
-                                        <div style={{ marginBottom: "0.85rem" }}>
-                                            <div style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.4rem" }}>
-                                                Follow-up depth
-                                            </div>
-                                            <div role="radiogroup" aria-label="Follow-up depth" style={{ display: "flex", gap: "0.5rem" }}>
-                                                {([
-                                                    { value: "standard", title: "Standard", hint: "Up to 2 follow-ups on vague answers" },
-                                                    { value: "deep", title: "Deep dive", hint: "Up to 4 — keeps pushing until you prove it" },
-                                                ] as const).map((opt) => {
-                                                    const selected = probeDepth === opt.value;
-                                                    return (
-                                                        <button
-                                                            key={opt.value}
-                                                            type="button"
-                                                            role="radio"
-                                                            aria-checked={selected}
-                                                            onClick={() => chooseProbeDepth(opt.value)}
-                                                            style={{
-                                                                flex: 1,
-                                                                textAlign: "left",
-                                                                padding: "0.55rem 0.7rem",
-                                                                borderRadius: 10,
-                                                                border: `1.5px solid ${selected ? "#2563EB" : "rgba(148, 163, 184, 0.45)"}`,
-                                                                background: selected ? "rgba(37, 99, 235, 0.08)" : "transparent",
-                                                                color: "inherit",
-                                                                cursor: "pointer",
-                                                            }}
-                                                        >
-                                                            <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>{opt.title}</div>
-                                                            <div style={{ fontSize: "0.72rem", opacity: 0.75, marginTop: 2 }}>{opt.hint}</div>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-
                                         {/* Primary Start CTA */}
                                         <button
                                             type="button"
@@ -1688,13 +2124,40 @@ export default function InterviewTab() {
                         {/* Left: Video Card */}
                         <div className={styles.videoCard}>
                             <div className={styles.videoFeed}>
-                                <video
-                                    ref={videoRef}
-                                    className={styles.videoElement}
-                                    autoPlay
-                                    muted
-                                    playsInline
-                                />
+                                {/* Main tile: the interviewer, Meet-style — initials with a
+                                    speaking ring while they talk. */}
+                                <div className={styles.speakerStage}>
+                                    <div
+                                        className={`${styles.speakerAvatar} ${isAiSpeaking ? styles.speakerAvatarSpeaking : ""}`}
+                                        aria-label={`${interviewerName}${isAiSpeaking ? " is speaking" : ""}`}
+                                    >
+                                        <span className={styles.speakerRing} aria-hidden="true" />
+                                        <span className={`${styles.speakerRing} ${styles.speakerRingDelayed}`} aria-hidden="true" />
+                                        <span className={styles.speakerInitials}>{initialsOf(interviewerName)}</span>
+                                    </div>
+                                    <div className={styles.speakerName}>
+                                        {interviewerName} · Interviewer
+                                    </div>
+                                </div>
+
+                                {/* Self-view: the candidate's camera, bottom right. */}
+                                <div className={`${styles.selfTile} ${isUserSpeaking && !isMuted ? styles.selfTileSpeaking : ""}`}>
+                                    {isVideoOff ? (
+                                        <div className={styles.selfTileInitials}>{initials}</div>
+                                    ) : (
+                                        <video
+                                            ref={bindVideo}
+                                            className={styles.selfTileVideo}
+                                            autoPlay
+                                            muted
+                                            playsInline
+                                        />
+                                    )}
+                                    <span className={styles.selfTileLabel}>
+                                        {isMuted && <MicrophoneSlash size={11} weight="bold" />}
+                                        You
+                                    </span>
+                                </div>
 
                                 {/* During session: Show HUD */}
                                 {isRecording && (
@@ -1851,9 +2314,9 @@ export default function InterviewTab() {
                                         </span>
                                     </div>
                                     <h2 className={styles.questionText}>
-                                        {isEngineBusy
-                                            ? "…"
-                                            : (currentPrompt?.text ?? "")}
+                                        {/* Stays on the previous question during fillers; the
+                                            new one replaces it when it starts playing. */}
+                                        {currentPrompt?.text ?? ""}
                                     </h2>
                                     {questionNumber > 0 && (
                                         <div className={styles.questionMetaBelow}>
@@ -1873,6 +2336,26 @@ export default function InterviewTab() {
                                             <SpeakerHigh size={14} weight="bold" />
                                             <span>Replay Audio</span>
                                         </button>
+                                    </div>
+                                )}
+
+                                {turnError && (
+                                    <div className={styles.liveSpeechBox} role="alert">
+                                        <div className={styles.liveSpeechContent}>
+                                            <p className={styles.liveSpeechPlaceholder} style={{ color: "#EF4444" }}>
+                                                {turnError} Your answer was saved.
+                                            </p>
+                                        </div>
+                                        <div className={styles.cardFooter}>
+                                            <button
+                                                type="button"
+                                                className={styles.quickSendBtn}
+                                                onClick={retryFailedTurn}
+                                                disabled={isEngineBusy}
+                                            >
+                                                Try again
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
 

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callJSON } from "@/engine/llm";
+import { requireAuth } from "@/lib/session";
+import { LIMITS, rateLimit } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
 
 interface InfuseResult {
     alreadyPresent: boolean;
@@ -32,6 +35,11 @@ Return strict JSON:
 
 export async function POST(req: NextRequest) {
     try {
+        const authResult = await requireAuth(req);
+        if ("errorResponse" in authResult) return authResult.errorResponse;
+        const limited = await rateLimit(LIMITS.llm, `user:${authResult.session.email}`);
+        if (limited) return limited;
+
         const body = await req.json();
         const {
             resumeText = "",
@@ -90,7 +98,6 @@ Compose a grammatically complete, natural sentence that weaves "${keyword.trim()
 
         return NextResponse.json({ success: true, result });
     } catch (err) {
-        console.error("[api/resume/infuse-keyword] Error:", err);
-        return NextResponse.json({ error: err instanceof Error ? err.message : "Failed to infuse keyword" }, { status: 500 });
+        return serverError("api/resume/infuse-keyword", err, "Failed to infuse keyword");
     }
 }

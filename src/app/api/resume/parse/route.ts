@@ -2,9 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { extractDocumentText } from "@/lib/documentParser";
 import { parseResume } from "@/lib/resume/parse";
 import { plainToRich } from "@/lib/resume/types";
+import { getSession } from "@/lib/session";
+import { LIMITS, clientIp, rateLimit } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
 
+/** Public: onboarding parses a CV before the account exists. Text extraction only, no LLM. */
 export async function POST(req: NextRequest) {
     try {
+        const session = await getSession(req);
+        const limited = await rateLimit(LIMITS.parse, session ? `user:${session.email}` : `ip:${clientIp(req)}`);
+        if (limited) return limited;
+
         const body = await req.json();
         const { fileData = "", resumeText = "", resumeName = "document.pdf", fileRef } = body as any;
 
@@ -66,7 +74,6 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true, text, ...(doc ? { doc, anchorMap, confidence: doc.source?.confidence } : {}), usedNewParser: !!doc });
     } catch (err) {
-        console.error("[api/resume/parse] Error:", err);
-        return NextResponse.json({ error: err instanceof Error ? err.message : "Failed to parse document" }, { status: 500 });
+        return serverError("api/resume/parse", err, "Failed to parse document");
     }
 }

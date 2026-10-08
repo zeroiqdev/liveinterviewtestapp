@@ -1,3 +1,4 @@
+import { isAttendanceRemark, stripAttendanceSentences } from "@/engine/evaluationScope";
 import type { FeedbackReportData } from "@/app/api/feedback/generate/route";
 
 /**
@@ -183,18 +184,22 @@ export function sanitizeReportData(
         }
     }
 
-    // Tab content completeness guarantees
-    if (sanitized.strengths.length < 2) {
-        sanitized.strengths.push(
-            {
-                title: "Active Session Engagement",
-                detail: "You completed the interview session and stepped through the technical evaluation questions.",
-            },
-            {
-                title: "Role Alignment Baseline",
-                detail: "Your background matches the target role requirements and technical expectations for this position.",
-            }
-        );
+    // Feedback judges answers only: drop anything about attendance, punctuality
+    // or finishing the session, even if the model produced it.
+    sanitized.summary = stripAttendanceSentences(sanitized.summary);
+    sanitized.strengths = sanitized.strengths.filter((s) => !isAttendanceRemark(`${s.title} ${s.detail}`));
+    sanitized.improvements = sanitized.improvements.filter(
+        (imp) => !isAttendanceRemark(`${imp.title} ${imp.detail} ${imp.recommendation}`)
+    );
+    sanitized.quickTips = sanitized.quickTips.filter((tip) => !isAttendanceRemark(tip));
+    sanitized.qaBreakdown = sanitized.qaBreakdown.map((qa) => ({ ...qa, feedback: stripAttendanceSentences(qa.feedback) }));
+
+    // Never pad strengths with filler; say honestly when there is nothing to go on.
+    if (sanitized.strengths.length === 0) {
+        sanitized.strengths.push({
+            title: "Not enough to assess yet",
+            detail: "Your answers were too brief to point to a clear strength. Give fuller answers with a concrete example and an outcome, and this section will reflect what you did well.",
+        });
     }
 
     if (sanitized.improvements.length < 2) {

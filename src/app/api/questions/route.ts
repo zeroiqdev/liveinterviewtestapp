@@ -13,6 +13,9 @@ export interface QuestionItem {
 }
 
 export async function GET(req: Request) {
+    // The full question bank is admin-only; interviews read it server-side.
+    const authResult = await requireAdmin(req);
+    if ("errorResponse" in authResult) return authResult.errorResponse;
     const { searchParams } = new URL(req.url);
     const roleFamily = searchParams.get("role_family");
     const category = searchParams.get("category");

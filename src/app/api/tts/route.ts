@@ -12,9 +12,20 @@
 import { NextResponse } from "next/server";
 import { getCachedAudio } from "@/services/ttsService";
 import type { Persona } from "@/config/voiceConfig";
+import { requireAuth } from "@/lib/session";
+import { LIMITS, rateLimit } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
+
+// Interview prompts are a few sentences; anything longer is not a real use.
+const MAX_TTS_CHARS = 1500;
 
 export async function POST(request: Request) {
   try {
+    const authResult = await requireAuth(request);
+    if ("errorResponse" in authResult) return authResult.errorResponse;
+    const limited = await rateLimit(LIMITS.tts, `user:${authResult.session.email}`);
+    if (limited) return limited;
+
     const body = await request.json();
     const { text, persona, jobRegion } = body as {
       text?: string;
@@ -26,6 +37,13 @@ export async function POST(request: Request) {
     if (!text || typeof text !== "string" || !text.trim()) {
       return NextResponse.json(
         { error: "Missing or empty 'text' field" },
+        { status: 400 }
+      );
+    }
+
+    if (text.length > MAX_TTS_CHARS) {
+      return NextResponse.json(
+        { error: `'text' must be at most ${MAX_TTS_CHARS} characters` },
         { status: 400 }
       );
     }
@@ -53,15 +71,11 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result);
   } catch (err) {
-    console.error("[api/tts] Error:", err);
-
-    const message =
-      err instanceof Error ? err.message : "Internal server error";
-    const status =
-      message.includes("API key") ? 401 :
-      message.includes("Rate limit") || message.includes("429") ? 429 :
-      500;
-
-    return NextResponse.json({ error: message }, { status });
+    const message = err instanceof Error ? err.message : "";
+    if (message.includes("Rate limit") || message.includes("429")) {
+      return serverError("api/tts", err, "Voice service is busy. Please try again shortly.", 429);
+    }
+    // A provider key problem is ours, not the caller's: don't answer 401.
+    return serverError("api/tts", err, "Speech synthesis failed", message.includes("API key") ? 503 : 500);
   }
 }

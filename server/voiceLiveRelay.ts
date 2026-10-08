@@ -15,7 +15,8 @@
  *   output → "speech" response (audio) following the engine's instruction.
  *
  * Env: AZURE_SPEECH_KEY, AZURE_SPEECH_REGION, AUTH_SECRET, MONGODB_URI,
- *      VOICE_LIVE_MODEL (default gpt-4.1-mini), VOICE_RELAY_PORT (default 8787)
+ *      VOICE_LIVE_MODEL (default gpt-4.1-mini), VOICE_RELAY_PORT (default 8787),
+ *      VOICE_RELAY_MAX_MINUTES (default 45), VOICE_RELAY_MAX_CONNECTIONS (default 50)
  */
 
 import { resolve } from "path";
@@ -46,6 +47,24 @@ const API_VERSION = "2026-04-10";
 // Wait this long after a final transcript for more speech before deciding,
 // so a short pause mid-answer doesn't end the candidate's turn.
 const DECISION_GRACE_MS = 200;
+// Azure realtime audio is billed per minute: cap each call and the total.
+const MAX_SESSION_MS = Number(process.env.VOICE_RELAY_MAX_MINUTES || 45) * 60_000;
+const MAX_CONNECTIONS = Number(process.env.VOICE_RELAY_MAX_CONNECTIONS || 50);
+// Mic audio arrives in small PCM frames; nothing legitimate is this large.
+const MAX_MESSAGE_BYTES = 1024 * 1024;
+
+/** Relay token ids already used, with their expiry (ms). Tokens are single use. */
+const usedTokens = new Map<string, number>();
+/** The live browser connection for each interview session. */
+const activeBySession = new Map<string, WebSocket>();
+
+function claimToken(jti: string, expSeconds: number): boolean {
+    const now = Date.now();
+    for (const [id, exp] of usedTokens) if (exp < now) usedTokens.delete(id);
+    if (usedTokens.has(jti)) return false;
+    usedTokens.set(jti, expSeconds * 1000);
+    return true;
+}
 
 // Azure neural voices usable by Voice Live (ElevenLabs voices are not).
 const VOICE_BY_REGION: Record<string, string> = {
@@ -76,7 +95,7 @@ const http = createServer((_req, res) => {
     res.writeHead(200, { "content-type": "text/plain" });
     res.end("voice relay ok");
 });
-const wss = new WebSocketServer({ server: http });
+const wss = new WebSocketServer({ server: http, maxPayload: MAX_MESSAGE_BYTES });
 
 wss.on("connection", async (client, req) => {
     const url = new URL(req.url || "/", "http://relay");
@@ -88,8 +107,11 @@ wss.on("connection", async (client, req) => {
         client.close();
     };
 
+    if (wss.clients.size > MAX_CONNECTIONS) return fail("Voice interviews are at capacity. Please try again shortly.");
+
     const claims = await verifyRelayToken(url.searchParams.get("token") || "");
     if (!claims) return fail("Invalid or expired relay token.");
+    if (!claimToken(claims.jti, claims.exp)) return fail("This relay token has already been used.");
     const session = await getSession(claims.sessionId);
     if (!session || (session.ownerId && session.ownerId !== claims.ownerId)) return fail("Unknown session.");
     if (session.complete) return fail("This interview is already complete.");
@@ -97,6 +119,22 @@ wss.on("connection", async (client, req) => {
     const key = process.env.AZURE_SPEECH_KEY;
     const azureRegion = process.env.AZURE_SPEECH_REGION;
     if (!key || !azureRegion) return fail("Voice service is not configured.");
+
+    // The browser may have gone away during the awaits above; its close
+    // event fired before our handler exists, so stop here.
+    if (client.readyState !== WebSocket.OPEN) return;
+
+    // One live connection per interview: a reconnect replaces the old one.
+    const previous = activeBySession.get(session.sessionId);
+    if (previous && previous !== client && previous.readyState === WebSocket.OPEN) {
+        previous.send(JSON.stringify({ type: "error", message: "This interview was opened in another window." }));
+        previous.close();
+    }
+    activeBySession.set(session.sessionId, client);
+    const maxDurationTimer = setTimeout(() => {
+        send({ type: "error", message: "This voice session reached its time limit." });
+        client.close();
+    }, MAX_SESSION_MS);
 
     const sid = session.sessionId;
     const voice =
@@ -376,6 +414,8 @@ wss.on("connection", async (client, req) => {
     });
 
     client.on("close", () => {
+        clearTimeout(maxDurationTimer);
+        if (activeBySession.get(sid) === client) activeBySession.delete(sid);
         if (decisionTimer) clearTimeout(decisionTimer);
         if (azure.readyState === WebSocket.OPEN || azure.readyState === WebSocket.CONNECTING) azure.close();
         void saveSession(session).catch(() => undefined);

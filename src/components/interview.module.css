@@ -1242,6 +1242,305 @@
     100% { transform: scale(1); opacity: 0; }
 }
 
+/* ── In-call tiles (Meet-style): interviewer stage + candidate self-view ── */
+.speakerStage {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.25rem;
+    background: radial-gradient(circle at 50% 45%, #1F2937 0%, #141414 70%);
+}
+
+.speakerAvatar {
+    position: relative;
+    width: clamp(96px, 18vw, 148px);
+    height: clamp(96px, 18vw, 148px);
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #4782F6;
+    box-shadow: 0 0 0 0 rgba(71, 130, 246, 0);
+    transition: box-shadow 0.25s ease;
+}
+
+.speakerAvatarSpeaking {
+    box-shadow: 0 0 0 4px rgba(71, 130, 246, 0.55);
+}
+
+.speakerInitials {
+    position: relative;
+    z-index: 1;
+    font-family: 'Inter', sans-serif;
+    font-size: clamp(2.25rem, 5vw, 3.5rem);
+    font-weight: 500;
+    color: #FFFFFF;
+    letter-spacing: 0.02em;
+    user-select: none;
+}
+
+.speakerRing {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    border: 2px solid rgba(71, 130, 246, 0.6);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.speakerAvatarSpeaking .speakerRing {
+    animation: speakerRipple 1.6s ease-out infinite;
+}
+
+.speakerAvatarSpeaking .speakerRingDelayed {
+    animation-delay: 0.8s;
+}
+
+.speakerName {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+@keyframes speakerRipple {
+    0% { transform: scale(1); opacity: 0.85; }
+    100% { transform: scale(1.6); opacity: 0; }
+}
+
+.selfTile {
+    position: absolute;
+    right: 1rem;
+    bottom: 5.25rem;
+    width: clamp(132px, 22%, 220px);
+    aspect-ratio: 16 / 10;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #1F2937;
+    border: 2px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    z-index: 5;
+    transition: border-color 0.2s ease;
+}
+
+.selfTileSpeaking {
+    border-color: #4782F6;
+}
+
+.selfTileVideo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    display: block;
+}
+
+.selfTileInitials {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Inter', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 500;
+    color: #FFFFFF;
+    background: #334155;
+}
+
+.selfTileLabel {
+    position: absolute;
+    left: 0.4rem;
+    bottom: 0.35rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.5);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #FFFFFF;
+}
+
+@media (max-width: 768px) {
+    /* Lift the interviewer above the self-view tile on small screens. */
+    .speakerStage {
+        justify-content: flex-start;
+        padding-top: 14%;
+        gap: 0.85rem;
+    }
+
+    .selfTile {
+        width: 34%;
+        right: 0.75rem;
+        bottom: 4.75rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .speakerAvatarSpeaking .speakerRing {
+        animation: none;
+    }
+}
+
+/* ── Joining the call (between Start and the countdown) ── */
+.joiningOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.97);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 1.5rem;
+    animation: joiningFadeIn 0.25s ease-out;
+}
+
+.joiningCard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    width: 100%;
+    max-width: 380px;
+    font-family: 'Inter', sans-serif;
+}
+
+.joiningAvatarWrap {
+    position: relative;
+    width: 88px;
+    height: 88px;
+    margin-bottom: 1.5rem;
+}
+
+.joiningAvatar {
+    position: relative;
+    width: 88px;
+    height: 88px;
+    border-radius: 9999px;
+    object-fit: cover;
+    border: 3px solid #FFFFFF;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+}
+
+.joiningPulse {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: rgba(71, 130, 246, 0.25);
+    animation: joiningPulse 1.8s ease-out infinite;
+}
+
+.joiningTitle {
+    font-size: 1.35rem;
+    font-weight: 500;
+    color: #0F172A;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.35rem;
+    line-height: 1.3;
+}
+
+.joiningSubtitle {
+    font-size: 0.9rem;
+    font-weight: 400;
+    color: #64748B;
+    margin: 0 0 1.75rem;
+}
+
+.joiningSteps {
+    list-style: none;
+    margin: 0;
+    padding: 0.5rem;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+}
+
+.joiningStep {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.55rem 0.65rem;
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: #94A3B8;
+    text-align: left;
+    transition: color 0.2s ease;
+}
+
+.joiningStep_active {
+    color: #0F172A;
+    font-weight: 500;
+}
+
+.joiningStep_done {
+    color: #475569;
+}
+
+.joiningStepIcon {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid #CBD5E1;
+    color: #FFFFFF;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.joiningStep_active .joiningStepIcon {
+    border-color: transparent;
+}
+
+.joiningStep_done .joiningStepIcon {
+    background: #4782F6;
+    border-color: #4782F6;
+}
+
+.joiningSpinner {
+    width: 18px;
+    height: 18px;
+    border-radius: 9999px;
+    border: 2px solid #DBEAFE;
+    border-top-color: #4782F6;
+    animation: joiningSpin 0.8s linear infinite;
+}
+
+@keyframes joiningPulse {
+    0% { transform: scale(1); opacity: 0.9; }
+    100% { transform: scale(1.55); opacity: 0; }
+}
+
+@keyframes joiningSpin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes joiningFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .joiningOverlay,
+    .joiningPulse {
+        animation: none;
+    }
+    .joiningSpinner {
+        animation-duration: 2s;
+    }
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
     .contentGrid {
@@ -1249,7 +1548,12 @@
     }
 
     .videoCard {
-        aspect-ratio: 16 / 9;
+        /* Size from the screen width, not the stretched grid row (which made
+           the card wider than the screen). Square leaves room for both tiles. */
+        width: 100%;
+        min-width: 0;
+        align-self: start;
+        aspect-ratio: 1 / 1;
     }
 
     .navbar {

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { synthesizeQuestionsForRole, synthesizeQuestionsForSession } from "@/engine/questionSynthesizer";
 import { requireAuth } from "@/lib/session";
+import { LIMITS, rateLimit } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
 
 export async function POST(req: NextRequest) {
     try {
@@ -8,6 +10,8 @@ export async function POST(req: NextRequest) {
         if ("errorResponse" in authResult) {
             return authResult.errorResponse;
         }
+        const limited = await rateLimit(LIMITS.llm, `user:${authResult.session.email}`);
+        if (limited) return limited;
 
         const body = await req.json();
         const { role, domain, company, interviewType, count } = body || {};
@@ -30,7 +34,7 @@ export async function POST(req: NextRequest) {
         await synthesizeQuestionsForRole(role, domain);
 
         return NextResponse.json({ success: true, message: `Questions pre-synthesized for role ${role}` });
-    } catch (err: any) {
-        return NextResponse.json({ error: err.message || "Synthesis failed" }, { status: 500 });
+    } catch (err) {
+        return serverError("api/questions/synthesize", err, "Synthesis failed");
     }
 }

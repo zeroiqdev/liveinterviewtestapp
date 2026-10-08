@@ -391,7 +391,7 @@ export default function ResumeFeedbackReport({
         window.addEventListener("useladder_resume_scanned", handleScanUpdated);
 
         // Check if current text is base64 or unparsed data URI and needs automatic extraction
-        let text = report.resumeText || "";
+        const text = report.resumeText || "";
         let uName = structuredResume.name || "";
         let uRole = report.role || "Product Manager";
         let uEmail = "";
@@ -771,7 +771,7 @@ export default function ResumeFeedbackReport({
                 }
                 if (Array.isArray(u.resumes)) {
                     const selId = u.selectedResumeId || u.resume?.id;
-                    let idx = u.resumes.findIndex((r: any) => r.id === selId);
+                    const idx = u.resumes.findIndex((r: any) => r.id === selId);
                     if (idx >= 0) {
                         u.resumes[idx].score = currentScore;
                         if (liveFullText) u.resumes[idx].rawText = liveFullText;

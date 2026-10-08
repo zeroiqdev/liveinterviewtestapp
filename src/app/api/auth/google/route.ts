@@ -2,147 +2,117 @@ import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { normalizeUserRoleFamily } from "@/utils/locationDetector";
-import { signSessionToken, setSessionCookie, toSafeUser, isConfiguredAdmin } from "@/lib/session";
+import { loginResponse } from "@/lib/session";
+import { LIMITS, clientIp, rateLimit } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
 
-function parseJwtPayload(token: string) {
-    try {
-        const base64Url = token.split(".")[1];
-        if (!base64Url) return null;
-        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-        const jsonPayload = decodeURIComponent(
-            Buffer.from(base64, "base64")
-                .toString("binary")
-                .split("")
-                .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-                .join("")
-        );
-        return JSON.parse(jsonPayload);
-    } catch {
-        return null;
-    }
+interface GoogleIdentity {
+    email: string;
+    name?: string;
+    picture?: string;
+    sub: string;
 }
 
+/**
+ * Verify a Google OAuth access token server-side: it must be live, issued to
+ * *our* client ID, and carry a Google-verified email. Profile fields come from
+ * Google, never from the request body.
+ */
+async function verifyGoogleAccessToken(accessToken: string, clientId: string): Promise<GoogleIdentity | null> {
+    const infoRes = await fetch(
+        `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
+        { signal: AbortSignal.timeout(8000) }
+    );
+    if (!infoRes.ok) return null;
+    const info = await infoRes.json();
+    const audience = info.aud || info.azp;
+    if (audience !== clientId) return null;
+    if (info.email_verified !== "true" && info.email_verified !== true) return null;
+    if (typeof info.email !== "string" || typeof info.sub !== "string") return null;
+
+    let name: string | undefined;
+    let picture: string | undefined;
+    const profileRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(8000),
+    });
+    if (profileRes.ok) {
+        const profile = await profileRes.json();
+        if (profile.sub === info.sub) {
+            name = profile.name || profile.given_name;
+            picture = profile.picture;
+        }
+    }
+
+    return { email: info.email, sub: info.sub, name, picture };
+}
+
+/**
+ * POST /api/auth/google
+ * Body: { accessToken, role?, domain?, seniority?, experience? }
+ * The optional profile fields only seed a brand-new account.
+ */
 export async function POST(req: NextRequest) {
     try {
+        const clientId = process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+        if (!clientId) {
+            return NextResponse.json({ error: "Google sign-in is not configured." }, { status: 503 });
+        }
+
+        const limited = await rateLimit(LIMITS.login, `ip:${clientIp(req)}`);
+        if (limited) return limited;
+
+        const body = await req.json().catch(() => ({}));
+        const accessToken = typeof body.accessToken === "string" ? body.accessToken : "";
+        if (!accessToken) {
+            return NextResponse.json({ error: "Missing Google access token." }, { status: 400 });
+        }
+
+        const identity = await verifyGoogleAccessToken(accessToken, clientId);
+        if (!identity) {
+            return NextResponse.json({ error: "Google sign-in could not be verified. Please try again." }, { status: 401 });
+        }
+
         await dbConnect();
-        const body = await req.json();
-        const { credential, email: directEmail, name: directName, avatar: directAvatar, googleId: directSub } = body;
-
-        let email = directEmail;
-        let name = directName;
-        let avatar = directAvatar;
-        let googleId = directSub;
-
-        // If Google Credential JWT is passed from Google Identity Services
-        if (credential) {
-            try {
-                const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
-                if (verifyRes.ok) {
-                    const verified = await verifyRes.json();
-                    email = verified.email || email;
-                    name = verified.name || verified.given_name || name;
-                    avatar = verified.picture || avatar;
-                    googleId = verified.sub || googleId;
-                } else {
-                    const decoded = parseJwtPayload(credential);
-                    if (decoded) {
-                        email = decoded.email || email;
-                        name = decoded.name || decoded.given_name || name;
-                        avatar = decoded.picture || avatar;
-                        googleId = decoded.sub || googleId;
-                    }
-                }
-            } catch {
-                const decoded = parseJwtPayload(credential);
-                if (decoded) {
-                    email = decoded.email || email;
-                    name = decoded.name || decoded.given_name || name;
-                    avatar = decoded.picture || avatar;
-                    googleId = decoded.sub || googleId;
-                }
-            }
-        }
-
-        if (!email) {
-            return NextResponse.json(
-                { error: "Email is required for authentication" },
-                { status: 400 }
-            );
-        }
-
-        email = email.toLowerCase().trim();
-        name = name ? name.trim() : email.split("@")[0];
-
-        // Find or upsert user
+        const email = identity.email.toLowerCase().trim();
         let user = await User.findOne({ email });
+        const isNewUser = !user;
 
         if (!user) {
-            const initialRole = body.role || "Software Engineer";
-            const initialDomain = body.domain || "Software & Engineering";
-            const initialRoleFamily = normalizeUserRoleFamily(initialRole);
-
+            const initialRole = typeof body.role === "string" && body.role ? body.role : "Software Engineer";
             user = await User.create({
                 email,
-                name,
-                avatar: avatar || "",
-                googleId: googleId || "",
+                name: identity.name?.trim() || email.split("@")[0],
+                avatar: identity.picture || "",
+                googleId: identity.sub,
                 provider: "google",
+                emailVerified: true,
                 role: initialRole,
-                domain: initialDomain,
-                roleFamily: initialRoleFamily,
-                seniority: body.seniority || "professional",
-                experienceInRole: body.experience || "professional",
+                domain: typeof body.domain === "string" && body.domain ? body.domain : "Software & Engineering",
+                roleFamily: normalizeUserRoleFamily(initialRole),
+                seniority: typeof body.seniority === "string" && body.seniority ? body.seniority : "professional",
+                experienceInRole: typeof body.experience === "string" && body.experience ? body.experience : "professional",
                 resumes: [],
             });
         } else {
-            // Update latest basic profile info
-            if (name && !user.name) user.name = name;
-            if (avatar && !user.avatar) user.avatar = avatar;
-            if (googleId && !user.googleId) user.googleId = googleId;
-            if (body.role) {
-                user.role = body.role;
-                user.roleFamily = normalizeUserRoleFamily(body.role);
+            if (user.googleId && user.googleId !== identity.sub) {
+                return NextResponse.json({ error: "This email is linked to a different Google account." }, { status: 401 });
             }
-            if (body.domain) user.domain = body.domain;
+            if (!user.name && identity.name) user.name = identity.name;
+            if (!user.avatar && identity.picture) user.avatar = identity.picture;
+            if (!user.googleId) user.googleId = identity.sub;
+            if (user.emailVerified === false) {
+                // An unverified sign-up may have been made by someone else:
+                // drop anything they set before the real owner took over.
+                user.password = "";
+                user.resumes = [];
+            }
+            user.emailVerified = true;
             await user.save();
         }
 
-        // Check admin status
-        const isAdmin = isConfiguredAdmin(user.email, user.systemRole, user.isAdmin);
-        if (isAdmin && (!user.isAdmin || user.systemRole !== "admin")) {
-            user.isAdmin = true;
-            user.systemRole = "admin";
-            await user.save();
-        }
-
-        const sessionToken = await signSessionToken({
-            userId: user._id.toString(),
-            email: user.email,
-            name: user.name,
-            role: user.role,
-            domain: user.domain,
-            roleFamily: user.roleFamily,
-            seniority: user.seniority,
-            systemRole: user.systemRole || (isAdmin ? "admin" : "user"),
-            isAdmin,
-            provider: "google",
-        });
-
-        const safeUser = toSafeUser(user);
-
-        const response = NextResponse.json({
-            success: true,
-            user: safeUser,
-        });
-
-        setSessionCookie(response, sessionToken);
-
-        return response;
+        return loginResponse(user, { isNewUser });
     } catch (err) {
-        console.error("[api/auth/google] Error:", err);
-        return NextResponse.json(
-            { error: err instanceof Error ? err.message : "Failed to authenticate with Google" },
-            { status: 500 }
-        );
+        return serverError("api/auth/google", err, "Failed to authenticate with Google");
     }
 }

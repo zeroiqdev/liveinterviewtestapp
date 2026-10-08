@@ -75,7 +75,7 @@ export function TinderCardDeck({ onPractice, userRole, userRoleFamily }: TinderC
             }
         }
         setDragOffset({ x: 0, y: 0 });
-    }, [isDragging, dragOffset.x, dragOffset.y, onPractice, handleNext, handlePrev, currentCard?.title]);
+    }, [isDragging, dragOffset.x, dragOffset.y, onPractice, handleNext, handlePrev, currentCard]);
 
 
     return (

@@ -2,12 +2,21 @@
 
 import { useEffect, useRef } from "react";
 
+/** Speech must be this many times louder than the background level. */
+const NOISE_MARGIN = 2.5;
+
 interface UseVoiceActivityOptions {
     /** Mic stream to monitor (the session's camera/mic preview stream). */
     stream: MediaStream | null;
     enabled: boolean;
     /** RMS level (0..1) treated as speech. Conservative to ignore room noise. */
     threshold?: number;
+    /**
+     * Track the room's background level and require speech to stand clearly
+     * above it (threshold becomes the minimum). Lets a low threshold catch
+     * quiet voices without steady noise registering as speech.
+     */
+    adaptive?: boolean;
     /** Sustained level required before reporting speech start. */
     startMs?: number;
     /** Sustained quiet required before reporting speech end. Must be shorter
@@ -30,6 +39,7 @@ export function useVoiceActivity({
     stream,
     enabled,
     threshold = 0.05,
+    adaptive = false,
     startMs = 200,
     stopMs = 250,
     onSpeechStart,
@@ -64,6 +74,8 @@ export function useVoiceActivity({
         let speaking = false;
         let aboveSince: number | null = null;
         let belowSince: number | null = null;
+        // Slow-moving estimate of background level, updated only from quiet frames.
+        let noiseFloor: number | null = null;
 
         const timer = setInterval(() => {
             // A disabled (muted) track yields silence, which is what we want.
@@ -73,7 +85,14 @@ export function useVoiceActivity({
             const rms = Math.sqrt(sum / samples.length);
             const now = Date.now();
 
-            if (rms >= threshold) {
+            let level = threshold;
+            if (adaptive) {
+                noiseFloor ??= rms;
+                level = Math.max(threshold, noiseFloor * NOISE_MARGIN);
+                if (rms < level) noiseFloor = noiseFloor * 0.95 + rms * 0.05;
+            }
+
+            if (rms >= level) {
                 belowSince = null;
                 if (!speaking) {
                     aboveSince ??= now;
@@ -103,5 +122,5 @@ export function useVoiceActivity({
             } catch {}
             ctx.close().catch(() => {});
         };
-    }, [enabled, stream, threshold, startMs, stopMs]);
+    }, [enabled, stream, threshold, adaptive, startMs, stopMs]);
 }

@@ -5,6 +5,11 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    // ~180 legacy `any`s remain, mostly in the resume pipeline. Kept visible as
+    // warnings so lint can gate CI; type them as those files are touched.
+    rules: { "@typescript-eslint/no-explicit-any": "warn" },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

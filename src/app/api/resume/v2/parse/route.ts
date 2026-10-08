@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseResume } from "@/lib/resume/parse";
 import { ResumeDocSchema, AnchorMapSchema } from "@/lib/resume/types";
+import { requireAuth } from "@/lib/session";
+import { LIMITS, rateLimit } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
 
 export async function POST(req: NextRequest) {
   try {
+    const authResult = await requireAuth(req);
+    if ("errorResponse" in authResult) return authResult.errorResponse;
+    const limited = await rateLimit(LIMITS.parse, `user:${authResult.session.email}`);
+    if (limited) return limited;
+
     const body = await req.json();
     const { fileData, fileName = "resume.docx", fileRef } = body as { fileData?: string; fileName?: string; fileRef?: string };
     if (!fileData) return NextResponse.json({ error: "fileData required (base64 data URL or buffer)" }, { status: 400 });
@@ -25,6 +33,6 @@ export async function POST(req: NextRequest) {
     AnchorMapSchema.parse(anchorMap);
     return NextResponse.json({ doc, anchorMap, confidence: doc.source.confidence });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return serverError("api/resume/v2/parse", e, "Failed to parse resume");
   }
 }

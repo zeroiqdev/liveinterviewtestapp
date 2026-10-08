@@ -45,7 +45,9 @@ function guessCompanyName(url: string): string {
 
 // ─── GET: List all scraper sources ────────────────────────────────────
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+    const authResult = await requireAdmin(req);
+    if ("errorResponse" in authResult) return authResult.errorResponse;
     const sources = await getSources();
     return NextResponse.json({ sources, totalCount: sources.length });
 }

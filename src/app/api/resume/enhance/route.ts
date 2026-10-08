@@ -3,6 +3,9 @@ import { callJSON } from "@/engine/llm";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { extractDocumentText } from "@/lib/documentParser";
+import { requireAuth } from "@/lib/session";
+import { LIMITS, rateLimit } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
 
 export interface ResumeEnhanceResult {
     improvedDoc: string;
@@ -33,17 +36,23 @@ Return a JSON object with this exact structure:
 
 export async function POST(req: NextRequest) {
     try {
+        const authResult = await requireAuth(req);
+        if ("errorResponse" in authResult) return authResult.errorResponse;
+        const limited = await rateLimit(LIMITS.llm, `user:${authResult.session.email}`);
+        if (limited) return limited;
+
         const body = await req.json();
         const {
             resumeText = "",
             role = "Software Engineer",
             domain = "Software & Engineering",
             userNotes = "",
-            email,
             resumeId,
             fileData = "",
             resumeName = "Resume.pdf",
         } = body;
+        // Saved results always go to the signed-in user, never an email from the body.
+        const email = authResult.session.email;
 
         const inputToExtract = fileData || resumeText;
         let parsedText = await extractDocumentText(inputToExtract, resumeName);
@@ -103,10 +112,6 @@ ${parsedText.slice(0, 10000)}`;
             result,
         });
     } catch (err) {
-        console.error("[api/resume/enhance] Error:", err);
-        return NextResponse.json(
-            { error: err instanceof Error ? err.message : "Failed to enhance resume" },
-            { status: 500 }
-        );
+        return serverError("api/resume/enhance", err, "Failed to enhance resume");
     }
 }

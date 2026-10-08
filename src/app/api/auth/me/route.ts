@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
-import { getSession, toSafeUser, clearSessionCookie } from "@/lib/session";
+import { getSession, toSafeUser, clearSessionCookie, issuedBeforeCutoff } from "@/lib/session";
 
 export async function GET(req: NextRequest) {
     try {
@@ -15,9 +15,9 @@ export async function GET(req: NextRequest) {
 
         await dbConnect();
         const user = await User.findOne({ email: session.email.toLowerCase().trim() });
-        if (!user) {
+        if (!user || issuedBeforeCutoff(session, user)) {
             const res = NextResponse.json(
-                { authenticated: false, error: "User no longer exists" },
+                { authenticated: false, error: user ? "Session expired. Please log in again." : "User no longer exists" },
                 { status: 401 }
             );
             clearSessionCookie(res);

@@ -32,6 +32,7 @@ interface PaymentModalProps {
 export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
     const router = useRouter();
     const [step, setStep] = useState<ModalStep>("role");
+    const [referenceNumber] = useState(() => `ZN1PM${Date.now().toString().slice(-8)}`);
     const [user, setUser] = useState<UserProfile | null>(null);
     const [selectedMethod, setSelectedMethod] = useState<"card" | "bank">("card");
     const [copied, setCopied] = useState(false);
@@ -42,6 +43,8 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
 
     useEffect(() => {
         if (isOpen) {
+            // Reset to the first step and reload the saved profile each time the modal opens.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setStep("role");
             const raw = localStorage.getItem("useladder_user");
             if (raw) {
@@ -97,7 +100,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
     const handleConfirmRole = async () => {
         if (!user) return;
 
-        let updatedUser = { ...user };
+        const updatedUser = { ...user };
         
         // 1. If a new file was uploaded, process it
         if (resumeFile) {
@@ -564,7 +567,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
                                 <div className={styles.receiptRow}>
                                     <span className={styles.receiptLabel}>Reference number</span>
                                     <span className={styles.receiptValue}>
-                                        {`ZN1PM${Date.now().toString().slice(-8)}`}
+                                        {referenceNumber}
                                     </span>
                                 </div>
                                 <div className={styles.receiptRow}>

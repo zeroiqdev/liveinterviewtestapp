@@ -88,7 +88,7 @@ function getQaIllustration(question: string, idx: number): { img: string; bg: st
 const DEFAULT_DEMO_REPORT: FeedbackReportData = {
     overallScore: 84,
     verdict: "Strong Candidate",
-    summary: "You completed the session and demonstrated strong analytical problem solving and structured thinking. You articulated technical trade-offs with confidence and maintained steady pacing throughout.",
+    summary: "You demonstrated strong analytical problem solving and structured thinking. You articulated technical trade-offs with confidence and maintained steady pacing throughout.",
     metrics: {
         vocabulary: 88,
         technicalDepth: 82,
@@ -384,12 +384,8 @@ export default function FeedbackReport({
                         const statsKey = `useladder_stats_recorded_${sessionId}`;
                         if (!localStorage.getItem(statsKey)) {
                             localStorage.setItem(statsKey, "1");
-                            let statsUserId = "anonymous";
-                            try {
-                                statsUserId = JSON.parse(localStorage.getItem("useladder_user") || "{}").email || "anonymous";
-                            } catch {}
                             const minutes = typeof meta.durationMinutes === "number" ? meta.durationMinutes : 1;
-                            void db.recordInterviewSession(statsUserId, clean.overallScore, minutes);
+                            void db.recordInterviewSession(clean.overallScore, minutes);
                         }
                         setIsLoading(false);
                         return;

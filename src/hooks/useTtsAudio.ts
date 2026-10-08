@@ -23,11 +23,11 @@ export interface PlayFillerOptions extends PlayTtsOptions {
 // pacing is set at synthesis time instead (see voiceConfig prosody).
 const TTS_PLAYBACK_SPEED = 1.0;
 
-// How long to wait for real TTS before falling back to browser speech. Cold
-// Azure synthesis takes ~1–1.7s plus upload; at the old 280ms nearly every
-// uncached line played in the browser voice. Real failures still fall back
-// immediately via the error path.
-const TTS_FALLBACK_WAIT_MS = 3500;
+// How long to wait for real TTS before falling back to browser speech. The
+// browser voice sounds different from the interviewer, so it is a last resort
+// for synthesis that is genuinely unavailable, not merely slow: switching at
+// 3.5s gave long or cold lines (often the opening question) a second voice.
+const TTS_FALLBACK_WAIT_MS = 15000;
 
 function fallbackBrowserSpeech(
   text: string,
@@ -65,9 +65,38 @@ function fallbackBrowserSpeech(
   }
 
   utterance.rate = TTS_PLAYBACK_SPEED;
-  utterance.onstart = () => onStart?.();
-  utterance.onend = () => onEnd?.();
-  utterance.onerror = () => onEnd?.();
+
+  // Chrome sometimes never fires onend (notably for utterances over ~15s, or
+  // after a cancel/speak race), which used to leave the interview stuck on
+  // "speaking". Report the end exactly once, from whichever signal comes first.
+  const isChromium = /Chrome\//.test(navigator.userAgent);
+  let ended = false;
+  let started = false;
+  let quietPolls = 0;
+  const finish = () => {
+    if (ended) return;
+    ended = true;
+    clearInterval(monitor);
+    onEnd?.();
+  };
+  const monitor = setInterval(() => {
+    const synth = window.speechSynthesis;
+    // Keep Chrome's synthesizer from silently timing out on long utterances.
+    if (isChromium && synth.speaking && !synth.paused) {
+      synth.pause();
+      synth.resume();
+    }
+    if (!started || synth.paused) return;
+    quietPolls = synth.speaking || synth.pending ? 0 : quietPolls + 1;
+    if (quietPolls >= 2) finish();
+  }, 5000);
+
+  utterance.onstart = () => {
+    started = true;
+    onStart?.();
+  };
+  utterance.onend = finish;
+  utterance.onerror = finish;
 
   window.speechSynthesis.speak(utterance);
 }
@@ -75,6 +104,84 @@ function fallbackBrowserSpeech(
 // In-memory cache of pre-fetched and synthesized TTS audio URLs
 const ttsUrlCache = new Map<string, { audioUrl: string; voiceLabel?: string }>();
 const ttsPrefetchInFlight = new Set<string>();
+
+/*
+ * Pre-loaded audio elements, keyed by URL. Creating `new Audio(url)` at play
+ * time downloads the clip right then (~0.5s from storage), which was the gap
+ * after fillers and between sentences. Clips are loaded into elements ahead
+ * of time and played from here; a used one is replaced with a fresh preload
+ * so lines that repeat (fillers) stay instant.
+ */
+const AUDIO_POOL_MAX = 80;
+const audioPool = new Map<string, HTMLAudioElement>();
+
+export function preloadAudio(url: string) {
+  if (typeof window === "undefined" || !url || audioPool.has(url)) return;
+  const audio = new Audio();
+  audio.preload = "auto";
+  audio.src = url;
+  audio.load();
+  audioPool.set(url, audio);
+  if (audioPool.size > AUDIO_POOL_MAX) {
+    const oldest = audioPool.keys().next().value;
+    if (oldest) audioPool.delete(oldest);
+  }
+}
+
+/**
+ * Resolves once the clip is buffered enough to play through (or on error or
+ * timeout, so a slow network can't block anything that waits on it).
+ */
+export function waitForAudio(url: string, timeoutMs: number): Promise<void> {
+  if (typeof window === "undefined" || !url) return Promise.resolve();
+  preloadAudio(url);
+  const audio = audioPool.get(url);
+  if (!audio || audio.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      audio.removeEventListener("canplaythrough", done);
+      audio.removeEventListener("error", done);
+      resolve();
+    };
+    const timer = setTimeout(done, timeoutMs);
+    audio.addEventListener("canplaythrough", done);
+    audio.addEventListener("error", done);
+  });
+}
+
+/** True when the clip is pre-loaded and buffered enough to start right away. */
+export function isAudioReady(url: string): boolean {
+  const audio = audioPool.get(url);
+  return Boolean(audio && audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA);
+}
+
+/** A ready-to-play element for the URL: the pre-loaded one if available. */
+function takeAudio(url: string): HTMLAudioElement {
+  const pooled = audioPool.get(url);
+  audioPool.delete(url);
+  // Keep the next play of this clip instant too (fillers repeat).
+  preloadAudio(url);
+  if (pooled) {
+    pooled.currentTime = 0;
+    return pooled;
+  }
+  return new Audio(url);
+}
+
+/**
+ * Voice region fixed for the current interview (set from the session). While
+ * set, every clip — questions, prefetches, replays — uses this one voice.
+ */
+let lockedVoiceRegion: string | null = null;
+
+export function lockVoiceRegion(region: string | null) {
+  lockedVoiceRegion = region;
+}
+
+function voiceRegion(): string {
+  return lockedVoiceRegion || getStoredJobRegion();
+}
 
 export function getStoredJobRegion(): string {
   if (typeof window !== "undefined") {
@@ -105,6 +212,12 @@ export function useTtsAudio() {
   const [activeText, setActiveText] = useState<string | null>(null);
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Clips of the last multi-sentence line, for "Replay".
+  const lastSegmentsRef = useRef<Array<{ text: string; audioUrl?: string }> | null>(null);
+  // playPipelinedSpeech is defined below replay; reach it through a ref.
+  const playPipelinedRef = useRef<
+    ((segments: Array<{ text: string; audioUrl?: string }>, options?: PlayTtsOptions) => Promise<void>) | null
+  >(null);
   const currentPlayIdRef = useRef<number>(0);
   // Tracks what pauseAudio actually paused so resumeAudio never restarts an
   // ended clip (play() on an ended element replays it from the start).
@@ -135,10 +248,14 @@ export function useTtsAudio() {
    * Caches response URLs in memory and primes the browser's native HTTP/media cache.
    */
   const prefetchTts = useCallback(
-    (texts: string[], options?: { persona?: "recruiter" | "coach"; jobRegion?: string; turnId?: string }) => {
-      if (typeof window === "undefined" || !texts || texts.length === 0) return;
+    (
+      texts: string[],
+      options?: { persona?: "recruiter" | "coach"; jobRegion?: string; turnId?: string }
+    ): Promise<void> => {
+      if (typeof window === "undefined" || !texts || texts.length === 0) return Promise.resolve();
+      const pending: Promise<unknown>[] = [];
       const persona = options?.persona || "recruiter";
-      const jobRegion = options?.jobRegion || getStoredJobRegion();
+      const jobRegion = options?.jobRegion || voiceRegion();
 
       texts.forEach((rawText) => {
         const text = rawText?.trim();
@@ -148,7 +265,7 @@ export function useTtsAudio() {
 
         ttsPrefetchInFlight.add(cacheKey);
 
-        fetch("/api/tts", {
+        const request = fetch("/api/tts", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -166,10 +283,7 @@ export function useTtsAudio() {
                 audioUrl: data.audioUrl,
                 voiceLabel: data.voiceLabel,
               });
-              // Pre-warm browser native media cache (<20 KB memory)
-              const audioPreload = new Audio();
-              audioPreload.preload = "auto";
-              audioPreload.src = data.audioUrl;
+              preloadAudio(data.audioUrl);
             }
           })
           .catch(() => {
@@ -178,7 +292,9 @@ export function useTtsAudio() {
           .finally(() => {
             ttsPrefetchInFlight.delete(cacheKey);
           });
+        pending.push(request);
       });
+      return Promise.allSettled(pending).then(() => undefined);
     },
     []
   );
@@ -192,6 +308,7 @@ export function useTtsAudio() {
 
       // Stop any active audio and track this play request
       stopAudio();
+      lastSegmentsRef.current = null;
       const thisPlayId = currentPlayIdRef.current;
 
       setIsLoadingAudio(true);
@@ -223,14 +340,14 @@ export function useTtsAudio() {
       // Detect job/user region from options or localStorage
       let jobRegion = options?.jobRegion;
       if (!jobRegion && typeof window !== "undefined") {
-        jobRegion = getStoredJobRegion();
+        jobRegion = voiceRegion();
       }
       jobRegion = jobRegion || "nigeria";
 
       const playMainAudio = (url: string) => {
         if (thisPlayId !== currentPlayIdRef.current) return;
 
-        const audio = new Audio(url);
+        const audio = takeAudio(url);
         audio.defaultPlaybackRate = TTS_PLAYBACK_SPEED;
         audio.playbackRate = TTS_PLAYBACK_SPEED;
         audio.preservesPitch = true;
@@ -340,10 +457,15 @@ export function useTtsAudio() {
   );
 
   const replayCurrentAudio = useCallback(() => {
+    const segments = lastSegmentsRef.current;
+    if (segments && playPipelinedRef.current) {
+      void playPipelinedRef.current(segments);
+      return;
+    }
     if (currentAudioUrl) {
       stopAudio();
       const thisPlayId = currentPlayIdRef.current;
-      const audio = new Audio(currentAudioUrl);
+      const audio = takeAudio(currentAudioUrl);
       audio.defaultPlaybackRate = TTS_PLAYBACK_SPEED;
       audio.playbackRate = TTS_PLAYBACK_SPEED;
       audio.preservesPitch = true;
@@ -375,67 +497,46 @@ export function useTtsAudio() {
     };
   }, [stopAudio]);
 
-  const playFiller = useCallback(
-    async (candidateTranscript?: string, options?: PlayFillerOptions) => {
-      const fillerText = getContextualFiller(candidateTranscript, options?.recentCandidateTurns, options?.length);
+  /**
+   * Plays a line only if its audio is already cached in the interview voice;
+   * returns false (and plays nothing) otherwise. Used for fillers, which must
+   * start instantly and must never switch to the browser's voice.
+   */
+  const playIfCached = useCallback(
+    (text: string, options?: PlayTtsOptions): boolean => {
       const persona = options?.persona || "recruiter";
-      let jobRegion = options?.jobRegion;
-      if (!jobRegion && typeof window !== "undefined") {
-        jobRegion = getStoredJobRegion();
-      }
-      jobRegion = jobRegion || "nigeria";
-
-      const cacheKey = `${persona}:${jobRegion}:${fillerText.trim()}`;
-      const cached = ttsUrlCache.get(cacheKey);
-
-      // 1. If pre-cached, play high-fidelity synthesized audio
-      if (cached?.audioUrl) {
-        return playTts(fillerText, options);
-      }
-
-      // 2. If not pre-cached, DO NOT block on a remote API call! Speak immediately via Web Speech with 0ms latency.
-      stopAudio();
-      const thisPlayId = currentPlayIdRef.current;
-      fallbackBrowserSpeech(
-        fillerText,
-        () => {
-          if (thisPlayId !== currentPlayIdRef.current) return;
-          setIsPlaying(true);
-          options?.onStart?.();
-        },
-        () => {
-          if (thisPlayId !== currentPlayIdRef.current) return;
-          setIsPlaying(false);
-          options?.onEnd?.();
-        }
-      );
+      const jobRegion = options?.jobRegion || voiceRegion();
+      if (!ttsUrlCache.get(`${persona}:${jobRegion}:${text.trim()}`)?.audioUrl) return false;
+      void playTts(text, options);
+      return true;
     },
-    [playTts, stopAudio]
+    [playTts]
+  );
+
+  const playFiller = useCallback(
+    (candidateTranscript?: string, options?: PlayFillerOptions): boolean =>
+      playIfCached(getContextualFiller(candidateTranscript, options?.recentCandidateTurns, options?.length), options),
+    [playIfCached]
   );
 
   const primeAudioCache = useCallback(
     (text: string, audioUrl: string, voiceLabel?: string | null, persona: string = "recruiter", jobRegion?: string) => {
       if (!text || !audioUrl) return;
-      const region = jobRegion || (typeof window !== "undefined" ? getStoredJobRegion() : "nigeria");
+      const region = jobRegion || (typeof window !== "undefined" ? voiceRegion() : "nigeria");
       const cacheKey = `${persona}:${region}:${text.trim()}`;
       ttsUrlCache.set(cacheKey, {
         audioUrl,
         voiceLabel: voiceLabel || undefined,
       });
 
-      if (typeof window !== "undefined") {
-        const audioPreload = new Audio();
-        audioPreload.preload = "auto";
-        audioPreload.src = audioUrl;
-      }
+      preloadAudio(audioUrl);
     },
     []
   );
 
   const prefetchFillers = useCallback(
-    (options?: { persona?: "recruiter" | "coach"; jobRegion?: string }) => {
-      prefetchTts(CONVERSATIONAL_FILLERS, options);
-    },
+    (options?: { persona?: "recruiter" | "coach"; jobRegion?: string }) =>
+      prefetchTts(CONVERSATIONAL_FILLERS, options),
     [prefetchTts]
   );
 
@@ -477,12 +578,15 @@ export function useTtsAudio() {
         options?.onEnd?.();
         return;
       }
+      // Replay should repeat these exact clips, not re-voice the text.
+      lastSegmentsRef.current = segments;
+      setActiveText(segments.map((seg) => seg.text).join(" "));
 
       if (segments.length === 1) {
         if (segments[0].audioUrl) {
           stopAudio();
           const thisPlayId = currentPlayIdRef.current;
-          const audio = new Audio(segments[0].audioUrl);
+          const audio = takeAudio(segments[0].audioUrl);
           audio.defaultPlaybackRate = TTS_PLAYBACK_SPEED;
           audio.playbackRate = TTS_PLAYBACK_SPEED;
           audio.preservesPitch = true;
@@ -497,6 +601,12 @@ export function useTtsAudio() {
             setIsPlaying(false);
             options?.onEnd?.();
           };
+          // A clip that fails to load or breaks mid-play must still end the turn.
+          audio.onerror = () => {
+            if (thisPlayId !== currentPlayIdRef.current) return;
+            setIsPlaying(false);
+            fallbackBrowserSpeech(segments[0].text, options?.onStart, options?.onEnd);
+          };
           audio.play().catch(() => {
             fallbackBrowserSpeech(segments[0].text, options?.onStart, options?.onEnd);
           });
@@ -509,6 +619,40 @@ export function useTtsAudio() {
       stopAudio();
       const thisPlayId = currentPlayIdRef.current;
       let currentIndex = 0;
+      const persona = options?.persona || "recruiter";
+      const jobRegion = options?.jobRegion || voiceRegion();
+
+      // Resolve every missing sentence URL up front, in parallel, so each
+      // sentence is ready by the time the previous one finishes instead of
+      // being requested only after it ends.
+      const resolveUrl = async (text: string, attempt = 1): Promise<string | undefined> => {
+        const cacheKey = `${persona}:${jobRegion}:${text.trim()}`;
+        const cached = ttsUrlCache.get(cacheKey);
+        if (cached?.audioUrl) return cached.audioUrl;
+        // One retry before a sentence drops to the (different) browser voice.
+        const retry = () => (attempt < 2 ? resolveUrl(text, attempt + 1) : Promise.resolve(undefined));
+        try {
+          const res = await fetch("/api/tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: text.trim(), persona, jobRegion }),
+          });
+          if (!res.ok) return retry();
+          const data = await res.json();
+          if (!data.audioUrl) return retry();
+          ttsUrlCache.set(cacheKey, { audioUrl: data.audioUrl, voiceLabel: data.voiceLabel });
+          return data.audioUrl;
+        } catch {
+          return retry();
+        }
+      };
+      const urlPromises = segments.map((seg) =>
+        (seg.audioUrl ? Promise.resolve(seg.audioUrl) : resolveUrl(seg.text)).then((url) => {
+          // Start loading every sentence now so each is buffered before its turn.
+          if (url) preloadAudio(url);
+          return url;
+        })
+      );
 
       const playNextSegment = async () => {
         if (thisPlayId !== currentPlayIdRef.current) return;
@@ -521,33 +665,12 @@ export function useTtsAudio() {
         const seg = segments[currentIndex];
         currentIndex++;
 
-        let url = seg.audioUrl;
-        if (!url) {
-          const persona = options?.persona || "recruiter";
-          const jobRegion = options?.jobRegion || getStoredJobRegion();
-          const cacheKey = `${persona}:${jobRegion}:${seg.text.trim()}`;
-          const cached = ttsUrlCache.get(cacheKey);
-          if (cached?.audioUrl) {
-            url = cached.audioUrl;
-          } else {
-            try {
-              const res = await fetch("/api/tts", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ text: seg.text.trim(), persona, jobRegion }),
-              });
-              if (res.ok) {
-                const data = await res.json();
-                url = data.audioUrl;
-              }
-            } catch {}
-          }
-        }
+        const url = await urlPromises[currentIndex - 1];
 
         if (thisPlayId !== currentPlayIdRef.current) return;
 
         if (url) {
-          const audio = new Audio(url);
+          const audio = takeAudio(url);
           audio.defaultPlaybackRate = TTS_PLAYBACK_SPEED;
           audio.playbackRate = TTS_PLAYBACK_SPEED;
           audio.preservesPitch = true;
@@ -593,10 +716,15 @@ export function useTtsAudio() {
     [playTts, stopAudio]
   );
 
+  useEffect(() => {
+    playPipelinedRef.current = playPipelinedSpeech;
+  }, [playPipelinedSpeech]);
+
   return {
     playTts,
     playPipelinedSpeech,
     playFiller,
+    playIfCached,
     prefetchTts,
     prefetchFillers,
     primeAudioCache,

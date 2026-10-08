@@ -1,153 +1,78 @@
-import { SignJWT } from "jose/jwt/sign";
-import { jwtVerify } from "jose/jwt/verify";
 import { NextRequest, NextResponse } from "next/server";
+import dbConnect from "@/lib/mongodb";
+import User, { type IUser } from "@/models/User";
+import {
+    SESSION_COOKIE_NAME,
+    SESSION_MAX_AGE_SECONDS,
+    extractTokenFromRequest,
+    signSessionToken,
+    verifySessionToken,
+    type SessionPayload,
+} from "@/lib/sessionToken";
 
-export const SESSION_COOKIE_NAME = "useladder_session";
-const SESSION_EXPIRY = "7d";
-const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60; // 7 days
+export {
+    SESSION_COOKIE_NAME,
+    extractTokenFromRequest,
+    getJwtSecretKey,
+    signSessionToken,
+    verifySessionToken,
+    type SessionPayload,
+} from "@/lib/sessionToken";
 
-export interface SessionPayload {
-    userId: string;
-    email: string;
-    name: string;
-    role: string;
-    domain: string;
-    roleFamily: string;
-    seniority: string;
-    systemRole: "user" | "admin";
-    isAdmin: boolean;
-    provider?: string;
-}
+type AdminFields = Pick<IUser, "email"> & Partial<Pick<IUser, "systemRole" | "isAdmin" | "emailVerified">>;
 
-/**
- * Returns HMAC secret key as Uint8Array for jose
- */
-export function getJwtSecretKey(): Uint8Array {
-    const secret =
-        process.env.AUTH_SECRET ||
-        process.env.JWT_SECRET ||
-        "useladder-super-secure-session-secret-key-32-chars-minimum!";
-    return new TextEncoder().encode(secret);
-}
-
-/**
- * Checks if a given email or user flags qualify as Admin
- */
-export function isConfiguredAdmin(
-    email: string,
-    systemRole?: string,
-    isAdmin?: boolean
-): boolean {
-    if (isAdmin === true || systemRole === "admin") {
-        return true;
-    }
-
-    const adminEmails = (process.env.ADMIN_EMAILS || "")
+function configuredAdminEmails(): string[] {
+    return (process.env.ADMIN_EMAILS || "")
         .split(",")
         .map((e) => e.trim().toLowerCase())
         .filter(Boolean);
-
-    return Boolean(email && adminEmails.includes(email.trim().toLowerCase()));
 }
 
 /**
- * Sign a new session JWT
+ * Whether a user record has admin rights: granted explicitly in the database,
+ * or listed in ADMIN_EMAILS *and* the user has proven they own that address
+ * (Google sign-in or an emailed code). Without the ownership check anyone
+ * could sign up with an admin's address and inherit their rights.
  */
-export async function signSessionToken(
-    payload: {
-        userId: string;
-        email: string;
-        name: string;
-        role: string;
-        domain: string;
-        roleFamily: string;
-        seniority: string;
-        systemRole?: "user" | "admin";
-        isAdmin?: boolean;
-        provider?: string;
-    }
-): Promise<string> {
-    const secretKey = getJwtSecretKey();
-    const isAdmin = isConfiguredAdmin(
-        payload.email,
-        payload.systemRole,
-        payload.isAdmin
-    );
+export function isAdminUser(user: AdminFields | null | undefined): boolean {
+    if (!user) return false;
+    if (user.isAdmin === true || user.systemRole === "admin") return true;
+    if (!user.emailVerified) return false;
+    return configuredAdminEmails().includes((user.email || "").trim().toLowerCase());
+}
 
-    return new SignJWT({
-        ...payload,
-        systemRole: isAdmin ? "admin" : payload.systemRole || "user",
+/** Build the signed session for a user record. */
+export function sessionPayloadFor(user: IUser): SessionPayload {
+    const isAdmin = isAdminUser(user);
+    return {
+        userId: user._id.toString(),
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        domain: user.domain,
+        roleFamily: user.roleFamily,
+        seniority: user.seniority,
+        systemRole: isAdmin ? "admin" : "user",
         isAdmin,
-    })
-        .setProtectedHeader({ alg: "HS256" })
-        .setIssuedAt()
-        .setExpirationTime(SESSION_EXPIRY)
-        .sign(secretKey);
+        provider: user.provider || "credentials",
+    };
 }
 
 /**
- * Verify and decode a session token
+ * Sign a session for the user and return the standard login response
+ * ({ success, user, ...extra }) with the session cookie attached.
  */
-export async function verifySessionToken(
-    token: string
-): Promise<SessionPayload | null> {
-    try {
-        const secretKey = getJwtSecretKey();
-        const { payload } = await jwtVerify(token, secretKey);
-
-        const email = String(payload.email || "");
-        const systemRole = (payload.systemRole as "user" | "admin") || "user";
-        const isAdmin = isConfiguredAdmin(
-            email,
-            systemRole,
-            Boolean(payload.isAdmin)
-        );
-
-        return {
-            userId: String(payload.userId || ""),
-            email,
-            name: String(payload.name || ""),
-            role: String(payload.role || "Software Engineer"),
-            domain: String(payload.domain || "Software & Engineering"),
-            roleFamily: String(payload.roleFamily || "engineering"),
-            seniority: String(payload.seniority || "professional"),
-            systemRole: isAdmin ? "admin" : systemRole,
-            isAdmin,
-            provider: payload.provider ? String(payload.provider) : undefined,
-        };
-    } catch {
-        return null;
-    }
-}
-
-/**
- * Extract token from a NextRequest or standard Request
- */
-export function extractTokenFromRequest(req: NextRequest | Request): string | null {
-    if ("cookies" in req && typeof req.cookies?.get === "function") {
-        const cookie = req.cookies.get(SESSION_COOKIE_NAME);
-        if (cookie?.value) return cookie.value;
-    }
-
-    const cookieHeader = req.headers.get("cookie");
-    if (!cookieHeader) return null;
-
-    const cookies = cookieHeader.split(";").map((c) => c.trim());
-    for (const c of cookies) {
-        if (c.startsWith(`${SESSION_COOKIE_NAME}=`)) {
-            return decodeURIComponent(c.substring(SESSION_COOKIE_NAME.length + 1));
-        }
-    }
-
-    return null;
+export async function loginResponse(user: IUser, extra: Record<string, unknown> = {}): Promise<NextResponse> {
+    const token = await signSessionToken(sessionPayloadFor(user));
+    const response = NextResponse.json({ success: true, user: toSafeUser(user), ...extra });
+    setSessionCookie(response, token);
+    return response;
 }
 
 /**
  * Retrieve session from request
  */
-export async function getSession(
-    req: NextRequest | Request
-): Promise<SessionPayload | null> {
+export async function getSession(req: NextRequest | Request): Promise<SessionPayload | null> {
     const token = extractTokenFromRequest(req);
     if (!token) return null;
     return verifySessionToken(token);
@@ -187,15 +112,14 @@ export function clearSessionCookie(res: NextResponse): void {
 /**
  * Sanitize user object for client response (strips password, ensures admin flags)
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- accepts docs and lean objects
 export function toSafeUser(user: any) {
     if (!user) return null;
-    const email = user.email || "";
-    const systemRole = user.systemRole || "user";
-    const isAdmin = isConfiguredAdmin(email, systemRole, user.isAdmin);
+    const isAdmin = isAdminUser(user);
 
     return {
         id: user._id ? user._id.toString() : user.id,
-        email,
+        email: user.email || "",
         name: user.name || "",
         avatar: user.avatar || "",
         role: user.role || "Software Engineer",
@@ -208,7 +132,8 @@ export function toSafeUser(user: any) {
         resumes: user.resumes || [],
         onboarded: Boolean(user.role && user.domain),
         provider: user.provider || "credentials",
-        systemRole: isAdmin ? "admin" : systemRole,
+        hasPassword: Boolean(user.password),
+        systemRole: isAdmin ? "admin" : "user",
         isAdmin,
     };
 }
@@ -216,10 +141,38 @@ export function toSafeUser(user: any) {
 /**
  * Enforce authentication on API route. Returns session or error Response
  */
+/**
+ * Sessions are stateless JWTs, so revocation is a per-user cutoff: tokens
+ * issued before `sessionsValidAfter` (set when the password is reset or
+ * changed) are rejected.
+ */
+export function issuedBeforeCutoff(session: SessionPayload, user: Pick<IUser, "sessionsValidAfter"> | null): boolean {
+    if (!user?.sessionsValidAfter) return false;
+    return (session.iat ?? 0) * 1000 < new Date(user.sessionsValidAfter).getTime();
+}
+
+/** Start of the current second; tokens issued from now on stay valid. */
+export function revocationCutoff(): Date {
+    return new Date(Math.floor(Date.now() / 1000) * 1000);
+}
+
 export async function requireAuth(
     req: NextRequest | Request
 ): Promise<{ session: SessionPayload } | { errorResponse: NextResponse }> {
-    const session = await getSession(req);
+    let session = await getSession(req);
+    if (session?.email) {
+        try {
+            await dbConnect();
+            const user = await User.findOne({ email: session.email.toLowerCase().trim() })
+                .select("sessionsValidAfter")
+                .lean<Pick<IUser, "sessionsValidAfter">>();
+            if (!user || issuedBeforeCutoff(session, user)) session = null;
+        } catch (err) {
+            // The signature already proves the session; during a database outage
+            // keep interviews running rather than failing every request.
+            console.warn("[session] revocation check skipped:", (err as Error).message);
+        }
+    }
     if (!session || !session.email) {
         return {
             errorResponse: NextResponse.json(
@@ -229,6 +182,19 @@ export async function requireAuth(
         };
     }
     return { session };
+}
+
+/**
+ * Re-check admin rights against the database. The flag inside a session
+ * token can be up to 7 days old, so revoking an admin must not wait for it.
+ */
+export async function isAdminSession(session: SessionPayload): Promise<boolean> {
+    if (!session.isAdmin) return false;
+    await dbConnect();
+    const user = await User.findOne({ email: session.email.toLowerCase().trim() })
+        .select("email systemRole isAdmin emailVerified")
+        .lean<AdminFields>();
+    return isAdminUser(user);
 }
 
 /**
@@ -243,7 +209,7 @@ export async function requireAdmin(
     }
 
     const { session } = authResult;
-    if (!session.isAdmin) {
+    if (!(await isAdminSession(session))) {
         return {
             errorResponse: NextResponse.json(
                 { error: "Forbidden. Admin authorization required." },

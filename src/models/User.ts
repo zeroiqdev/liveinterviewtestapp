@@ -31,7 +31,11 @@ export interface IUser extends Document {
     experienceInRole?: string;
     systemRole?: "user" | "admin";
     isAdmin?: boolean;
+    /** True once the user has proven they own the address (Google or an emailed code). */
+    emailVerified?: boolean;
     password?: string;
+    /** Sessions issued before this time are rejected (set on password reset/change). */
+    sessionsValidAfter?: Date;
     portfolioUrl?: string;
     linkedinUrl?: string;
     resumes: IResume[];
@@ -69,12 +73,16 @@ const UserSchema = new Schema<IUser>(
         googleId: { type: String, default: "" },
         systemRole: { type: String, enum: ["user", "admin"], default: "user" },
         isAdmin: { type: Boolean, default: false },
+        // No default: accounts created before verification existed have no
+        // value and keep password login; new sign-ups start explicitly false.
+        emailVerified: { type: Boolean },
         role: { type: String, default: "Software Engineer" },
         domain: { type: String, default: "Software & Engineering" },
         roleFamily: { type: String, default: "engineering" },
         seniority: { type: String, default: "professional" },
         experienceInRole: { type: String, default: "professional" },
         password: { type: String, default: "" },
+        sessionsValidAfter: { type: Date },
         portfolioUrl: { type: String, default: "" },
         linkedinUrl: { type: String, default: "" },
         resumes: [ResumeSchema],

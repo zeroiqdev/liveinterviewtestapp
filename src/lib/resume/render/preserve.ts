@@ -7,7 +7,7 @@ export async function renderPreserveOriginal(opts: { originalBuffer: Buffer; doc
   const zip = new PizZip(opts.originalBuffer);
   const xmlFile = zip.file("word/document.xml");
   if (!xmlFile) return opts.originalBuffer;
-  let xml = xmlFile.asText();
+  const xml = xmlFile.asText();
 
   // Build a tiny paragraph/run index to map paragraphIndex -> <w:p> block
   const pRe = /<w:p[^>]*>[\s\S]*?<\/w:p>/g;
@@ -87,7 +87,7 @@ export async function renderPreserveOriginal(opts: { originalBuffer: Buffer; doc
   }
 
   // Reassemble xml
-  let outXml = xml;
+  const outXml = xml;
   // Replace each original paragraph block with new one (order matters)
   // Use a single pass: rebuild by splitting on pRe
   // Simpler: re-join paragraphs (this loses inter-paragraph whitespace but preserves document)

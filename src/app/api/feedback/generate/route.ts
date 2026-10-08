@@ -4,7 +4,7 @@ import type { ProbeFinding } from "@/engine/types";
 import { callJSON } from "@/engine/llm";
 import { blueprintForRole } from "@/engine/roleMapping";
 import { getBlueprint } from "@/engine/data";
-import { requireAuth } from "@/lib/session";
+import { isAdminSession, requireAuth } from "@/lib/session";
 
 export interface FeedbackMetric {
     label: string;
@@ -55,15 +55,18 @@ export interface FeedbackReportData {
     responsibilityAlignment?: ResponsibilityAlignment;
 }
 import { sanitizeReportData } from "@/lib/feedbackSanitizer";
+import { EVALUATION_SCOPE_RULES } from "@/engine/evaluationScope";
+import { LIMITS, rateLimit } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
 
 
-const SYSTEM_PROMPT = `You are an elite, objective technical interview evaluator and executive hiring coach.
+const SYSTEM_PROMPT_BASE = `You are an elite, objective technical interview evaluator and executive hiring coach.
 Your task is to thoroughly analyze an interview transcript where an AI interviewer asked questions and the user answered.
 
 CRITICAL COMMUNICATION STYLE REQUIREMENT:
 You MUST address the user DIRECTLY in the SECOND PERSON ("You", "Your", "You completed", "You demonstrated", "You should focus on").
 NEVER refer to the user in the third person. DO NOT write "the candidate", "the applicant", "they", "their", "he", or "she".
-- Write "You completed the session..." instead of "The candidate completed the session..."
+- Write "You explained..." instead of "The candidate explained..."
 - Write "Your answers demonstrated..." instead of "The candidate demonstrated..." or "Their answers demonstrated..."
 - Write "As a software engineer, you should..." instead of "A software engineering candidate must..."
 - Write "Your technical depth..." instead of "Their technical depth..."
@@ -79,7 +82,7 @@ If the user did not give a verbal answer to a question or gave a short response,
 - "modelAnswer": Provide a concise, high-impact model answer showing how an elite candidate would answer.
 
 CRITICAL TAB DATA COMPLETENESS:
-1. "strengths": MUST contain at least 2 to 3 distinct strengths. Even if the interview was short or needs improvement, highlight positive attributes (e.g. professional engagement, domain baseline, clarity of intent, communication readiness).
+1. "strengths": 2 to 3 distinct strengths drawn from what you actually said in your answers (e.g. a clear example, a relevant metric, sound reasoning, good structure, precise terminology). If the answers are too thin to support that many, return fewer rather than inventing generic praise.
 2. "improvements": MUST contain at least 2 to 3 distinct, actionable areas for improvement with practical recommendations.
 3. "quickTips": MUST contain 3 to 4 punchy, high-impact coaching tips addressing the user directly ("You should...", "Practice...", "Focus on...").
 4. "qaBreakdown": MUST contain an entry for EVERY question asked.
@@ -147,12 +150,16 @@ Evaluate and return a JSON object with this exact structure:
 If the answers were short or low-effort, score realistically (e.g. 30-55) and provide clear constructive advice on how to expand.
 If the answers were articulate and structured with metrics and depth, score appropriately high (e.g. 80-95).`;
 
+const SYSTEM_PROMPT = `${SYSTEM_PROMPT_BASE}\n\n${EVALUATION_SCOPE_RULES}`;
+
 export async function POST(req: NextRequest) {
     try {
         const authResult = await requireAuth(req);
         if ("errorResponse" in authResult) {
             return authResult.errorResponse;
         }
+        const limited = await rateLimit(LIMITS.llm, `user:${authResult.session.email}`);
+        if (limited) return limited;
 
         const body = await req.json();
         const {
@@ -173,7 +180,7 @@ export async function POST(req: NextRequest) {
             const session = await getSession(sessionId);
             const owner = authResult.session.userId || authResult.session.email;
             // Only use the server transcript when it belongs to this user.
-            if (session && (!session.ownerId || session.ownerId === owner || authResult.session.isAdmin)) {
+            if (session && (!session.ownerId || session.ownerId === owner || (await isAdminSession(authResult.session)))) {
                 sessionBlueprintId = session.blueprintId;
                 probeFindings = session.probeFindings ?? [];
                 if (Array.isArray(session.transcript) && session.transcript.length > 0) {
@@ -258,7 +265,7 @@ Carefully evaluate how directly the candidate's answers demonstrated readiness t
                 .map((t) => `${t.role === "interviewer" ? "Interviewer" : "You (Candidate)"}: ${t.text}`)
                 .join("\n\n");
         } else {
-            conversationText = "You completed the interview session, but minimal speech transcript was captured.";
+            conversationText = "No spoken answers were captured in this interview.";
         }
 
         const questionsPromptBlock = extractedQuestions.length > 0
@@ -327,11 +334,7 @@ Carefully evaluate how directly the candidate's answers demonstrated readiness t
 
         return NextResponse.json(finalReport);
     } catch (err) {
-        console.error("[api/feedback/generate] Error:", err);
-        return NextResponse.json(
-            { error: err instanceof Error ? err.message : "Failed to generate feedback" },
-            { status: 500 }
-        );
+        return serverError("api/feedback/generate", err, "Failed to generate feedback");
     }
 }
 
