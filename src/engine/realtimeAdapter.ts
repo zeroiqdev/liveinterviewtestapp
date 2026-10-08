@@ -37,6 +37,7 @@ import type {
     ProbeDimension,
     SessionDoc,
 } from "./types";
+import { questionsForCompany } from "./company";
 
 const VERDICTS: AnswerVerdict[] = ["verified", "partial", "vague", "evasive"];
 const DIMENSIONS: ProbeDimension[] = ["specificity", "ownership", "depth", "evidence"];
@@ -156,7 +157,7 @@ export async function planNextQuestion(session: SessionDoc): Promise<PlannedQues
         session: preview,
         blueprint,
         competency,
-        pool: competency ? queryPool(competency.questionPoolFilter) : generalPool(),
+        pool: questionsForCompany(competency ? queryPool(competency.questionPoolFilter) : generalPool(), preview.company),
         pacing,
         profile: null,
         diversityNote: competency

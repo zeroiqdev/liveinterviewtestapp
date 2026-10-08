@@ -54,3 +54,35 @@ export const EngineSessionModel =
 export const EngineProfileModel =
   mongoose.models.EngineProfile ||
   mongoose.model<IEngineProfile>("EngineProfile", EngineProfileSchema);
+
+/**
+ * A turn decision computed speculatively by /prepare while the candidate is
+ * still in their end-of-turn silence. Stored so /turn can reuse it even when
+ * it runs on a different serverless instance. One row per answer snapshot.
+ */
+export interface IPreparedTurn {
+  _id: string; // `${sessionId}:${hash of the answer snapshot}`
+  sessionId: string;
+  answerText: string;
+  answerWords: number;
+  turnCount: number;
+  decision: Record<string, unknown>;
+  expiresAt: Date;
+}
+
+const PreparedTurnSchema: Schema = new Schema(
+  {
+    _id: { type: String, required: true },
+    sessionId: { type: String, index: true },
+    answerText: { type: String, required: true },
+    answerWords: { type: Number, default: 0 },
+    turnCount: { type: Number, required: true },
+    decision: { type: Schema.Types.Mixed, required: true },
+    expiresAt: { type: Date, required: true, index: { expires: 0 } },
+  },
+  { _id: false, timestamps: false, minimize: false }
+);
+
+export const PreparedTurnModel =
+  mongoose.models.PreparedTurn ||
+  mongoose.model<IPreparedTurn>("PreparedTurn", PreparedTurnSchema);

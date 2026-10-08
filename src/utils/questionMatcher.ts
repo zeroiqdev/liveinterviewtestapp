@@ -65,7 +65,7 @@ export function getQuestionsForSession(
         // Simple "Experience Section" Simulation
         // In a real app, this would be an LLM-based extraction
         const experienceMarkers = ["Work Experience", "Experience", "Employment History", "Professional Experience"];
-        let foundExperience = false;
+        const foundExperience = false;
 
         // Mocking some extracted info based on common resume patterns
         // (This simulates what an LLM would do with the parsed text)

@@ -6,7 +6,7 @@
    ══════════════════════════════════════ */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, type SessionPayload } from "@/lib/session";
+import { isAdminSession, requireAuth, type SessionPayload } from "@/lib/session";
 import { getSession } from "./sessionStore";
 import type { SessionDoc } from "./types";
 
@@ -18,16 +18,16 @@ export async function loadOwnedSession(
     req: NextRequest | Request,
     sessionId: string
 ): Promise<{ session: SessionDoc; auth: SessionPayload } | { errorResponse: NextResponse }> {
-    const authResult = await requireAuth(req);
+    // Independent reads: run them together, they sit on every live turn.
+    const [authResult, session] = await Promise.all([requireAuth(req), getSession(sessionId)]);
     if ("errorResponse" in authResult) return authResult;
 
-    const session = await getSession(sessionId);
     if (!session) {
         return { errorResponse: NextResponse.json({ error: "unknown session" }, { status: 404 }) };
     }
 
     const auth = authResult.session;
-    if (session.ownerId && session.ownerId !== ownerIdFor(auth) && !auth.isAdmin) {
+    if (session.ownerId && session.ownerId !== ownerIdFor(auth) && !(await isAdminSession(auth))) {
         // Same response as a missing session so ids cannot be probed.
         return { errorResponse: NextResponse.json({ error: "unknown session" }, { status: 404 }) };
     }

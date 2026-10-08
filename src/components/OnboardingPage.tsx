@@ -64,6 +64,7 @@ const EXPERIENCE_OPTIONS = [
 ] as const;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LENGTH = 8;
 
 export default function OnboardingPage() {
     const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -80,6 +81,21 @@ export default function OnboardingPage() {
     const [cvData, setCvData] = useState<string | null>(null);
     const [cvText, setCvText] = useState<string>("");
     const [checkingAuth, setCheckingAuth] = useState(true);
+    // Signed in with Google during onboarding: the account already exists and
+    // finishing just saves the profile.
+    const [googleSignedIn, setGoogleSignedIn] = useState(false);
+    // Email sign-up: after submitting, the user enters the emailed code.
+    const [awaitingCode, setAwaitingCode] = useState(false);
+    const [code, setCode] = useState("");
+    const [authError, setAuthError] = useState<string | null>(null);
+    const [authInfo, setAuthInfo] = useState<string | null>(null);
+    const pendingProfileRef = useRef<Record<string, unknown> | null>(null);
+    const codeFormRef = useRef<HTMLFormElement>(null);
+
+    // The code form appears below the step-4 fields; bring it into view.
+    useEffect(() => {
+        if (awaitingCode) codeFormRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, [awaitingCode]);
     const { updateSettings } = useInterview();
     const router = useRouter();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -185,7 +201,11 @@ export default function OnboardingPage() {
     }, [experience, selectedRole]);
 
     const stepValid =
-        (step === 1 && fullName.trim().length >= 2 && EMAIL_RE.test(email.trim())) ||
+        (step === 1 &&
+            fullName.trim().length >= 2 &&
+            EMAIL_RE.test(email.trim()) &&
+            // Email sign-ups need a password; Google sign-ups skip this step.
+            password.trim().length >= MIN_PASSWORD_LENGTH) ||
         (step === 2 && !!selectedRole) ||
         (step === 3 && !!experience) ||
         step === 4;
@@ -269,7 +289,7 @@ export default function OnboardingPage() {
         }
 
         const roleFamily = normalizeUserRoleFamily(roleVal);
-        let userProfile = {
+        const userProfile = {
             id: existing.id || `usr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
             email: email.trim(),
             name: fullName.trim(),
@@ -286,8 +306,10 @@ export default function OnboardingPage() {
             onboarded: true,
         };
 
-        // Persist credentials & profile to MongoDB before continuing
+        setAuthError(null);
         try {
+            // Signed out this creates the account and emails a code; signed in
+            // (Google) it saves the profile on the existing account.
             const res = await fetch("/api/auth/user", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -298,7 +320,7 @@ export default function OnboardingPage() {
                     domain: userProfile.domain,
                     seniority: userProfile.seniority,
                     experienceInRole: userProfile.experienceInRole,
-                    password: password.trim(),
+                    password: googleSignedIn ? undefined : password.trim(),
                     portfolioUrl: userProfile.portfolioUrl,
                     linkedinUrl: userProfile.linkedinUrl,
                     resume: selectedResumeId && cvData && cvName ? {
@@ -309,27 +331,71 @@ export default function OnboardingPage() {
                     } : undefined,
                 }),
             });
-            if (res.ok) {
-                const data = await res.json();
-                if (data.user) {
-                    userProfile = {
-                        ...userProfile,
-                        ...data.user,
-                        onboarded: true,
-                    };
-                }
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.error) {
+                throw new Error(data.error || "Could not create your account. Please try again.");
             }
+            pendingProfileRef.current = { ...userProfile, ...(data.user || {}), onboarded: true };
+
+            if (data.verificationRequired) {
+                setAwaitingCode(true);
+                setCode("");
+                setAuthInfo(data.message || `We've emailed a 6-digit code to ${userProfile.email}.`);
+                setSubmitting(false);
+                return;
+            }
+            completeOnboarding();
         } catch (err) {
-            console.warn("Could not sync user to DB:", err);
+            setAuthError(err instanceof Error ? err.message : "Could not create your account. Please try again.");
+            setSubmitting(false);
         }
+    };
 
-        localStorage.setItem("useladder_user", JSON.stringify(userProfile));
-
+    const completeOnboarding = (serverUser?: Record<string, unknown>) => {
+        const profile = { ...(pendingProfileRef.current || {}), ...(serverUser || {}), onboarded: true };
+        localStorage.setItem("useladder_user", JSON.stringify(profile));
         updateSettings({
-            domain: domainVal,
-            role: roleVal as InterviewRole,
+            domain: (selectedRole?.domain || "Software & Engineering"),
+            role: (selectedRole?.role || "Software Engineer") as InterviewRole,
         });
         router.replace("/dashboard");
+    };
+
+    const verifyCode = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (submitting || code.length !== 6) return;
+        setSubmitting(true);
+        setAuthError(null);
+        try {
+            const res = await fetch("/api/auth/verify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                // The password proves this browser made the sign-up, so it is kept.
+                body: JSON.stringify({ email: email.trim(), code, password: password.trim() }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.error) throw new Error(data.error || "That code didn't work. Please try again.");
+            completeOnboarding(data.user);
+        } catch (err) {
+            setAuthError(err instanceof Error ? err.message : "That code didn't work. Please try again.");
+            setSubmitting(false);
+        }
+    };
+
+    const resendCode = async () => {
+        setAuthError(null);
+        try {
+            const res = await fetch("/api/auth/verify/resend", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: email.trim() }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.error) throw new Error(data.error || "Could not resend the code");
+            setAuthInfo("We've sent a new code. It may take a minute to arrive.");
+        } catch (err) {
+            setAuthError(err instanceof Error ? err.message : "Could not resend the code");
+        }
     };
 
     const handleNext = () => {
@@ -341,67 +407,60 @@ export default function OnboardingPage() {
         }
     };
 
-    const handleGoogleLogin = async () => {
+    const handleGoogleLogin = () => {
         const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+        setAuthError(null);
 
-        if (clientId && window.google?.accounts?.oauth2) {
-            setGoogleAuthLoading(true);
-            try {
-                const tokenClient = window.google.accounts.oauth2.initTokenClient({
-                    client_id: clientId,
-                    scope: "email profile openid",
-                    callback: async (tokenRes: any) => {
-                        setGoogleAuthLoading(false);
-                        if (tokenRes.error) {
-                            console.warn("Google GIS auth canceled/failed:", tokenRes.error);
-                            return;
-                        }
-                        try {
-                            const userinfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-                                headers: { Authorization: `Bearer ${tokenRes.access_token}` },
-                            });
-                            if (!userinfoRes.ok) throw new Error("Could not retrieve profile from Google");
-                            const userinfo = await userinfoRes.json();
-                            const gEmail = (userinfo.email || "").toLowerCase().trim();
-                            const gName = userinfo.name || userinfo.given_name || gEmail.split("@")[0];
-
-                            setFullName(gName);
-                            setEmail(gEmail);
-
-                            // Check if this Google user is already fully onboarded in MongoDB
-                            const checkRes = await fetch(`/api/auth/user?email=${encodeURIComponent(gEmail)}`);
-                            if (checkRes.ok) {
-                                const checkData = await checkRes.json();
-                                if (checkData.user && checkData.user.role && checkData.user.domain) {
-                                    localStorage.setItem("useladder_user", JSON.stringify(checkData.user));
-                                    router.replace("/dashboard");
-                                    return;
-                                }
-                            }
-
-                            // Advance to role selection with Google verified credentials
-                            setStep(2);
-                        } catch (err) {
-                            console.warn("Google userinfo fetch failed:", err);
-                            setStep(2);
-                        }
-                    },
-                });
-                tokenClient.requestAccessToken({ prompt: "select_account" });
-                return;
-            } catch (err) {
-                setGoogleAuthLoading(false);
-                console.warn("GIS oauth2 init failed:", err);
-            }
+        if (!clientId || !window.google?.accounts?.oauth2) {
+            setAuthError("Google sign-in isn't available right now. Please sign up with your email instead.");
+            return;
         }
 
-        // Fallback if client ID is not configured or in test mode
-        if (email.trim() || fullName.trim()) {
-            setStep(2);
-        } else {
-            setFullName("Candidate");
-            setEmail("candidate@example.com");
-            setStep(2);
+        setGoogleAuthLoading(true);
+        try {
+            const tokenClient = window.google.accounts.oauth2.initTokenClient({
+                client_id: clientId,
+                scope: "email profile openid",
+                callback: async (tokenRes: { access_token?: string; error?: string }) => {
+                    if (tokenRes.error || !tokenRes.access_token) {
+                        setGoogleAuthLoading(false);
+                        if (tokenRes.error !== "popup_closed_by_user") {
+                            setAuthError("Google sign-in was canceled or failed. Please try again.");
+                        }
+                        return;
+                    }
+                    try {
+                        // The server verifies the token with Google and signs the user in.
+                        const res = await fetch("/api/auth/google", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ accessToken: tokenRes.access_token }),
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok || data.error) throw new Error(data.error || "Google sign-in failed");
+
+                        localStorage.setItem("useladder_user", JSON.stringify(data.user));
+                        if (!data.isNewUser) {
+                            router.replace("/dashboard");
+                            return;
+                        }
+
+                        setGoogleSignedIn(true);
+                        setFullName(data.user.name || "");
+                        setEmail(data.user.email || "");
+                        setStep(2);
+                    } catch (err) {
+                        setAuthError(err instanceof Error ? err.message : "Google sign-in failed");
+                    } finally {
+                        setGoogleAuthLoading(false);
+                    }
+                },
+            });
+            tokenClient.requestAccessToken({ prompt: "select_account" });
+        } catch (err) {
+            console.warn("GIS oauth2 init failed:", err);
+            setAuthError("Google sign-in failed to start. Please try again.");
+            setGoogleAuthLoading(false);
         }
     };
 
@@ -459,6 +518,12 @@ export default function OnboardingPage() {
                     ))}
                 </div>
 
+                {authError && !awaitingCode && (
+                    <div className={styles.authErrorBanner} role="alert">
+                        <span>{authError}</span>
+                    </div>
+                )}
+
                 {/* STEP 1: Sign up & Team Cards */}
                 {step === 1 && (
                     <>
@@ -496,6 +561,7 @@ export default function OnboardingPage() {
                             type="button"
                             className={styles.googleSsoBtn}
                             onClick={handleGoogleLogin}
+                            disabled={googleAuthLoading}
                         >
                             <svg viewBox="0 0 24 24" width="20" height="20">
                                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -542,12 +608,20 @@ export default function OnboardingPage() {
                             </div>
 
                             <div className={styles.inputGroup}>
-                                <label className={styles.inputLabel}>Password</label>
+                                <label className={styles.inputLabel}>
+                                    Password{" "}
+                                    <span style={{ fontWeight: 400, color: "#94A3B8" }}>
+                                        ({MIN_PASSWORD_LENGTH}+ characters, or use Continue with Google)
+                                    </span>
+                                </label>
                                 <input
                                     type="password"
                                     className={styles.formInput}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
+                                    autoComplete="new-password"
+                                    minLength={MIN_PASSWORD_LENGTH}
+                                    required
                                 />
                             </div>
 
@@ -764,14 +838,58 @@ export default function OnboardingPage() {
                                 />
                             </div>
 
-                            <button
-                                type="button"
-                                className={styles.continueSubmitBtn}
-                                onClick={finish}
-                            >
-                                Continue
-                            </button>
+                            {!awaitingCode && (
+                                <button
+                                    type="button"
+                                    className={styles.continueSubmitBtn}
+                                    onClick={finish}
+                                    disabled={submitting}
+                                >
+                                    {submitting ? "Creating your account..." : "Continue"}
+                                </button>
+                            )}
                         </div>
+
+                        {awaitingCode && (
+                            <form ref={codeFormRef} onSubmit={verifyCode} className={styles.inputFormStack} style={{ marginTop: "1.5rem" }}>
+                                {authError ? (
+                                    <div className={styles.authErrorBanner} role="alert">
+                                        <span>{authError}</span>
+                                    </div>
+                                ) : authInfo && (
+                                    <div className={styles.authInfoBanner} role="status">
+                                        <span>{authInfo}</span>
+                                    </div>
+                                )}
+                                <div className={styles.inputGroup}>
+                                    <label className={styles.inputLabel} htmlFor="signup-code">Verification code</label>
+                                    <input
+                                        id="signup-code"
+                                        type="text"
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        maxLength={6}
+                                        className={`${styles.formInput} ${styles.codeInput}`}
+                                        placeholder="123456"
+                                        value={code}
+                                        onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                        autoComplete="one-time-code"
+                                        autoFocus
+                                        required
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    className={styles.continueSubmitBtn}
+                                    disabled={submitting || code.length !== 6}
+                                >
+                                    {submitting ? "Verifying..." : "Verify & continue"}
+                                </button>
+                                <button type="button" className={styles.textLinkBtn} onClick={resendCode}>
+                                    Resend code
+                                </button>
+                            </form>
+                        )}
                     </div>
                 )}
             </div>

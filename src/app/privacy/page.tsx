@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export const metadata = {
     title: "Privacy Policy — get prepped",
     description: "Privacy policy for get prepped by Zero and One Solutions Limited.",
@@ -6,9 +8,9 @@ export const metadata = {
 export default function PrivacyPage() {
     return (
         <div style={{ maxWidth: 800, margin: "0 auto", padding: "5rem 1.5rem", fontFamily: "Inter, sans-serif", color: "#0F172A", lineHeight: 1.6 }}>
-            <a href="/" style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", color: "#2563EB", textDecoration: "none", marginBottom: "2rem", fontWeight: 500 }}>
+            <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", color: "#2563EB", textDecoration: "none", marginBottom: "2rem", fontWeight: 500 }}>
                 ← Back to Home
-            </a>
+            </Link>
             <h1 style={{ fontSize: "2.5rem", fontWeight: 700, letterSpacing: "-0.03em", marginBottom: "0.5rem" }}>Privacy Policy</h1>
             <p style={{ color: "#64748B", marginBottom: "3rem" }}>Last updated: September 2026 • Zero and One Solutions Limited</p>
             <section style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>

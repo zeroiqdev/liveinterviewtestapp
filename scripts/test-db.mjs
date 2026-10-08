@@ -1,5 +1,7 @@
-const mongoose = require("mongoose");
-require("dotenv").config({ path: ".env.local" });
+import mongoose from "mongoose";
+import { config } from "dotenv";
+
+config({ path: ".env.local" });
 
 async function testConnection() {
   const uri = process.env.MONGODB_URI;

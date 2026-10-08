@@ -2,9 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { ResumeDocSchema, AnchorMapSchema, RenderJobSchema } from "@/lib/resume/types";
 import { renderPreserveOriginal } from "@/lib/resume/render/preserve";
 import { renderTemplate } from "@/lib/resume/render/template";
+import { requireAuth } from "@/lib/session";
+import { LIMITS, rateLimit } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
 
 export async function POST(req: NextRequest) {
   try {
+    const authResult = await requireAuth(req);
+    if ("errorResponse" in authResult) return authResult.errorResponse;
+    const limited = await rateLimit(LIMITS.parse, `user:${authResult.session.email}`);
+    if (limited) return limited;
+
     const body = await req.json();
     const { doc, anchorMap, job, originalBase64 } = body as {
       doc: unknown;
@@ -31,6 +39,6 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return serverError("api/resume/v2/render", e, "Failed to render resume");
   }
 }

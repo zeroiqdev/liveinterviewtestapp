@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { callJSON } from "@/engine/llm";
 import { extractDocumentText } from "@/lib/documentParser";
 import { matchResumeToJob } from "@/lib/atsScorer";
+import { requireAuth } from "@/lib/session";
+import { LIMITS, rateLimit } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
 
 export interface JobMatchResponsibilityScore {
     responsibility: string;
@@ -76,6 +79,11 @@ function buildServerMatchKey(parsedText: string, jobTitle: string, jobCompany: s
 
 export async function POST(req: NextRequest) {
     try {
+        const authResult = await requireAuth(req);
+        if ("errorResponse" in authResult) return authResult.errorResponse;
+        const limited = await rateLimit(LIMITS.llm, `user:${authResult.session.email}`);
+        if (limited) return limited;
+
         const body = await req.json();
         const {
             resumeText = "",
@@ -204,7 +212,6 @@ ${parsedText.slice(0, 10000)}`;
 
         return NextResponse.json({ success: true, result, responsibilities, extractedText: parsedText });
     } catch (err) {
-        console.error("[api/resume/job-match] Error:", err);
-        return NextResponse.json({ error: err instanceof Error ? err.message : "Failed to compute job match" }, { status: 500 });
+        return serverError("api/resume/job-match", err, "Failed to compute job match");
     }
 }

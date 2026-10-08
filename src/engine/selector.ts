@@ -14,7 +14,7 @@
    conversation. One pipeline, not two.
    ══════════════════════════════════════ */
 
-import { callJSON } from "./llm";
+import { LIVE_TURN_HEDGE_MS, LIVE_TURN_TIMEOUT_MS, callJSON } from "./llm";
 import { NOTES_WINDOW, weightsFor } from "./constants";
 import type {
     BankQuestion,
@@ -24,6 +24,7 @@ import type {
     PacingDirective,
     SessionDoc,
 } from "./types";
+import { companyGuidance } from "./company";
 
 function stripBold(text: string | null): string | null {
     if (!text) return text;
@@ -170,14 +171,16 @@ Output ONLY valid JSON:
 Rules:
 - Interviewer persona: ${blueprint.persona.voice}
 - ${pacingNote}
-- Conversational Bridging: If there is a last candidate answer, do not abruptly jump to a new topic. Briefly connect it using only a detail the candidate actually said. It must be one concise, legible sentence; omit it rather than use generic thanks, acknowledgements, or filler. For question_id, do not put the bank question in conversationalBridge or questionText.
+- Conversational Bridging: If there is a last candidate answer, do not abruptly jump to a new topic. Briefly connect it using only a detail the candidate actually said. It must be one concise, legible sentence; omit it rather than use generic thanks, acknowledgements, or filler. Never start it with "Got it", "Okay" or "Thanks" — a short acknowledgement has already been spoken; begin with the substance (e.g. "You've clearly worked across some interesting fintech products. Let's move into our first main question."). For question_id, do not put the bank question in conversationalBridge or questionText.
 - A parked topic that fits this section well outranks a generic pool question. For parked topics, create a natural callback ("Earlier you mentioned X — let's unpack that...").
 - Never pick a question id that is not in the pool list.
 - Do not repeat ground already covered in the running notes.
 - Interview progression matters more than novelty: use the broad stage for background, motivation and fit; use the first question in a competency for a concrete anchor example; use later questions to test a complementary dimension, trade-off or result. Do not use a closing or logistics question until the interview is actually winding down.
+- If the candidate's last answer was not a real answer — they objected, said the question doesn't apply to them (e.g. no company was given), asked for clarification, or said they don't know — do not praise it or call it useful/helpful context. Briefly acknowledge their point honestly ("Fair point — this is a general practice interview.") or omit the bridge.
 - Never use ** for bold. Plain text only, no markdown.`;
 
-    const user = `Current section: ${competencyLabel} (${sectionProgress})
+    const user = `${companyGuidance(session.company)}
+Current section: ${competencyLabel} (${sectionProgress})
 
 ${parkedBlock}
 
@@ -204,6 +207,8 @@ ${candidates.map((q) => `- ${q.id} — ${q.question}`).join("\n")}`;
         }>({
             system,
             user,
+            timeoutMs: LIVE_TURN_TIMEOUT_MS,
+            hedgeMs: LIVE_TURN_HEDGE_MS,
             maxTokens: 400,
             mock: mockSelection(candidates, parkedIndexes, session, competency),
         });

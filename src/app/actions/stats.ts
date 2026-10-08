@@ -1,7 +1,9 @@
 "use server";
 
+import { cookies } from "next/headers";
 import dbConnect from "@/lib/mongodb";
-import UserStatsModel, { IUserStats } from "@/models/UserStats";
+import UserStatsModel from "@/models/UserStats";
+import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/sessionToken";
 
 const DEFAULT_SKILLS = [
     { name: "Professionalism", value: 0 },
@@ -12,7 +14,19 @@ const DEFAULT_SKILLS = [
     { name: "Sociability", value: 0 },
 ];
 
-export async function getUserStatsAction(userId: string) {
+/**
+ * Server actions are public POST endpoints, so the user always comes from the
+ * session cookie. Stats are keyed by the signed-in user's email.
+ */
+async function currentUserId(): Promise<string> {
+    const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
+    const session = token ? await verifySessionToken(token) : null;
+    if (!session?.email) throw new Error("Unauthorized");
+    return session.email;
+}
+
+export async function getUserStatsAction() {
+    const userId = await currentUserId();
     await dbConnect();
     
     let stats = await UserStatsModel.findOne({ userId });
@@ -39,7 +53,11 @@ export async function getUserStatsAction(userId: string) {
     return JSON.parse(JSON.stringify(stats));
 }
 
-export async function updateStatsAction(userId: string, sessionScore: number, durationMinutes: number) {
+export async function updateStatsAction(sessionScore: number, durationMinutes: number) {
+    const userId = await currentUserId();
+    if (!Number.isFinite(sessionScore) || !Number.isFinite(durationMinutes)) return null;
+    sessionScore = Math.min(100, Math.max(0, sessionScore));
+    durationMinutes = Math.min(180, Math.max(0, durationMinutes));
     await dbConnect();
     
     const current = await UserStatsModel.findOne({ userId });
@@ -50,7 +68,7 @@ export async function updateStatsAction(userId: string, sessionScore: number, du
     const newTime = parseFloat((current.totalPracticeTime + (durationMinutes / 60)).toFixed(1));
 
     // Update skills based on session
-    const newSkills = current.skills.map((s: any) => ({
+    const newSkills = current.skills.map((s: { name: string; value: number }) => ({
         name: s.name,
         value: Math.min(100, Math.max(0, s.value + (sessionScore > 70 ? 2 : -1)))
     }));

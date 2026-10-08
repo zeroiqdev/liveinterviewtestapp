@@ -21,6 +21,13 @@ interface CallJSONOptions {
     model?: string;
     maxTokens?: number;
     timeoutMs?: number;
+    /**
+     * Race models instead of trying them in turn: start the next one after
+     * this long without an answer (or as soon as one fails), first good
+     * answer wins. For the live interview, where a hung model must not stall
+     * the conversation.
+     */
+    hedgeMs?: number;
     temperature?: number;
     /** mock payload used when USELADDER_ENGINE_MOCK=1 */
     mock?: unknown;
@@ -81,17 +88,29 @@ function extractJSON(text: string): unknown {
 
 /* ── Gemini model selection ──
    Set GEMINI_MODELS (comma-separated, most preferred first) to override.
-   The defaults lead with the lite models: they answered fastest and were
-   not quota-limited, while the bigger flash models often return 429 on
-   free-tier keys — each failed attempt cost ~0.5–0.7s per call. */
+   Ordered by measured live-turn latency and availability on this key:
+   flash-lite answers in ~1–1.4s; gemini-3-flash-preview (~2.5–3s) is the
+   dependable backup. The bigger flash models often return 429 on free-tier
+   keys and the other lite variants have been timing out, so they come last
+   (a failure moves on immediately and puts the model on cooldown). */
 const DEFAULT_GEMINI_MODELS = [
     "gemini-3.1-flash-lite",
+    "gemini-3-flash-preview",
     "gemini-flash-lite-latest",
     "gemini-3.5-flash",
-    "gemini-3.7-flash",
     "gemini-flash-latest",
 ];
 const MODEL_COOLDOWN_MS = 60_000;
+
+/**
+ * Overall budget for a call on the live interview turn (models are raced,
+ * see hedgeMs). These usually return in ~1.5s; trying hung models one after
+ * another left candidates in silence for 13–22s.
+ */
+export const LIVE_TURN_TIMEOUT_MS = 6000;
+/** Live calls start the next model if one hasn't answered within this long
+ *  (just above the primary model's usual ~1–1.4s, so it rarely double-calls). */
+export const LIVE_TURN_HEDGE_MS = 1600;
 const modelCooldownUntil = new Map<string, number>();
 
 function geminiModels(): string[] {
@@ -100,6 +119,94 @@ function geminiModels(): string[] {
         .map((m) => m.trim())
         .filter(Boolean);
     return configured.length > 0 ? configured : DEFAULT_GEMINI_MODELS;
+}
+
+/** One Gemini request. Puts the model on cooldown when it fails in a way that will repeat. */
+async function geminiAttempt<T>(model: string, key: string, opts: CallJSONOptions, signal: AbortSignal): Promise<T> {
+    try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+        const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal,
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: opts.system }] },
+                contents: [{ role: "user", parts: [{ text: opts.user }] }],
+                generationConfig: {
+                    temperature: opts.temperature !== undefined ? opts.temperature : 0.2,
+                    maxOutputTokens: Math.max(opts.maxTokens ?? 2000, 2048),
+                    responseMimeType: "application/json",
+                },
+            }),
+        });
+        if (!res.ok) {
+            const body = await res.text();
+            // Quota (429), overload (5xx) or unknown model (404): put the
+            // model on cooldown so the next calls don't pay for it again.
+            if (res.status === 429 || res.status === 404 || res.status >= 500) {
+                modelCooldownUntil.set(model, Date.now() + MODEL_COOLDOWN_MS);
+            }
+            throw new Error(`Gemini API (${model}) ${res.status}: ${body.slice(0, 300)}`);
+        }
+        modelCooldownUntil.delete(model);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped REST payload
+        const data = (await res.json()) as any;
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) throw new Error(`No response text from Gemini (${model})`);
+        return extractJSON(text) as T;
+    } catch (err) {
+        const name = (err as Error)?.name;
+        // A timed-out model just cost the full timeout; don't lead with it again.
+        if (name === "TimeoutError") modelCooldownUntil.set(model, Date.now() + MODEL_COOLDOWN_MS);
+        throw err;
+    }
+}
+
+/**
+ * Hedged request across models: the first starts immediately, the next after
+ * opts.hedgeMs without an answer or as soon as one fails; the first success
+ * wins and the rest are cancelled. Bounded by timeoutMs overall.
+ */
+function raceGemini<T>(models: string[], key: string, opts: CallJSONOptions, timeoutMs: number): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        const controllers: AbortController[] = [];
+        const timers: ReturnType<typeof setTimeout>[] = [];
+        let next = 0;
+        let running = 0;
+        let settled = false;
+        let lastError: unknown = new Error("no Gemini models configured");
+
+        const finish = (fn: () => void) => {
+            if (settled) return;
+            settled = true;
+            timers.forEach(clearTimeout);
+            controllers.forEach((c) => c.abort());
+            fn();
+        };
+        const launch = () => {
+            if (settled || next >= models.length) {
+                if (!settled && running === 0) finish(() => reject(lastError));
+                return;
+            }
+            const model = models[next++];
+            const controller = new AbortController();
+            controllers.push(controller);
+            running++;
+            const hedge = setTimeout(launch, opts.hedgeMs);
+            timers.push(hedge);
+            geminiAttempt<T>(model, key, opts, controller.signal).then(
+                (value) => finish(() => resolve(value)),
+                (err) => {
+                    running--;
+                    clearTimeout(hedge);
+                    if (!controller.signal.aborted) lastError = err;
+                    launch();
+                }
+            );
+        };
+        timers.push(setTimeout(() => finish(() => reject(new Error(`LLM race timed out after ${timeoutMs}ms`))), timeoutMs));
+        launch();
+    });
 }
 
 /** Call an LLM with structured output, parsed as T. */
@@ -113,62 +220,23 @@ export async function callJSON<T>(opts: CallJSONOptions): Promise<T> {
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
     if (geminiKey) {
-        let lastError: Error | null = null;
         const now = Date.now();
         // Healthy models first; ones that recently failed are tried last
         // rather than skipped, so a call never fails just for being careful.
         const ordered = [...geminiModels()].sort(
             (a, b) => Number((modelCooldownUntil.get(a) ?? 0) > now) - Number((modelCooldownUntil.get(b) ?? 0) > now)
         );
+        // The fast model has random latency spikes (mostly ~1.6s, sometimes 4–8s),
+        // so the first hedge is a duplicate of the same request: it usually
+        // lands in ~1.6s, far sooner than switching to a slower model.
+        if (opts.hedgeMs) return raceGemini<T>([ordered[0], ...ordered], geminiKey, opts, timeoutMs);
+
+        let lastError: Error | null = null;
         for (const model of ordered) {
             try {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
-                const res = await fetch(url, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    signal: AbortSignal.timeout(timeoutMs),
-                    body: JSON.stringify({
-                        system_instruction: {
-                            parts: [{ text: opts.system }],
-                        },
-                        contents: [
-                            {
-                                role: "user",
-                                parts: [{ text: opts.user }],
-                            },
-                        ],
-                        generationConfig: {
-                            temperature: opts.temperature !== undefined ? opts.temperature : 0.2,
-                            maxOutputTokens: Math.max(opts.maxTokens ?? 2000, 2048),
-                            responseMimeType: "application/json",
-                        },
-                    }),
-                });
-
-                if (!res.ok) {
-                    const body = await res.text();
-                    lastError = new Error(`Gemini API (${model}) ${res.status}: ${body.slice(0, 300)}`);
-                    // Quota (429), overload (5xx) or unknown model (404): put the
-                    // model on cooldown so the next calls don't pay for it again.
-                    if (res.status === 429 || res.status === 404 || res.status >= 500) {
-                        modelCooldownUntil.set(model, Date.now() + MODEL_COOLDOWN_MS);
-                        continue;
-                    }
-                    throw lastError;
-                }
-                modelCooldownUntil.delete(model);
-
-                const data = (await res.json()) as any;
-                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (!text) throw new Error(`No response text from Gemini (${model})`);
-                return extractJSON(text) as T;
-            } catch (err: any) {
-                lastError = err;
-                // A timed-out model just cost the full timeout; don't lead with it again.
-                if (err?.name === "TimeoutError" || err?.name === "AbortError") {
-                    modelCooldownUntil.set(model, Date.now() + MODEL_COOLDOWN_MS);
-                }
-                continue;
+                return await geminiAttempt<T>(model, geminiKey, opts, AbortSignal.timeout(timeoutMs));
+            } catch (err) {
+                lastError = err as Error;
             }
         }
         if (lastError) throw lastError;

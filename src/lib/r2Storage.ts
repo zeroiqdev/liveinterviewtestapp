@@ -14,9 +14,12 @@
 
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
+/** Stored clips never change (keys are content hashes), so cache them for a year. */
+export const AUDIO_CACHE_CONTROL = "public, max-age=31536000, immutable";
+
 let _s3Client: S3Client | null = null;
 
-function getR2Client(): S3Client | null {
+export function getR2Client(): S3Client | null {
   if (_s3Client) return _s3Client;
 
   const rawAccountId = process.env.R2_ACCOUNT_ID;
@@ -72,6 +75,9 @@ export async function uploadToStorage(
     Key: destinationPath,
     Body: buffer,
     ContentType: contentType,
+    // Keys are content hashes, so a clip never changes: let browsers and CDNs
+    // keep it. Without this every replay re-downloaded it (~0.5s on r2.dev).
+    CacheControl: AUDIO_CACHE_CONTROL,
   });
 
   await client.send(command);
@@ -97,6 +103,23 @@ export function getPublicStorageUrl(destinationPath: string): string {
   }
   const bucketName = process.env.R2_BUCKET_NAME || "useladder-tts";
   return `https://${bucketName}.${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${destinationPath}`;
+}
+
+/**
+ * Re-points a stored public URL at the currently configured domain. Audio URLs
+ * saved in the cache keep whatever domain was active when they were made, so
+ * moving from r2.dev to a custom domain would otherwise leave every existing
+ * clip on the old one.
+ */
+export function withCurrentStorageDomain(storedUrl: string): string {
+  if (!process.env.R2_PUBLIC_DOMAIN) return storedUrl;
+  try {
+    const path = new URL(storedUrl).pathname.replace(/^\/+/, "");
+    if (!path.startsWith("tts-cache/")) return storedUrl;
+    return getPublicStorageUrl(path);
+  } catch {
+    return storedUrl;
+  }
 }
 
 /**

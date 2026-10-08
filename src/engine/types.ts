@@ -241,6 +241,14 @@ export interface SessionDoc {
     dedicatedInterviewType?: string | null;
     customQuestionPool?: BankQuestion[];
     alreadyAskedQuestionIds?: string[];
+    /** Response to the most recent /turn, so a client retry with the same
+     *  turn id gets the same result instead of submitting the answer twice. */
+    lastTurn?: { turnId: string; response: Record<string, unknown> } | null;
+    /** Interviewer voice region, fixed at session start so every line of the
+     *  interview is spoken by the same voice. */
+    voiceRegion?: string;
+    /** Question about one resume line, asked once (see resumeQuestion.ts). */
+    resumeQuestion?: { claim: string; sourceLocation: string; text: string; asked: boolean } | null;
 }
 
 /* ── Engine I/O ── */
@@ -275,6 +283,10 @@ export interface EnginePrompt {
     competencyLabel: string | null;
     kind: "scripted" | "follow_up" | "opening" | null;
     questionId: string | null;
+    /** For a new question: the answer-grounded lead-in, spoken before it. */
+    bridge?: string | null;
+    /** For a new question: the bank question itself (pre-recorded audio). */
+    question?: string | null;
 }
 
 export interface PublicSessionState {

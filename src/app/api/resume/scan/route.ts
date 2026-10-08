@@ -4,6 +4,9 @@ import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { extractDocumentText } from "@/lib/documentParser";
 import { calculateAtsScore } from "@/lib/atsScorer";
+import { requireAuth } from "@/lib/session";
+import { LIMITS, rateLimit } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
 
 export interface BulletReview {
     originalText: string;
@@ -90,17 +93,23 @@ CRITICAL RULES — you MUST follow these exactly:
 
 export async function POST(req: NextRequest) {
     try {
+        const authResult = await requireAuth(req);
+        if ("errorResponse" in authResult) return authResult.errorResponse;
+        const limited = await rateLimit(LIMITS.llm, `user:${authResult.session.email}`);
+        if (limited) return limited;
+
         const body = await req.json();
         const {
             resumeText = "",
             role = "Software Engineer",
             domain = "Software & Engineering",
-            email,
             resumeName = "My_Resume.pdf",
             fileData = "",
             doc: docFromClient,
             anchorMap: anchorMapFromClient,
         } = body as any;
+        // Saved results always go to the signed-in user, never an email from the body.
+        const email = authResult.session.email;
 
         // If caller already has a canonical ResumeDoc (new architecture), use the structured pipeline
         if (docFromClient) {
@@ -278,10 +287,6 @@ export async function POST(req: NextRequest) {
             extractedText: parsedText,
         });
     } catch (err) {
-        console.error("[api/resume/scan] Error:", err);
-        return NextResponse.json(
-            { error: err instanceof Error ? err.message : "Failed to scan resume" },
-            { status: 500 }
-        );
+        return serverError("api/resume/scan", err, "Failed to scan resume");
     }
 }

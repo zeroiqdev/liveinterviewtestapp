@@ -9,7 +9,7 @@
    the spoken text afterwards (see orchestrator.planTurn).
    ══════════════════════════════════════════════════════════════ */
 
-import { callJSON } from "./llm";
+import { LIVE_TURN_HEDGE_MS, LIVE_TURN_TIMEOUT_MS, callJSON } from "./llm";
 import { detectVoiceCommand } from "./voiceCommands";
 import type {
     AnswerAssessment,
@@ -20,6 +20,7 @@ import type {
     ProbeDimension,
     SessionDoc,
 } from "./types";
+import { companyGuidance } from "./company";
 
 export type InterviewToolName =
     | "end_call"
@@ -61,6 +62,33 @@ export interface ProbeContext {
 function stripBold(text: string): string {
     if (!text) return text;
     return text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*\*/g, "");
+}
+
+/**
+ * Sentences of a spoken reply, as /turn synthesizes them (first sentence
+ * first for fast playback). /prepare warms the same clips, so the split must
+ * stay identical in both places.
+ */
+export function splitSpokenSentences(text: string): string[] {
+    const matches = text.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g);
+    const sentences = matches ? matches.map((s) => s.trim()).filter(Boolean) : [];
+    return sentences.length > 0 ? sentences : [text];
+}
+
+/**
+ * The clips a reply is spoken as, in order. A new question is its lead-in
+ * sentences followed by the bank question as one clip (pre-recorded by the
+ * cache warm-up); anything else is split by sentence. /prepare warms exactly
+ * these clips and /turn plays them, so both must use this function.
+ */
+export function replySegments(reply: { text: string; bridge?: string | null; question?: string | null }): string[] {
+    const question = reply.question ? cleanSpokenAudioText(reply.question) : "";
+    if (question) {
+        const bridge = reply.bridge ? cleanSpokenAudioText(reply.bridge) : "";
+        return [...(bridge ? splitSpokenSentences(bridge) : []), question];
+    }
+    const text = cleanSpokenAudioText(reply.text);
+    return text ? splitSpokenSentences(text) : [];
 }
 
 export function cleanSpokenAudioText(text: string): string {
@@ -108,6 +136,8 @@ STEP 3 — WRITE probe_question whenever the verdict is not "verified" and they 
 - Never repeat a follow-up already asked (see the transcript). One focused question, 1 to 2 spoken sentences.
 - Curious and professional, never accusatory. From the second follow-up on, you may add that it is fine to say if they have not done something.
 - Plain spoken text only — no markdown, no lists.
+- If the candidate points out that the question doesn't apply to them (e.g. no company or employer was specified, or it assumes experience they said they don't have), that is not evasion: do not push back on it — choose ask_question so the interview moves on, and leave probe_question empty.
+- Do not open with a generic acknowledgement ("Got it", "Okay", "Thanks for sharing") — the interviewer has already said one. Open by engaging with what they said, e.g. "But let me push back a bit on that." or "Writing PRDs gives me the process, but...".
 
 OUTPUT ONLY THIS JSON:
 {
@@ -200,7 +230,6 @@ export async function executeConversationalTurn(opts: {
 }): Promise<ConversationalTurnOutput> {
     const { session, blueprint, competency, answerText, profile, probe } = opts;
     const candidateName = session.candidateName || "Candidate";
-    const companyName = session.company && session.company !== "General" ? session.company : "our company";
     const roleName = session.interviewType || blueprint.role || "this role";
     const compLabel = competency?.label || "General background";
 
@@ -243,7 +272,7 @@ Follow-ups already asked on it: ${probe.followUpsSoFar} (maximum ${probe.maxFoll
         : "This is the opening/background answer — assess it, but follow-ups are not used here.";
 
     const userPrompt = `Candidate: ${candidateName}
-Company: ${companyName}
+${companyGuidance(session.company)}
 Role: ${roleName}
 Current section: ${compLabel}
 
@@ -269,6 +298,8 @@ ${recentHistory || "(Start of conversation)"}`;
         }>({
             system: SYSTEM_PROMPT,
             user: userPrompt,
+            timeoutMs: LIVE_TURN_TIMEOUT_MS,
+            hedgeMs: LIVE_TURN_HEDGE_MS,
             maxTokens: 450,
             mock: {
                 assessment: {

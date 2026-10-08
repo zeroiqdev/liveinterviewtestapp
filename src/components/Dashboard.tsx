@@ -263,7 +263,7 @@ export default function Dashboard() {
                     }
                 }
                 setUser(parsed);
-                const realStats = await db.getUserStats(parsed.email || "anonymous");
+                const realStats = await db.getUserStats();
                 setStats(realStats);
 
                 // Detect user location

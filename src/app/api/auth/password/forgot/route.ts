@@ -1,0 +1,42 @@
+import { NextRequest, NextResponse } from "next/server";
+import dbConnect from "@/lib/mongodb";
+import User from "@/models/User";
+import { CODE_TTL_MINUTES, issueEmailCode } from "@/lib/emailCode";
+import { EmailNotConfiguredError } from "@/lib/email";
+import { LIMITS, clientIp, rateLimit } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * POST /api/auth/password/forgot
+ * Body: { email }
+ *
+ * Emails a password reset code when an account exists. The response is the
+ * same either way so it can't be used to discover registered emails.
+ */
+export async function POST(req: NextRequest) {
+    try {
+        const body = await req.json().catch(() => ({}));
+        const email = typeof body.email === "string" ? body.email.toLowerCase().trim() : "";
+        if (!EMAIL_RE.test(email)) {
+            return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
+        }
+
+        const limited = await rateLimit(LIMITS.emailCodeSend, `ip:${clientIp(req)}`, `email:${email}`);
+        if (limited) return limited;
+
+        await dbConnect();
+        if (await User.exists({ email })) await issueEmailCode(email, "reset");
+
+        return NextResponse.json({
+            success: true,
+            message: `If an account exists for that email, we've sent a 6-digit reset code. It expires in ${CODE_TTL_MINUTES} minutes.`,
+        });
+    } catch (err) {
+        if (err instanceof EmailNotConfiguredError) {
+            return serverError("api/auth/password/forgot", err, "Password reset is temporarily unavailable.", 503);
+        }
+        return serverError("api/auth/password/forgot", err, "Could not send a reset code");
+    }
+}

@@ -27,6 +27,7 @@ import dbConnect from "../src/lib/mongodb";
 import { getCachedAudio } from "../src/services/ttsService";
 import { getAllPersonas, getSupportedRegions } from "../src/config/voiceConfig";
 import type { Persona } from "../src/config/voiceConfig";
+import { CONVERSATIONAL_FILLERS } from "../src/config/fillerConfig";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -64,8 +65,14 @@ async function main() {
   // 1. Load question bank
   const bankPath = resolve(process.cwd(), "src/engine/data/questionBank.json");
   const raw = readFileSync(bankPath, "utf-8");
-  const questions: BankQuestion[] = JSON.parse(raw);
-  console.log(`📚 Loaded ${questions.length} questions from question bank`);
+  const bankQuestions: BankQuestion[] = JSON.parse(raw);
+  console.log(`📚 Loaded ${bankQuestions.length} questions from question bank`);
+  // Fillers first: they only ever play from cache, so they matter most.
+  const questions: BankQuestion[] = [
+    ...CONVERSATIONAL_FILLERS.map((text) => ({ question: text }) as BankQuestion),
+    ...bankQuestions,
+  ];
+  console.log(`💬 Plus ${CONVERSATIONAL_FILLERS.length} conversational fillers`);
 
   // 2. Get all persona × region combos
   const personas = getAllPersonas();

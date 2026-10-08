@@ -46,6 +46,8 @@ export function RecruiterPanel({
             if (raw) {
                 const parsed = JSON.parse(raw);
                 if (parsed && typeof parsed.overallScore === "number") {
+                    // localStorage is only readable after mount, so this must run in an effect.
+                    // eslint-disable-next-line react-hooks/set-state-in-effect
                     setLastFeedback(parsed);
                     return;
                 }

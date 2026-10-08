@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/session";
+import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/sessionToken";
 
 // Paths that require an authenticated user
 const PROTECTED_USER_PREFIXES = [

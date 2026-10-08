@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callJSON } from "@/engine/llm";
 import { requireAuth } from "@/lib/session";
+import { LIMITS, rateLimit } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
+import { EVALUATION_SCOPE_RULES } from "@/engine/evaluationScope";
 
 export interface InstantQuestionFeedback {
     rating: "Strong" | "Average" | "Needs Work";
@@ -20,7 +23,7 @@ export interface InstantQuestionFeedback {
     };
 }
 
-const INSTANT_FEEDBACK_SYSTEM_PROMPT = `You are an elite live technical interview coach sitting beside a candidate in real time.
+const INSTANT_FEEDBACK_SYSTEM_PROMPT_BASE = `You are an elite live technical interview coach sitting beside a candidate in real time.
 Your task is to give immediate, constructive, high-impact coaching feedback right after the candidate answers a single interview question.
 
 CRITICAL COMMUNICATION STYLE:
@@ -62,6 +65,8 @@ Return a JSON object with this exact structure:
   }
 }`;
 
+const INSTANT_FEEDBACK_SYSTEM_PROMPT = `${INSTANT_FEEDBACK_SYSTEM_PROMPT_BASE}\n\n${EVALUATION_SCOPE_RULES}`;
+
 function getFallbackInstantFeedback(question: string, answer: string): InstantQuestionFeedback {
     const isShort = !answer || answer.trim().length < 40;
     if (isShort) {
@@ -95,6 +100,8 @@ export async function POST(req: NextRequest) {
         if ("errorResponse" in authResult) {
             return authResult.errorResponse;
         }
+        const limited = await rateLimit(LIMITS.llm, `user:${authResult.session.email}`);
+        if (limited) return limited;
 
         const body = await req.json();
         const {
@@ -156,10 +163,6 @@ Evaluate this answer and provide instantaneous, high-impact live coaching feedba
             feedback,
         });
     } catch (err) {
-        console.error("[api/interview/instant-feedback] Error:", err);
-        return NextResponse.json(
-            { error: err instanceof Error ? err.message : "Failed to generate instant feedback" },
-            { status: 500 }
-        );
+        return serverError("api/interview/instant-feedback", err, "Failed to generate instant feedback");
     }
 }

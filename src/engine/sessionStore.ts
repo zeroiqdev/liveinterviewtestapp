@@ -9,8 +9,9 @@
    store falls back to memory only.
    ══════════════════════════════════════ */
 
+import { createHash } from "crypto";
 import dbConnect from "@/lib/mongodb";
-import { EngineProfileModel, EngineSessionModel } from "@/models/EngineSession";
+import { EngineProfileModel, EngineSessionModel, PreparedTurnModel } from "@/models/EngineSession";
 import type { CandidateProfile, SessionDoc } from "./types";
 
 interface StoreShape {
@@ -109,4 +110,90 @@ export async function getProfile(candidateId: string): Promise<CandidateProfile 
         }
     }
     return store.profiles.get(candidateId) ?? null;
+}
+
+/* ── Drafted turn decisions (shared across instances) ──
+   One row per drafted answer snapshot (several per turn while the candidate
+   talks), so a later draft never replaces one the client has already spoken. */
+
+export interface StoredPreparedTurn<T> {
+    answerText: string;
+    turnCount: number;
+    decision: T;
+    expiresAt: number;
+}
+
+type DraftRow<T> = { answerText: string; turnCount: number; decision: T; expiresAt: Date };
+
+export function draftKey(sessionId: string, answerText: string): string {
+    const norm = answerText.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").replace(/\s+/g, " ").trim();
+    return `${sessionId}:${createHash("sha1").update(norm).digest("hex")}`;
+}
+
+function fromRow<T>(row: DraftRow<T>): StoredPreparedTurn<T> {
+    return { ...row, expiresAt: new Date(row.expiresAt).getTime() };
+}
+
+export async function savePreparedTurn<T>(sessionId: string, prepared: StoredPreparedTurn<T>): Promise<void> {
+    if (!(await dbAvailable())) return;
+    try {
+        await PreparedTurnModel.updateOne(
+            { _id: draftKey(sessionId, prepared.answerText) },
+            {
+                $set: {
+                    sessionId,
+                    answerText: prepared.answerText,
+                    answerWords: prepared.answerText.split(/\s+/).filter(Boolean).length,
+                    turnCount: prepared.turnCount,
+                    decision: prepared.decision,
+                    expiresAt: new Date(prepared.expiresAt),
+                },
+            },
+            { upsert: true }
+        );
+    } catch (err) {
+        console.warn("[sessionStore] Failed to persist prepared turn:", (err as Error).message);
+    }
+}
+
+/** The draft made from exactly this answer snapshot, if stored. */
+export async function takePreparedTurn<T>(sessionId: string, answerText: string): Promise<StoredPreparedTurn<T> | null> {
+    if (!(await dbAvailable())) return null;
+    try {
+        const row = await PreparedTurnModel.findOneAndDelete({ _id: draftKey(sessionId, answerText) }).lean<DraftRow<T>>();
+        return row ? fromRow(row) : null;
+    } catch (err) {
+        console.warn("[sessionStore] Failed to read prepared turn:", (err as Error).message);
+        return null;
+    }
+}
+
+/** The longest stored draft for this turn that the final answer still matches. */
+export async function takeBestPreparedTurn<T>(
+    sessionId: string,
+    turnCount: number,
+    matches: (draftAnswer: string) => boolean
+): Promise<StoredPreparedTurn<T> | null> {
+    if (!(await dbAvailable())) return null;
+    try {
+        const rows = await PreparedTurnModel.find({ sessionId, turnCount })
+            .select("answerText turnCount decision expiresAt")
+            .lean<Array<DraftRow<T> & { _id: string }>>();
+        const best = rows
+            .filter((row) => matches(row.answerText))
+            .sort((a, b) => b.answerText.length - a.answerText.length)[0];
+        if (!best) return null;
+        await PreparedTurnModel.deleteOne({ _id: best._id });
+        return fromRow(best);
+    } catch (err) {
+        console.warn("[sessionStore] Failed to read prepared turns:", (err as Error).message);
+        return null;
+    }
+}
+
+/** Drop a session's leftover drafts once a turn is committed. */
+export function clearPreparedTurns(sessionId: string): void {
+    void dbAvailable()
+        .then((ok) => (ok ? PreparedTurnModel.deleteMany({ sessionId }) : undefined))
+        .catch(() => undefined);
 }

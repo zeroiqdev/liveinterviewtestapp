@@ -29,7 +29,7 @@ import TtsCacheModel from "@/models/TtsCache";
 import { synthesizeSpeech } from "@/lib/elevenlabs";
 import { synthesizeYarnGptSpeech } from "@/lib/yarngpt";
 import { synthesizeAzureSpeech } from "@/lib/azureTts";
-import { uploadToStorage, checkStorageExists } from "@/lib/r2Storage";
+import { uploadToStorage, checkStorageExists, withCurrentStorageDomain } from "@/lib/r2Storage";
 import { getVoiceForContext, type Persona } from "@/config/voiceConfig";
 import { normalizeRegion } from "@/utils/regionNormalizer";
 import { traceTurn } from "@/engine/turnTrace";
@@ -107,12 +107,14 @@ async function lookupStored(hash: string, turnId?: string): Promise<string | nul
     const cached = await TtsCacheModel.findById(hash).lean<{ audioUrl?: string }>();
     if (cached?.audioUrl) {
       traceTurn(turnId, "tts_cache_hit", { layer: "database" });
-      memoryCache.set(hash, cached.audioUrl);
+      // Serve from the current storage domain even if the clip was saved under an old one.
+      const audioUrl = withCurrentStorageDomain(cached.audioUrl);
+      memoryCache.set(hash, audioUrl);
       TtsCacheModel.updateOne(
         { _id: hash },
         { $set: { lastUsedAt: new Date() } }
       ).catch(() => {});
-      return cached.audioUrl;
+      return audioUrl;
     }
     return null;
   } catch (dbErr) {

@@ -18,11 +18,11 @@ export interface UserStats {
 
 class DatabaseService {
     /**
-     * Fetches real user stats from MongoDB.
+     * Fetches the signed-in user's stats from MongoDB.
      */
-    async getUserStats(userId: string): Promise<UserStats> {
+    async getUserStats(): Promise<UserStats> {
         try {
-            return await getUserStatsAction(userId);
+            return await getUserStatsAction();
         } catch (error) {
             console.error("Failed to fetch stats from MongoDB:", error);
             // Fallback to empty if DB is not connected yet
@@ -38,9 +38,9 @@ class DatabaseService {
     /**
      * Logic to process a new interview result and update the global stats in MongoDB.
      */
-    async recordInterviewSession(userId: string, sessionScore: number, durationMinutes: number) {
+    async recordInterviewSession(sessionScore: number, durationMinutes: number) {
         try {
-            return await updateStatsAction(userId, sessionScore, durationMinutes);
+            return await updateStatsAction(sessionScore, durationMinutes);
         } catch (error) {
             console.error("Failed to update MongoDB stats:", error);
             return null;

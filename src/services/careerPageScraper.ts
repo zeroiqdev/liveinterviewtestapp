@@ -334,7 +334,7 @@ function extractJobLinksFromHTML(html: string, baseUrl: string, companyName: str
 
     while ((match = linkPattern.exec(html)) !== null) {
         const href = match[1];
-        let linkText = match[2].replace(/<[^>]+>/g, "").trim().replace(/\s+/g, " ");
+        const linkText = match[2].replace(/<[^>]+>/g, "").trim().replace(/\s+/g, " ");
 
         if (!isLikelyJobLink(href, linkText)) continue;
         if (linkText.length < 4 || linkText.length > 90) continue;

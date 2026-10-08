@@ -1,276 +1,260 @@
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
-import User from "@/models/User";
+import User, { type IResume, type IUser } from "@/models/User";
 import { normalizeUserRoleFamily } from "@/utils/locationDetector";
-import { hashPassword } from "@/lib/password";
+import { MIN_PASSWORD_LENGTH, hashPassword, verifyPassword } from "@/lib/password";
+import { issueEmailCode } from "@/lib/emailCode";
+import { EmailNotConfiguredError } from "@/lib/email";
 import {
+    getSession,
+    isAdminSession,
+    loginResponse,
     requireAuth,
-    signSessionToken,
-    setSessionCookie,
+    revocationCutoff,
     toSafeUser,
-    isConfiguredAdmin,
+    type SessionPayload,
 } from "@/lib/session";
+import { LIMITS, clientIp, rateLimit } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function str(value: unknown): string | undefined {
+    return typeof value === "string" ? value : undefined;
+}
+
+/**
+ * Resolve which account a request may act on: the caller's own, or any
+ * account for an admin (re-checked against the database).
+ */
+async function resolveTarget(
+    session: SessionPayload,
+    requestedEmail: unknown
+): Promise<{ email: string; isSelf: boolean } | { errorResponse: NextResponse }> {
+    const target = str(requestedEmail)?.toLowerCase().trim() || session.email;
+    const isSelf = target === session.email;
+    if (!isSelf && !(await isAdminSession(session))) {
+        return {
+            errorResponse: NextResponse.json(
+                { error: "Forbidden: you can only access your own account" },
+                { status: 403 }
+            ),
+        };
+    }
+    return { email: target, isSelf };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- request JSON
+function applyProfileFields(user: IUser, body: any) {
+    const role = str(body.role);
+    if (str(body.name)?.trim()) user.name = body.name.trim();
+    if (body.avatar !== undefined) user.avatar = str(body.avatar) ?? "";
+    if (role) {
+        user.role = role;
+        user.roleFamily = normalizeUserRoleFamily(role);
+    }
+    if (str(body.domain)) user.domain = body.domain;
+    if (str(body.seniority)) user.seniority = body.seniority;
+    if (str(body.experienceInRole)) user.experienceInRole = body.experienceInRole;
+    if (body.portfolioUrl !== undefined) user.portfolioUrl = str(body.portfolioUrl) ?? "";
+    if (body.linkedinUrl !== undefined) user.linkedinUrl = str(body.linkedinUrl) ?? "";
+}
+
+function upsertResume(user: IUser, resume: Partial<IResume>) {
+    if (!resume || typeof resume.id !== "string") return;
+    const fields = {
+        id: resume.id,
+        name: str(resume.name) || "Resume",
+        rawText: str(resume.rawText) ?? "",
+        ...(typeof resume.score === "number" ? { score: resume.score } : {}),
+    };
+    const existing = user.resumes.find((r) => r.id === resume.id);
+    if (existing) {
+        Object.assign(existing, fields, { updatedAt: new Date() });
+    } else {
+        user.resumes.push({ ...fields, createdAt: new Date(), updatedAt: new Date() } as IResume);
+    }
+}
+
+/**
+ * Changing a password requires the current one when the account has one.
+ * Accounts without a password (Google / email-code users) can set one while
+ * signed in. Only the account owner may change it.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- request JSON
+async function applyPasswordChange(user: IUser, body: any, isSelf: boolean): Promise<NextResponse | null> {
+    const password = str(body.password)?.trim();
+    if (!password) return null;
+    if (!isSelf) {
+        return NextResponse.json({ error: "Passwords can only be changed by the account owner." }, { status: 403 });
+    }
+    if (password.length < MIN_PASSWORD_LENGTH) {
+        return NextResponse.json(
+            { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` },
+            { status: 400 }
+        );
+    }
+    if (user.password && !(await verifyPassword(str(body.currentPassword) || "", user.password))) {
+        return NextResponse.json({ error: "Your current password is incorrect." }, { status: 401 });
+    }
+    user.password = await hashPassword(password);
+    // Sign out every other session; the caller gets a fresh one below.
+    user.sessionsValidAfter = revocationCutoff();
+    return null;
+}
 
 export async function GET(req: NextRequest) {
     try {
         const authResult = await requireAuth(req);
-        if ("errorResponse" in authResult) {
-            return authResult.errorResponse;
-        }
-        const { session } = authResult;
+        if ("errorResponse" in authResult) return authResult.errorResponse;
 
-        const { searchParams } = new URL(req.url);
-        const queryEmail = searchParams.get("email");
-        const targetEmail = queryEmail ? queryEmail.toLowerCase().trim() : session.email;
-
-        // Authorization check: non-admin users cannot inspect other accounts
-        if (targetEmail !== session.email && !session.isAdmin) {
-            return NextResponse.json(
-                { error: "Forbidden: You are not authorized to view another user's profile" },
-                { status: 403 }
-            );
-        }
+        const target = await resolveTarget(authResult.session, new URL(req.url).searchParams.get("email"));
+        if ("errorResponse" in target) return target.errorResponse;
 
         await dbConnect();
-        const user = await User.findOne({ email: targetEmail });
+        const user = await User.findOne({ email: target.email });
         if (!user) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
 
-        return NextResponse.json({
-            success: true,
-            user: toSafeUser(user),
-        });
+        return NextResponse.json({ success: true, user: toSafeUser(user) });
     } catch (err) {
-        console.error("[api/auth/user GET] Error:", err);
-        return NextResponse.json(
-            { error: err instanceof Error ? err.message : "Failed to fetch user" },
-            { status: 500 }
-        );
+        return serverError("api/auth/user GET", err, "Failed to fetch user");
     }
 }
 
+/** Update a profile. Body: profile fields, optional resume, optional password + currentPassword. */
 export async function PATCH(req: NextRequest) {
     try {
         const authResult = await requireAuth(req);
-        if ("errorResponse" in authResult) {
-            return authResult.errorResponse;
-        }
-        const { session } = authResult;
+        if ("errorResponse" in authResult) return authResult.errorResponse;
+
+        const body = await req.json().catch(() => ({}));
+        const target = await resolveTarget(authResult.session, body.email);
+        if ("errorResponse" in target) return target.errorResponse;
 
         await dbConnect();
-        const body = await req.json();
-        const { email, role, domain, seniority, portfolioUrl, linkedinUrl, password, name, avatar } = body;
-
-        const targetEmail = email ? email.toLowerCase().trim() : session.email;
-
-        // Authorization check: non-admin users cannot update other users
-        if (targetEmail !== session.email && !session.isAdmin) {
-            return NextResponse.json(
-                { error: "Forbidden: You are not authorized to update another user's profile" },
-                { status: 403 }
-            );
-        }
-
-        const user = await User.findOne({ email: targetEmail });
+        const user = await User.findOne({ email: target.email });
         if (!user) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
 
-        if (name) user.name = name.trim();
-        if (avatar !== undefined) user.avatar = avatar;
-        if (role) {
-            user.role = role;
-            user.roleFamily = normalizeUserRoleFamily(role);
-        }
-        if (domain) user.domain = domain;
-        if (seniority) user.seniority = seniority;
-        if (portfolioUrl !== undefined) user.portfolioUrl = portfolioUrl;
-        if (linkedinUrl !== undefined) user.linkedinUrl = linkedinUrl;
-        if (password) {
-            user.password = await hashPassword(password.trim());
-        }
-
+        const passwordError = await applyPasswordChange(user, body, target.isSelf);
+        if (passwordError) return passwordError;
+        applyProfileFields(user, body);
+        if (body.resume) upsertResume(user, body.resume);
         await user.save();
 
-        return NextResponse.json({
-            success: true,
-            user: toSafeUser(user),
-        });
+        // A password change revoked older sessions, including this one: re-issue it.
+        if (target.isSelf && str(body.password)) return loginResponse(user);
+        return NextResponse.json({ success: true, user: toSafeUser(user) });
     } catch (err) {
-        console.error("[api/auth/user PATCH] Error:", err);
-        return NextResponse.json(
-            { error: err instanceof Error ? err.message : "Failed to update user" },
-            { status: 500 }
-        );
+        return serverError("api/auth/user PATCH", err, "Failed to update user");
     }
 }
 
 export async function DELETE(req: NextRequest) {
     try {
         const authResult = await requireAuth(req);
-        if ("errorResponse" in authResult) {
-            return authResult.errorResponse;
-        }
-        const { session } = authResult;
+        if ("errorResponse" in authResult) return authResult.errorResponse;
 
         const { searchParams } = new URL(req.url);
-        const queryEmail = searchParams.get("email");
         const resumeId = searchParams.get("resumeId");
-
         if (!resumeId) {
             return NextResponse.json({ error: "resumeId query param required" }, { status: 400 });
         }
 
-        const targetEmail = queryEmail ? queryEmail.toLowerCase().trim() : session.email;
-
-        // Authorization check
-        if (targetEmail !== session.email && !session.isAdmin) {
-            return NextResponse.json(
-                { error: "Forbidden: You are not authorized to delete another user's resume" },
-                { status: 403 }
-            );
-        }
+        const target = await resolveTarget(authResult.session, searchParams.get("email"));
+        if ("errorResponse" in target) return target.errorResponse;
 
         await dbConnect();
-        const user = await User.findOne({ email: targetEmail });
+        const user = await User.findOne({ email: target.email });
         if (!user) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
 
         const beforeCount = user.resumes.length;
         user.resumes = user.resumes.filter((r) => r.id !== resumeId);
-
         if (user.resumes.length === beforeCount) {
             return NextResponse.json({ error: "Resume not found" }, { status: 404 });
         }
 
         await user.save();
-
-        return NextResponse.json({
-            success: true,
-            resumes: user.resumes,
-        });
+        return NextResponse.json({ success: true, resumes: user.resumes });
     } catch (err) {
-        console.error("[api/auth/user DELETE] Error:", err);
-        return NextResponse.json(
-            { error: err instanceof Error ? err.message : "Failed to delete resume" },
-            { status: 500 }
-        );
+        return serverError("api/auth/user DELETE", err, "Failed to delete resume");
     }
 }
 
+/**
+ * Signed out: sign-up. Creates the account and emails a verification code; no
+ * session is issued until the code is entered at /api/auth/verify, so nobody
+ * can hold a session on an address they don't own. An unverified account
+ * may be replaced by a fresh sign-up; a verified one must log in instead.
+ * Signed in: update the caller's own profile (same as PATCH).
+ */
 export async function POST(req: NextRequest) {
     try {
+        const session = await getSession(req);
+        if (session?.email) return PATCH(req);
+
+        const body = await req.json().catch(() => ({}));
+        const email = str(body.email)?.toLowerCase().trim() || "";
+        if (!EMAIL_RE.test(email)) {
+            return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
+        }
+
+        const limited = await rateLimit(LIMITS.signup, `ip:${clientIp(req)}`, `email:${email}`);
+        if (limited) return limited;
+
+        // Email sign-ups always have a password; the only passwordless sign-in is Google.
+        const password = str(body.password)?.trim() || "";
+        if (password.length < MIN_PASSWORD_LENGTH) {
+            return NextResponse.json(
+                { error: `Choose a password of at least ${MIN_PASSWORD_LENGTH} characters, or continue with Google.` },
+                { status: 400 }
+            );
+        }
+
         await dbConnect();
-        const body = await req.json();
-        const {
+        const existing = await User.findOne({ email });
+        if (existing && existing.emailVerified !== false) {
+            return NextResponse.json(
+                { error: "An account with this email already exists. Please log in instead.", code: "account_exists" },
+                { status: 409 }
+            );
+        }
+
+        const role = str(body.role) || "Software Engineer";
+        const fields = {
             email,
+            name: str(body.name)?.trim() || email.split("@")[0],
+            avatar: "",
             role,
-            domain,
-            seniority,
-            experienceInRole,
-            password,
-            name,
-            avatar,
-            resume,
-            portfolioUrl,
-            linkedinUrl,
-        } = body;
+            domain: str(body.domain) || "Software & Engineering",
+            roleFamily: normalizeUserRoleFamily(role),
+            seniority: str(body.seniority) || "professional",
+            experienceInRole: str(body.experienceInRole) || str(body.seniority) || "professional",
+            password: await hashPassword(password),
+            provider: "credentials" as const,
+            emailVerified: false,
+            resumes: [],
+        };
+        const user = existing ? Object.assign(existing, fields) : new User(fields);
+        applyProfileFields(user, { portfolioUrl: body.portfolioUrl, linkedinUrl: body.linkedinUrl });
+        if (body.resume) upsertResume(user, body.resume);
+        await user.save();
 
-        if (!email) {
-            return NextResponse.json({ error: "Email is required" }, { status: 400 });
-        }
-
-        const normalizedEmail = email.toLowerCase().trim();
-        let user = await User.findOne({ email: normalizedEmail });
-
-        const hashedPassword = password ? await hashPassword(password.trim()) : "";
-        const isAdmin = isConfiguredAdmin(normalizedEmail);
-
-        if (!user) {
-            const roleVal = role || "Software Engineer";
-            user = await User.create({
-                email: normalizedEmail,
-                name: name ? name.trim() : normalizedEmail.split("@")[0],
-                avatar: avatar || "",
-                role: roleVal,
-                domain: domain || "Software & Engineering",
-                roleFamily: normalizeUserRoleFamily(roleVal),
-                seniority: seniority || "professional",
-                experienceInRole: experienceInRole || seniority || "professional",
-                password: hashedPassword,
-                portfolioUrl: portfolioUrl || "",
-                linkedinUrl: linkedinUrl || "",
-                resumes: resume ? [resume] : [],
-                systemRole: isAdmin ? "admin" : "user",
-                isAdmin,
-            });
-        } else {
-            if (role) {
-                user.role = role;
-                user.roleFamily = normalizeUserRoleFamily(role);
-            }
-            if (domain) user.domain = domain;
-            if (seniority) user.seniority = seniority;
-            if (experienceInRole) user.experienceInRole = experienceInRole;
-            if (hashedPassword) user.password = hashedPassword;
-            if (name) user.name = name.trim();
-            if (avatar) user.avatar = avatar;
-            if (portfolioUrl !== undefined) user.portfolioUrl = portfolioUrl;
-            if (linkedinUrl !== undefined) user.linkedinUrl = linkedinUrl;
-            if (isAdmin && (!user.isAdmin || user.systemRole !== "admin")) {
-                user.isAdmin = true;
-                user.systemRole = "admin";
-            }
-
-            if (resume) {
-                const existingIdx = user.resumes.findIndex((r) => r.id === resume.id);
-                if (existingIdx >= 0) {
-                    user.resumes[existingIdx] = {
-                        ...user.resumes[existingIdx],
-                        ...resume,
-                        updatedAt: new Date(),
-                    };
-                } else {
-                    user.resumes.push({ ...resume, createdAt: new Date(), updatedAt: new Date() });
-                }
-            }
-
-            await user.save();
-        }
-
-        const userIsAdmin = isConfiguredAdmin(user.email, user.systemRole, user.isAdmin);
-
-        // Sign session token and issue HTTP-only cookie
-        const sessionToken = await signSessionToken({
-            userId: user._id.toString(),
-            email: user.email,
-            name: user.name,
-            role: user.role,
-            domain: user.domain,
-            roleFamily: user.roleFamily,
-            seniority: user.seniority,
-            systemRole: user.systemRole || (userIsAdmin ? "admin" : "user"),
-            isAdmin: userIsAdmin,
-            provider: user.provider || "credentials",
-        });
-
-        const safeUser = toSafeUser(user);
-
-        const response = NextResponse.json({
+        await issueEmailCode(email, "verify");
+        return NextResponse.json({
             success: true,
-            user: safeUser,
+            verificationRequired: true,
+            message: `We've emailed a 6-digit code to ${email}. Enter it to finish creating your account.`,
         });
-
-        setSessionCookie(response, sessionToken);
-
-        return response;
     } catch (err) {
-        console.error("[api/auth/user POST] Error:", err);
-        return NextResponse.json(
-            { error: err instanceof Error ? err.message : "Failed to update user" },
-            { status: 500 }
-        );
+        if (err instanceof EmailNotConfiguredError) {
+            return serverError("api/auth/user POST", err, "Sign-up is temporarily unavailable.", 503);
+        }
+        return serverError("api/auth/user POST", err, "Failed to create account");
     }
 }
