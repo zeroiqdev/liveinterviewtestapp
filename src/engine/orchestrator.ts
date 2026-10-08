@@ -59,8 +59,19 @@ export const GENERAL_LABEL = "General behavioral";
 // submitted answer; it can never advance a live session on its own.
 // Holds the in-flight promise, so a submit that lands while preparation is
 // still running joins it instead of repeating both LLM calls.
-type Decision = { conv: ConversationalTurnOutput; selection: SelectionResult };
-type DraftEntry = { answerText: string; turnCount: number; decision: Promise<Decision>; expiresAt: number };
+type Decision = {
+    conv: ConversationalTurnOutput;
+    selection: SelectionResult;
+    /** What the draft planned (follow-up or new question); a spoken draft must commit exactly this. */
+    plannedKind?: "probe" | "next";
+};
+type DraftEntry = {
+    answerText: string;
+    turnCount: number;
+    decision: Promise<Decision>;
+    expiresAt: number;
+    plannedKind?: "probe" | "next";
+};
 /** Drafts on this instance, keyed by draftKey(sessionId, answer snapshot). */
 const preparedTurns = new Map<string, DraftEntry>();
 /** Most recently started draft per session (the one a submit can join while it runs). */
@@ -590,7 +601,13 @@ function planTurn(
     session: SessionDoc,
     pacing: PacingDirective,
     conv: ConversationalTurnOutput,
-    selection: SelectionResult
+    selection: SelectionResult,
+    /**
+     * The choice a spoken draft already made. Pacing moves on between the
+     * draft and the commit, which could otherwise flip probe ↔ next and record
+     * (and briefly show) a different question from the one the candidate heard.
+     */
+    force?: "probe" | "next"
 ): TurnPlan {
     if (conv.intent === "end_interview") return { kind: "end", conv };
     if (conv.intent === "repeat_question") return { kind: "repeat", conv };
@@ -618,9 +635,17 @@ function planTurn(
         modelWantsProbe: conv.suggestedTool === "push_back",
         hasProbeText: Boolean(probeText),
     });
-    if (verdict.allow) return { kind: "probe", conv, text: stripLeadingAcknowledgement(probeText), verdict };
-    return { kind: "next", conv, ...splitBridge(nextQuestion, selection.bridge), verdict, skipped: false };
+    const probe = force ? force === "probe" && Boolean(probeText) : verdict.allow;
+    if (probe) {
+        const spokenVerdict = verdict.allow ? verdict : { ...verdict, allow: true, reason: `spoken draft: ${verdict.reason}` };
+        return { kind: "probe", conv, text: stripLeadingAcknowledgement(probeText), verdict: spokenVerdict };
+    }
+    const nextVerdict = verdict.allow ? { ...verdict, allow: false, reason: "spoken draft moved on" } : verdict;
+    return { kind: "next", conv, ...splitBridge(nextQuestion, selection.bridge), verdict: nextVerdict, skipped: false };
 }
+
+/** Exposed for tests. */
+export const planTurnForTest = planTurn;
 
 /** Runs the selector and the conversational engine in parallel. */
 async function decideTurn(opts: {
@@ -760,17 +785,19 @@ export async function prepareAnswer(opts: {
     latestDraft.set(opts.sessionId, key);
 
     const resolved = await cached.decision;
+    const { conv, selection } = resolved;
+    const plan = planTurn(preview, pacing, conv, selection);
+    const plannedKind = plan.kind === "probe" || plan.kind === "next" ? plan.kind : undefined;
     // Stored before the client hears about it: a draft the client may speak
-    // must be committable from any instance.
+    // must be committable from any instance, as exactly what was planned.
+    cached.plannedKind = plannedKind;
     await savePreparedTurn(opts.sessionId, {
         answerText,
         turnCount: cached.turnCount,
-        decision: resolved,
+        decision: { ...resolved, plannedKind },
         expiresAt: cached.expiresAt,
     });
 
-    const { conv, selection } = resolved;
-    const plan = planTurn(preview, pacing, conv, selection);
     traceTurn(opts.turnId, "prepare_completed", { action: plan.kind });
     const spokenText = plan.kind === "probe" || plan.kind === "next" ? plan.text : conv.spokenText;
     return {
@@ -892,16 +919,19 @@ export async function submitAnswer(opts: {
     // Join the warm-up (finished or still running); recompute if it failed,
     // and hedge with a fresh decision if it is running unusually long.
     // A spoken draft is never swapped for a fresh decision.
-    const { conv, selection } = spoken
+    const decision: Decision = spoken
         ? await spoken.decision
         : canUsePrepared
           ? await joinOrHedge(prepared!.decision, fresh)
           : await fresh();
+    const { conv, selection } = decision;
 
-    const plan = planTurn(session, pacing, conv, selection);
+    const plan = planTurn(session, pacing, conv, selection, spoken ? (spoken.plannedKind ?? decision.plannedKind) : undefined);
     const currentComp = currentCompetency(session, blueprint);
 
-    if (coverageComplete && plan.kind === "next") {
+    // A spoken draft's question was already heard: record it and wrap up on
+    // the following turn instead of replacing it with the closing line.
+    if (coverageComplete && plan.kind === "next" && !spoken) {
         closeProbeThread(session, conv, plan.verdict);
         return { session, prompt: await finalize(session), pacing };
     }
