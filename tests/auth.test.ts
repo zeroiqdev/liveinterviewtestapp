@@ -141,3 +141,34 @@ describe("password policy", () => {
         assert.equal(isStrongPassword("Abcdefg1 "), false);
     });
 });
+
+describe("sendEmail", () => {
+    it("tolerates quote marks pasted around EMAIL_FROM and reports Resend rejections as EmailSendError", async () => {
+        const { sendEmail, EmailSendError } = await import("../src/lib/email");
+        process.env.RESEND_API_KEY = "re_test";
+        process.env.EMAIL_FROM = '"get prepped <no-reply@example.com>"';
+        const realFetch = globalThis.fetch;
+        let sentFrom = "";
+        globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+            sentFrom = JSON.parse(String(init?.body)).from;
+            return new Response("ok", { status: 200 });
+        }) as typeof fetch;
+        try {
+            await sendEmail({ to: "a@example.com", subject: "s", text: "t", html: "h" });
+            assert.equal(sentFrom, "get prepped <no-reply@example.com>");
+
+            globalThis.fetch = (async () => new Response('{"message":"Invalid from"}', { status: 422 })) as typeof fetch;
+            const origError = console.error;
+            console.error = () => undefined;
+            try {
+                await assert.rejects(sendEmail({ to: "a@example.com", subject: "s", text: "t", html: "h" }), EmailSendError);
+            } finally {
+                console.error = origError;
+            }
+        } finally {
+            globalThis.fetch = realFetch;
+            delete process.env.RESEND_API_KEY;
+            delete process.env.EMAIL_FROM;
+        }
+    });
+});

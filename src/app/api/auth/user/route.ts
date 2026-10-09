@@ -5,7 +5,7 @@ import { normalizeUserRoleFamily } from "@/utils/locationDetector";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { passwordProblem } from "@/lib/passwordPolicy";
 import { issueEmailCode } from "@/lib/emailCode";
-import { EmailNotConfiguredError } from "@/lib/email";
+import { EmailSendError } from "@/lib/email";
 import {
     getSession,
     isAdminSession,
@@ -251,7 +251,7 @@ export async function POST(req: NextRequest) {
             message: `We've emailed a 6-digit code to ${email}. Enter it to finish creating your account.`,
         });
     } catch (err) {
-        if (err instanceof EmailNotConfiguredError) {
+        if (err instanceof EmailSendError) {
             return serverError("api/auth/user POST", err, "We couldn't send your verification email right now. Please try again in a few minutes, or continue with Google.", 503);
         }
         return serverError("api/auth/user POST", err, "Failed to create account");

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { issueEmailCode } from "@/lib/emailCode";
-import { EmailNotConfiguredError } from "@/lib/email";
+import { EmailSendError } from "@/lib/email";
 import { LIMITS, clientIp, rateLimit } from "@/lib/rateLimit";
 import { serverError } from "@/lib/apiError";
 
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
             message: "If that account is waiting for verification, we've emailed a new 6-digit code.",
         });
     } catch (err) {
-        if (err instanceof EmailNotConfiguredError) {
+        if (err instanceof EmailSendError) {
             return serverError("api/auth/verify/resend", err, "We couldn't send a new code right now. Please try again in a few minutes.", 503);
         }
         return serverError("api/auth/verify/resend", err, "Could not send a verification code");
