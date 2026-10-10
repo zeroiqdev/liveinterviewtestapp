@@ -293,7 +293,7 @@ export default function AllJobsPage() {
                         setIsPaymentModalOpen(true);
                     }}
                     calibrationSectionTitle="Interview Preparation"
-                    calibrationText={`Practice real-time technical and behavioral interview scenarios calibrated for ${selectedJobDesc.company}'s hiring standards with our AI Interview Coach and Recruiter.`}
+                    calibrationText={`Practice real-time technical and behavioral interview scenarios calibrated for ${selectedJobDesc.company}'s hiring standards with our Interview Coach and Recruiter.`}
                     userRole={userRole || undefined}
                 />
             )}

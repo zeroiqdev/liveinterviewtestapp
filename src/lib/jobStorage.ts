@@ -3,6 +3,7 @@ import path from "path";
 import dbConnect from "@/lib/mongodb";
 import Job from "@/models/Job";
 import ScraperSource from "@/models/ScraperSource";
+import SeenJob from "@/models/SeenJob";
 import type { JobItem } from "@/app/api/jobs/route";
 import type { ScraperSource as ScraperSourceType } from "@/app/api/jobs/sources/route";
 
@@ -184,7 +185,10 @@ export async function deleteSource(id: string): Promise<boolean> {
 export async function getAllJobs(): Promise<JobItem[]> {
     try {
         await ensureJobStorageInitialized();
-        const docs = await Job.find().lean();
+        // Lists never carry a posting's full text or duties: with thousands of
+        // jobs that made the response several times larger than a serverless
+        // function may send. A single job's details come from getJobById.
+        const docs = await Job.find().select("-fullDescription -responsibilities").lean();
         if (docs.length > 0) {
             return docs.map((d) => ({
                 id: d.id,
@@ -197,7 +201,6 @@ export async function getAllJobs(): Promise<JobItem[]> {
                 employmentType: d.employmentType || "Full-time",
                 salaryRange: d.salaryRange || "Competitive",
                 description: decodeHtmlEntities(d.description),
-                responsibilities: d.responsibilities,
                 source: (d.source as "manual" | "scraped") || "scraped",
                 datePosted: d.datePosted,
                 status: (d.status as "active" | "expired") || "active",
@@ -210,6 +213,129 @@ export async function getAllJobs(): Promise<JobItem[]> {
         console.warn("[jobStorage] Failed to fetch jobs from DB, falling back to JSON:", err);
     }
     return readLocalJobs();
+}
+
+/** When each of these postings (by lower-cased address) was first seen, for those seen before. */
+export async function firstSeenDates(urls: string[]): Promise<Map<string, string>> {
+    const seen = new Map<string, string>();
+    if (urls.length === 0) return seen;
+    try {
+        await ensureJobStorageInitialized();
+        for (let i = 0; i < urls.length; i += 2000) {
+            const docs = await SeenJob.find({ url: { $in: urls.slice(i, i + 2000) } }).select("url firstSeen").lean();
+            for (const doc of docs) seen.set(doc.url, doc.firstSeen);
+        }
+    } catch (err) {
+        console.warn("[jobStorage] Could not read seen postings:", err);
+    }
+    return seen;
+}
+
+/** Remembers postings seen for the first time. Ones already remembered keep their date. */
+export async function recordSeenJobs(entries: Array<{ url: string; firstSeen: string }>): Promise<void> {
+    if (entries.length === 0) return;
+    try {
+        await ensureJobStorageInitialized();
+        for (let i = 0; i < entries.length; i += 1000) {
+            await SeenJob.bulkWrite(
+                entries.slice(i, i + 1000).map((entry) => ({
+                    updateOne: {
+                        filter: { url: entry.url },
+                        update: { $setOnInsert: { url: entry.url, firstSeen: entry.firstSeen, createdAt: new Date() } },
+                        upsert: true,
+                    },
+                })),
+                { ordered: false }
+            );
+        }
+    } catch (err) {
+        console.warn("[jobStorage] Could not record seen postings:", err);
+    }
+}
+
+/** One job with everything stored for it, including its full text and duties. */
+export async function getJobById(id: string): Promise<JobItem | null> {
+    try {
+        await ensureJobStorageInitialized();
+        const d = await Job.findOne({ id }).lean();
+        if (!d) return null;
+        return {
+            id: d.id,
+            title: decodeHtmlEntities(d.title),
+            company: decodeHtmlEntities(d.company),
+            companyLogo: d.companyLogo,
+            location: decodeHtmlEntities(d.location),
+            roleFamily: d.roleFamily,
+            url: d.url,
+            employmentType: d.employmentType || "Full-time",
+            salaryRange: d.salaryRange || "Competitive",
+            description: decodeHtmlEntities(d.description),
+            fullDescription: d.fullDescription,
+            responsibilities: d.responsibilities,
+            source: (d.source as "manual" | "scraped") || "scraped",
+            datePosted: d.datePosted,
+            status: (d.status as "active" | "expired") || "active",
+        };
+    } catch (err) {
+        console.warn("[jobStorage] Failed to fetch job from DB:", err);
+        return null;
+    }
+}
+
+/** Sets the stored logo on every job of each company (company name → logo address). */
+export async function setCompanyLogos(logos: Map<string, string>): Promise<number> {
+    if (logos.size === 0) return 0;
+    try {
+        await ensureJobStorageInitialized();
+        const result = await Job.bulkWrite(
+            [...logos].map(([company, companyLogo]) => ({
+                updateMany: { filter: { company, companyLogo: { $ne: companyLogo } }, update: { $set: { companyLogo } } },
+            })),
+            { ordered: false }
+        );
+        return result.modifiedCount;
+    } catch (err) {
+        console.error("[jobStorage] setCompanyLogos DB error:", err);
+        return 0;
+    }
+}
+
+/**
+ * Stores the summary, full text and duties read from a careers system on jobs
+ * already in the database (matched by posting URL), so jobs scraped before
+ * that text was collected get it too.
+ */
+export async function updateScrapedJobDetails(
+    jobs: Array<{ url: string; description?: string; fullDescription?: string; responsibilities?: string[] }>
+): Promise<number> {
+    const withText = jobs.filter((job) => job.fullDescription);
+    if (withText.length === 0) return 0;
+    try {
+        await ensureJobStorageInitialized();
+        let updated = 0;
+        for (let i = 0; i < withText.length; i += 500) {
+            const result = await Job.bulkWrite(
+                withText.slice(i, i + 500).map((job) => ({
+                    updateOne: {
+                        filter: { url: job.url },
+                        update: {
+                            $set: {
+                                fullDescription: job.fullDescription,
+                                ...(job.description ? { description: job.description } : {}),
+                                responsibilities: job.responsibilities ?? [],
+                            },
+                        },
+                    },
+                })),
+                { ordered: false }
+            );
+            updated += result.modifiedCount;
+        }
+        return updated;
+    } catch (err) {
+        console.error("[jobStorage] updateScrapedJobDetails DB error:", err);
+        return 0;
+    }
 }
 
 export async function createJob(job: JobItem): Promise<JobItem> {

@@ -9,6 +9,8 @@ export interface PlayTtsOptions {
   /** Use browser speech after a short TTS wait instead of leaving a turn silent. */
   preferImmediate?: boolean;
   onStart?: () => void;
+  /** For multi-clip speech: called as each clip after the first starts (onStart covers the first). */
+  onSegmentStart?: (index: number) => void;
   onEnd?: () => void;
 }
 
@@ -150,6 +152,66 @@ export function waitForAudio(url: string, timeoutMs: number): Promise<void> {
   });
 }
 
+/*
+ * At most a few /api/tts requests in flight from the browser. Firing ~40 at
+ * once (filler prefetch at interview start) tripped the speech provider's
+ * rate limit, and the opening question fell back to the browser's voice.
+ */
+const MAX_TTS_REQUESTS = 3;
+let activeTtsRequests = 0;
+const ttsRequestQueue: Array<() => void> = [];
+
+async function limitedTtsFetch(init: RequestInit): Promise<Response> {
+  if (activeTtsRequests >= MAX_TTS_REQUESTS) {
+    await new Promise<void>((resolve) => ttsRequestQueue.push(resolve));
+  }
+  activeTtsRequests++;
+  try {
+    return await fetch("/api/tts", init);
+  } finally {
+    activeTtsRequests--;
+    ttsRequestQueue.shift()?.();
+  }
+}
+
+/**
+ * The recorded clip URL for a line in the interview voice, retrying brief
+ * failures (e.g. the provider's rate limit) instead of giving up on the first.
+ * Caches and pre-loads the result. Returns null if it still isn't available.
+ */
+export async function resolveTtsAudio(
+  text: string,
+  options?: { persona?: "recruiter" | "coach"; attempts?: number }
+): Promise<string | null> {
+  const persona = options?.persona || "recruiter";
+  const jobRegion = voiceRegion();
+  const cacheKey = `${persona}:${jobRegion}:${text.trim()}`;
+  const cached = ttsUrlCache.get(cacheKey);
+  if (cached?.audioUrl) return cached.audioUrl;
+  const attempts = options?.attempts ?? 3;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const res = await limitedTtsFetch({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text.trim(), persona, jobRegion }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.audioUrl) {
+          ttsUrlCache.set(cacheKey, { audioUrl: data.audioUrl, voiceLabel: data.voiceLabel });
+          preloadAudio(data.audioUrl);
+          return data.audioUrl;
+        }
+      }
+    } catch {
+      // retry below
+    }
+    if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+  }
+  return null;
+}
+
 /** True when the clip is pre-loaded and buffered enough to start right away. */
 export function isAudioReady(url: string): boolean {
   const audio = audioPool.get(url);
@@ -265,7 +327,7 @@ export function useTtsAudio() {
 
         ttsPrefetchInFlight.add(cacheKey);
 
-        const request = fetch("/api/tts", {
+        const request = limitedTtsFetch({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -397,41 +459,18 @@ export function useTtsAudio() {
       }
 
       try {
-        const res = await fetch("/api/tts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: text.trim(),
-            persona,
-            jobRegion,
-          }),
-        });
+        // Retries a brief provider failure once before the (different) browser voice.
+        const audioUrl = await resolveTtsAudio(text, { persona, attempts: 2 });
 
         // If a new play request arrived while fetching, ignore this one
         if (instantFallbackTimer) clearTimeout(instantFallbackTimer);
         if (thisPlayId !== currentPlayIdRef.current || instantFallbackStarted) return;
+        if (!audioUrl) throw new Error("TTS audio unavailable");
 
-        if (!res.ok) {
-          throw new Error(`TTS API returned status ${res.status}`);
-        }
-
-        const data = await res.json();
-        if (thisPlayId !== currentPlayIdRef.current) return;
-
-        if (!data.audioUrl) {
-          throw new Error("No audioUrl in TTS response");
-        }
-
-        // Cache for subsequent plays / replays
-        ttsUrlCache.set(cacheKey, {
-          audioUrl: data.audioUrl,
-          voiceLabel: data.voiceLabel,
-        });
-
-        setVoiceLabel(data.voiceLabel || null);
-        setCurrentAudioUrl(data.audioUrl);
+        setVoiceLabel(ttsUrlCache.get(cacheKey)?.voiceLabel || null);
+        setCurrentAudioUrl(audioUrl);
         setIsLoadingAudio(false);
-        playMainAudio(data.audioUrl);
+        playMainAudio(audioUrl);
       } catch (err) {
         if (instantFallbackTimer) clearTimeout(instantFallbackTimer);
         if (thisPlayId !== currentPlayIdRef.current) return;
@@ -620,34 +659,15 @@ export function useTtsAudio() {
       const thisPlayId = currentPlayIdRef.current;
       let currentIndex = 0;
       const persona = options?.persona || "recruiter";
-      const jobRegion = options?.jobRegion || voiceRegion();
 
       // Resolve every missing sentence URL up front, in parallel, so each
       // sentence is ready by the time the previous one finishes instead of
       // being requested only after it ends.
-      const resolveUrl = async (text: string, attempt = 1): Promise<string | undefined> => {
-        const cacheKey = `${persona}:${jobRegion}:${text.trim()}`;
-        const cached = ttsUrlCache.get(cacheKey);
-        if (cached?.audioUrl) return cached.audioUrl;
-        // One retry before a sentence drops to the (different) browser voice.
-        const retry = () => (attempt < 2 ? resolveUrl(text, attempt + 1) : Promise.resolve(undefined));
-        try {
-          const res = await fetch("/api/tts", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: text.trim(), persona, jobRegion }),
-          });
-          if (!res.ok) return retry();
-          const data = await res.json();
-          if (!data.audioUrl) return retry();
-          ttsUrlCache.set(cacheKey, { audioUrl: data.audioUrl, voiceLabel: data.voiceLabel });
-          return data.audioUrl;
-        } catch {
-          return retry();
-        }
-      };
       const urlPromises = segments.map((seg) =>
-        (seg.audioUrl ? Promise.resolve(seg.audioUrl) : resolveUrl(seg.text)).then((url) => {
+        (seg.audioUrl
+          ? Promise.resolve<string | null>(seg.audioUrl)
+          : resolveTtsAudio(seg.text, { persona, attempts: 2 })
+        ).then((url) => {
           // Start loading every sentence now so each is buffered before its turn.
           if (url) preloadAudio(url);
           return url;
@@ -676,10 +696,12 @@ export function useTtsAudio() {
           audio.preservesPitch = true;
           audioRef.current = audio;
 
+          const index = currentIndex - 1;
           audio.onplay = () => {
             if (thisPlayId !== currentPlayIdRef.current) return;
             setIsPlaying(true);
-            if (currentIndex === 1) options?.onStart?.();
+            if (index === 0) options?.onStart?.();
+            else options?.onSegmentStart?.(index);
           };
 
           audio.onended = () => {

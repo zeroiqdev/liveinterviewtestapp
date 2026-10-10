@@ -1,0 +1,167 @@
+/*
+ * Landing page additions: the product pictures and the scroll-in reveal.
+ */
+
+/* ── Reveal on scroll ── */
+.reveal {
+    transition:
+        opacity 700ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 700ms cubic-bezier(0.22, 1, 0.36, 1),
+        filter 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.revealHidden {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(6px);
+}
+.revealShown {
+    opacity: 1;
+    transform: none;
+    filter: none;
+}
+@media (prefers-reduced-motion: reduce) {
+    .reveal { transition: none; }
+    .revealHidden { opacity: 1; transform: none; filter: none; }
+}
+
+/* ── Product pictures ──
+   Drawn in HTML and CSS, not exported as images, so they stay sharp at any
+   screen density and size. */
+.mock {
+    width: 100%;
+    max-width: 560px;
+    background: #FFFFFF;
+    border-radius: 18px;
+    overflow: hidden;
+    text-align: left;
+    /* A hairline edge only: the pictures sit flat on the page, no drop shadow. */
+    box-shadow: 0 0 0 1px #E1E6EF;
+}
+.winBar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 0.75rem;
+    height: 46px;
+    padding: 0 1rem;
+    border-bottom: 1px solid #EDF0F5;
+    background: #FBFCFE;
+}
+.winDots { display: inline-flex; gap: 6px; }
+.winDots i { width: 10px; height: 10px; border-radius: 50%; background: #D8DEE9; }
+.winTitle { font-size: 0.82rem; font-weight: 500; color: #26282A; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.winRight { justify-self: end; }
+.winTag { font-size: 0.74rem; color: #4B5563; background: #EEF2F8; padding: 0.25rem 0.6rem; border-radius: 9999px; white-space: nowrap; }
+
+/* Interview conversation */
+.talk { padding: 1.25rem 1.4rem 1.5rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.talkRow { display: grid; grid-template-columns: auto 1fr; gap: 0.85rem; padding: 0.9rem 1rem; border-radius: 12px; }
+.talkRowYou { background: #F6F8FC; }
+/* The follow-up is the point of the picture: it takes the brand tint. */
+.talkRowFollow { background: #EEF4FF; box-shadow: inset 0 0 0 1px rgba(71, 130, 246, 0.28); }
+.talkAvatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #4782F6;
+    color: #FFFFFF;
+    font-size: 0.86rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.talkAvatarYou { background: #DDE4F0; color: #26282A; font-size: 0.66rem; }
+.talkBody { min-width: 0; }
+.talkWho {
+    margin: 0 0 0.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.76rem;
+    color: #6B7280;
+    letter-spacing: -0.005em;
+}
+.talkTag {
+    font-size: 0.66rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #2F6BEB;
+    background: #FFFFFF;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    box-shadow: inset 0 0 0 1px rgba(71, 130, 246, 0.3);
+}
+.talkText { margin: 0; font-size: 0.98rem; line-height: 1.5; color: #141414; letter-spacing: -0.01em; }
+
+/* Feedback report */
+.reportBody { padding: 1.4rem 1.4rem 1.5rem; display: flex; flex-direction: column; gap: 1.4rem; }
+.reportTop { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 1.5rem; }
+.reportRing { position: relative; width: 84px; height: 84px; }
+.reportRingValue {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    padding-top: 28px;
+    font-size: 1.45rem;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    color: #141414;
+    font-variant-numeric: tabular-nums;
+}
+.reportRingValue small { font-size: 0.78rem; font-weight: 400; color: #6B7280; letter-spacing: 0; }
+.reportScores { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0.75rem; }
+.reportRow { display: grid; grid-template-columns: 96px 1fr auto; align-items: center; gap: 0.85rem; }
+.reportLabel { font-size: 0.9rem; color: #26282A; letter-spacing: -0.01em; }
+.reportTrack { height: 8px; border-radius: 4px; background: #E8EDF6; overflow: hidden; }
+.reportFill { display: block; height: 100%; border-radius: 4px; background: #4782F6; }
+.reportValue { font-size: 0.86rem; color: #141414; font-variant-numeric: tabular-nums; }
+.reportNotes { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; }
+.reportNote { background: #F6F8FC; border-radius: 10px; padding: 0.95rem 1rem; }
+.reportNoteTitle {
+    margin: 0 0 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #4B5563;
+}
+.noteGood, .noteFix { width: 7px; height: 7px; border-radius: 50%; }
+.noteGood { background: #22C55E; }
+.noteFix { background: #F59E0B; }
+.reportNoteText { margin: 0; font-size: 0.9rem; line-height: 1.5; color: #26282A; letter-spacing: -0.005em; }
+/* Phones: the pictures tighten up. The window title sits beside the dots and
+   shortens with an ellipsis before the tag would wrap. */
+@media (max-width: 560px) {
+    .mock { border-radius: 16px; }
+    .winBar { grid-template-columns: auto minmax(0, 1fr) auto; height: 42px; padding: 0 0.85rem; gap: 0.6rem; }
+    .winTitle { font-size: 0.78rem; }
+
+    .talk { padding: 0.75rem 0.75rem 0.9rem; gap: 0.4rem; }
+    .talkRow { padding: 0.65rem 0.75rem; gap: 0.65rem; border-radius: 10px; }
+    .talkAvatar { width: 28px; height: 28px; font-size: 0.76rem; }
+    .talkAvatarYou { font-size: 0.58rem; }
+    .talkWho { font-size: 0.7rem; margin-bottom: 0.15rem; }
+    .talkText { font-size: 0.86rem; line-height: 1.4; }
+
+    .reportBody { padding: 1rem; gap: 0.9rem; }
+    .reportTop { gap: 1rem; }
+    .reportRing { width: 64px; height: 64px; }
+    .reportRing svg { width: 64px; height: 64px; }
+    .reportRingValue { padding-top: 20px; font-size: 1.15rem; }
+    .reportRingValue small { font-size: 0.68rem; }
+    .reportScores { gap: 0.55rem; min-width: 0; }
+    .reportRow { grid-template-columns: 76px minmax(0, 1fr) auto; gap: 0.6rem; }
+    .reportLabel { font-size: 0.8rem; }
+    .reportValue { font-size: 0.78rem; }
+    .reportNotes { grid-template-columns: 1fr; gap: 0.5rem; }
+    .reportNote { padding: 0.7rem 0.8rem; }
+    .reportNoteText { font-size: 0.82rem; line-height: 1.4; }
+}

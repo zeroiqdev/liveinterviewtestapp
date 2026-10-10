@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { isJobLocationMatch, isJobRoleMatch, UserLocation } from "@/utils/locationDetector";
 import {
     getAllJobs,
+    getJobById,
     createJob,
     updateJob,
     deleteJob,
     purgeExpiredJobs,
 } from "@/lib/jobStorage";
+import { collapseDuplicateJobs } from "@/lib/jobDedupe";
 import { requireAdmin } from "@/lib/session";
 
 export interface JobItem {
@@ -19,7 +21,11 @@ export interface JobItem {
     url: string;
     employmentType: string;
     salaryRange?: string;
+    /** A short summary. */
     description?: string;
+    /** The posting's full text. Only present on a single job fetched by id. */
+    fullDescription?: string;
+    /** The posting's duties. Only present on a single job fetched by id. */
     responsibilities?: string[];
     source: "manual" | "scraped";
     datePosted: string;
@@ -27,7 +33,14 @@ export interface JobItem {
     isRemoteGlobal?: boolean;
     isAfrica?: boolean;
     isNigeria?: boolean;
+    /** In lists: how many other locations this same role is open in. */
+    moreLocations?: number;
 }
+
+/** The most jobs one list response carries (about 2.5 MB). */
+const MAX_LISTED_JOBS = 3000;
+const AFRICAN_LOCATION =
+    /nigeria|lagos|abuja|port harcourt|ibadan|kano|africa|kenya|nairobi|ghana|accra|johannesburg|cape town|egypt|cairo|rwanda|kigali|uganda|kampala|tanzania|senegal|dakar|ethiopia|morocco/i;
 
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
@@ -42,6 +55,14 @@ export async function GET(req: Request) {
     const isAfricaParam = searchParams.get("isAfrica");
     const timezone = searchParams.get("timezone");
     const limit = searchParams.get("limit") ? parseInt(searchParams.get("limit")!) : undefined;
+
+    // One job, with its full text and duties (lists leave those out).
+    const id = searchParams.get("id");
+    if (id) {
+        const job = await getJobById(id);
+        if (!job) return NextResponse.json({ error: "Job not found." }, { status: 404 });
+        return NextResponse.json({ job });
+    }
 
     let jobs = await getAllJobs();
 
@@ -131,11 +152,23 @@ export async function GET(req: Request) {
         });
     }
 
-    if (limit && limit > 0) {
-        jobs = jobs.slice(0, limit);
-    }
+    // The same role is often posted once per city, or simply twice: show it
+    // once. (`status=all` is the admin's view of every stored row.)
+    if (status !== "all") jobs = collapseDuplicateJobs(jobs);
 
-    return NextResponse.json({ jobs, totalCount: jobs.length });
+    // A response may not exceed a few megabytes, and thousands of jobs do.
+    // When there are more than fit, keep African jobs first, then the newest.
+    const totalCount = jobs.length;
+    const locationSorted = Boolean(country || isAfricaParam !== null || timezone);
+    if (jobs.length > MAX_LISTED_JOBS && !locationSorted) {
+        jobs = jobs
+            .map((job, index) => ({ job, index, african: AFRICAN_LOCATION.test(job.location) }))
+            .sort((a, b) => Number(b.african) - Number(a.african) || b.job.datePosted.localeCompare(a.job.datePosted) || a.index - b.index)
+            .map((entry) => entry.job);
+    }
+    jobs = jobs.slice(0, Math.min(limit && limit > 0 ? limit : MAX_LISTED_JOBS, MAX_LISTED_JOBS));
+
+    return NextResponse.json({ jobs, totalCount, listed: jobs.length });
 }
 
 export async function POST(req: NextRequest) {

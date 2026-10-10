@@ -28,61 +28,6 @@ export function formatShortLocation(loc: string): string {
     return result;
 }
 
-export function getDomainForCompany(company: string, url?: string): string {
-    const c = (company || "").trim().toLowerCase();
-    const knownDomains: Record<string, string> = {
-        piggyvest: "piggyvest.com",
-        bamboo: "investbamboo.com",
-        spacex: "spacex.com",
-        paystack: "paystack.com",
-        moniepoint: "moniepoint.com",
-        flutterwave: "flutterwave.com",
-        kuda: "kudabank.com",
-        interswitch: "interswitchgroup.com",
-        andela: "andela.com",
-        nomba: "nomba.com",
-        jumia: "jumia.com",
-        helium: "heliumhealth.com",
-        stripe: "stripe.com",
-        openai: "openai.com",
-        notion: "notion.so",
-        linear: "linear.app",
-        vercel: "vercel.com",
-        anthropic: "anthropic.com",
-        google: "google.com",
-        microsoft: "microsoft.com",
-        apple: "apple.com",
-        scale: "scale.com",
-        flexport: "flexport.com",
-        retool: "retool.com",
-        figma: "figma.com",
-        canva: "canva.com",
-        spotify: "spotify.com",
-        netflix: "netflix.com",
-        airbnb: "airbnb.com",
-        uber: "uber.com",
-    };
-    for (const [k, d] of Object.entries(knownDomains)) {
-        if (c.includes(k)) return d;
-    }
-    if (url) {
-        try {
-            const parsed = new URL(url);
-            const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
-            if (!host.includes("greenhouse.io") && !host.includes("lever.co") && !host.includes("ashbyhq.com") && !host.includes("workable.com") && !host.includes("seamlesshiring.com")) {
-                return host;
-            }
-            const parts = parsed.pathname.split("/").filter(Boolean);
-            if (parts[0] && (host.includes("greenhouse") || host.includes("lever") || host.includes("ashby"))) {
-                return `${parts[0]}.com`;
-            }
-        } catch {
-            // Ignore
-        }
-    }
-    return c.replace(/[^a-z0-9]/g, "") + ".com";
-}
-
 export function formatJobMeta(job: JobItem) {
     let timeString = "2 days ago";
     if (job.datePosted) {

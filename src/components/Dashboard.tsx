@@ -2,14 +2,12 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
     SignOut,
     Bell,
     ArrowRight,
     House,
     FileText,
-    ShieldCheck,
 } from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
 import styles from "./dashboard.module.css";
@@ -772,17 +770,6 @@ export default function Dashboard() {
                             </div>
                         );
                     })()}
-                    {user?.isAdmin && (
-                        <Link
-                            href="/admin"
-                            className={styles.settingsNavBtn}
-                            aria-label="Admin Portal"
-                            title="Admin Portal"
-                            style={{ color: "#2563EB", background: "#EFF6FF" }}
-                        >
-                            <ShieldCheck size={18} weight="bold" />
-                        </Link>
-                    )}
                     <button
                         className={styles.settingsNavBtn}
                         onClick={() => setIsSettingsOpen(true)}

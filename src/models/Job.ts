@@ -10,7 +10,10 @@ export interface IJob extends Document {
     url: string;
     employmentType: string;
     salaryRange?: string;
+    /** A short summary, shown in lists. */
     description?: string;
+    /** The posting's full text (never sent in lists; see GET /api/jobs?id=). */
+    fullDescription?: string;
     responsibilities?: string[];
     source: "manual" | "scraped";
     datePosted: string;
@@ -34,6 +37,7 @@ const JobSchema = new Schema<IJob>(
         employmentType: { type: String, default: "Full-time" },
         salaryRange: { type: String, default: "Competitive" },
         description: { type: String },
+        fullDescription: { type: String },
         responsibilities: [{ type: String }],
         source: { type: String, enum: ["manual", "scraped"], default: "scraped", index: true },
         datePosted: { type: String, required: true, index: true },

@@ -67,6 +67,9 @@ const ROLE_TO_BLUEPRINT: Record<string, string> = {
     "Safety Officer": "oil_gas_safety_officer",
 };
 
+/** Every role name onboarding offers. */
+export const KNOWN_ROLES = Object.keys(ROLE_TO_BLUEPRINT);
+
 export function blueprintForRole(
     role: string | undefined | null,
     experience?: string | null

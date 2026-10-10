@@ -26,7 +26,7 @@ function JobRowComponent({ job, isLast, onOpenDesc, onPractice }: JobRowProps) {
             }}
         >
             <div className={styles.lessonCompanyLogoWrap} style={{ width: "40px", height: "40px" }}>
-                <CompanyLogo company={job.company} url={job.url} logoUrl={job.companyLogo} />
+                <CompanyLogo company={job.company} logoUrl={job.companyLogo} size={40} />
             </div>
 
             <div>
@@ -37,6 +37,7 @@ function JobRowComponent({ job, isLast, onOpenDesc, onPractice }: JobRowProps) {
                     <span style={{ fontSize: "12px", fontWeight: 600, color: "#0F172A" }}>{job.company}</span>
                     <span className={styles.jobLocationTag}>
                         {job.location}
+                        {job.moreLocations ? ` +${job.moreLocations} more location${job.moreLocations > 1 ? "s" : ""}` : ""}
                     </span>
                     {job.salaryRange && job.salaryRange !== "Competitive" && (
                         <span style={{ fontSize: "11px", color: "#166534", background: "#DCFCE7", padding: "1px 6px", borderRadius: "4px", fontWeight: 600 }}>

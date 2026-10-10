@@ -49,6 +49,16 @@ function buildSpokenBody(text: string, prosody?: AzureProsody): string {
   return body;
 }
 
+/**
+ * Dragon HD voices return empty audio for a line that is only "Okay" (every
+ * spelling and SSML wrapper tried), yet speak it normally when written "O.K.".
+ * Other voices are sent the text as written.
+ */
+export function spokenTextFor(text: string, voice: string): string {
+  if (/DragonHD/i.test(voice) && /^okay[.!?]*$/i.test(text)) return "O.K.";
+  return text;
+}
+
 /** "en-NG-AbeoNeural" → "en-NG" */
 function localeForVoice(voice: string): string {
   const match = voice.match(/^([a-z]{2,3}-[A-Z]{2})-/);
@@ -83,7 +93,7 @@ export async function synthesizeAzureSpeech(
   const locale = localeForVoice(voice);
   const ssml =
     `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${locale}">` +
-    `<voice name="${escapeXml(voice)}">${buildSpokenBody(text.trim(), prosody)}</voice>` +
+    `<voice name="${escapeXml(voice)}">${buildSpokenBody(spokenTextFor(text.trim(), voice), prosody)}</voice>` +
     `</speak>`;
   const url = `https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`;
 
