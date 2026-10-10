@@ -1,8 +1,9 @@
 import Link from "next/link";
 
 export const metadata = {
-    title: "Privacy Policy — get prepped",
+    title: "Privacy Policy",
     description: "Privacy policy for get prepped by Zero and One Solutions Limited.",
+    alternates: { canonical: "/privacy" },
 };
 
 export default function PrivacyPage() {

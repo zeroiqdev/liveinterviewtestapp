@@ -319,7 +319,7 @@ export default function PaymentModal({ isOpen, onClose }: PaymentModalProps) {
                                         <circle cx="12" cy="12" r="10" />
                                         <path d="M9 12l2 2 4-4" stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
                                     </svg>
-                                    Full Adaptive AI Interview
+                                    Full Adaptive Interview
                                 </span>
                                 <span className={styles.feature}>
                                     <svg className={styles.checkIcon} width="18" height="18" viewBox="0 0 24 24" fill="#4793f7" stroke="none">

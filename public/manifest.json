@@ -1,7 +1,7 @@
 {
-  "name": "get prepped AI",
+  "name": "get prepped",
   "short_name": "get prepped",
-  "description": "AI-powered interview training platform",
+  "description": "Interview training platform",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",

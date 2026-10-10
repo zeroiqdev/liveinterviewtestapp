@@ -968,7 +968,7 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
             messages: [
                 `I finished auditing your resume (${name}) targeted for ${role}.`,
                 summaryText,
-                `Your full feedback report is ready with actionable suggestions and an in-line AI improver using the Google X-Y-Z formula.`,
+                `Your full feedback report is ready with actionable suggestions and an in-line improver using the Google X-Y-Z formula.`,
             ],
             insight: resumeLlmInsight,
             actions: [
@@ -1015,7 +1015,7 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
         badgeLabel: `${displayRole} Readiness Drill`,
         messages: [
             `Ready to benchmark your ${displayRole} readiness? Practice simulated interview rounds calibrated to real tech and enterprise hiring bars.`,
-            `Each round includes AI voice recruiter feedback, STAR rubric analysis, and personalized improvement coaching.`,
+            `Each round includes voice recruiter feedback, STAR rubric analysis, and personalized improvement coaching.`,
         ],
         insight: `Benchmark your readiness with live interview rounds calibrated to top tech hiring rubrics for ${displayRole}.`,
         actions: [

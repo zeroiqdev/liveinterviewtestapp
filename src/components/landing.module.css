@@ -52,15 +52,50 @@
     z-index: 40;
     background: #FFFFFF;
     border-bottom: none;
+    transition: background-color 300ms ease;
 }
 .navInner {
-    max-width: 100%;
+    /* A length (not 100%) so the collapse to the pill's width can animate. */
+    max-width: 100vw;
     margin: 0 auto;
     padding: 0.75rem clamp(1rem, 1.8vw, 1.5rem) 0.45rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
+    border-radius: 0;
+    background: transparent;
+    box-sizing: border-box;
+    transition:
+        max-width 520ms cubic-bezier(0.22, 1, 0.36, 1),
+        padding 520ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 520ms cubic-bezier(0.22, 1, 0.36, 1),
+        border-radius 520ms cubic-bezier(0.22, 1, 0.36, 1),
+        background-color 300ms ease,
+        box-shadow 300ms ease;
+}
+
+/* Past the hero: the bar lets the page show through and its contents gather
+   into a white floating pill, centered and inset from the top. It stays white
+   so it reads on white sections and on the blue showcase panel alike. */
+.navCompact {
+    background: transparent;
+    pointer-events: none;
+}
+.navCompact .navInner {
+    max-width: min(780px, calc(100vw - 1.5rem));
+    padding: 0.6rem 0.65rem 0.6rem 1.1rem;
+    transform: translateY(0.65rem);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.92);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 0 0 1px rgba(20, 30, 60, 0.08), 0 10px 30px rgba(20, 40, 90, 0.14);
+    pointer-events: auto;
+}
+.logo, .logoType, .navLinks a { transition: color 300ms ease; }
+@media (prefers-reduced-motion: reduce) {
+    .nav, .navInner, .logo, .logoType, .navLinks a { transition: none; }
 }
 .logo {
     display: inline-flex;
@@ -89,7 +124,8 @@
 }
 .logoImg { width: 100%; height: 100%; object-fit: contain; display: block; transform: scale(1.32); }
 .logoType { font-size: 1.02rem; font-weight: 400; letter-spacing: -0.01em; line-height: 1; white-space: nowrap; display: inline-block; color: #141414; }
-.navLinks { display: flex; align-items: center; gap: 1.5rem; font-size: 0.85rem; font-weight: 400; }
+/* Pushed to the right so the links sit beside the Practice button. */
+.navLinks { display: flex; align-items: center; gap: 1.5rem; font-size: 0.85rem; font-weight: 400; margin-left: auto; margin-right: 0.75rem; }
 .navLinks a { color: #475569; text-decoration: none; }
 .navLinks a:hover { color: #141414; }
 .navActions { display: flex; align-items: center; gap: 0.75rem; }
@@ -115,7 +151,7 @@
     background: #000000;
     overflow: hidden;
     text-align: left;
-    border-radius: 0 0 16px 16px;
+    border-radius: 0;
 }
 .heroImage {
     position: absolute;
@@ -4033,7 +4069,7 @@
     .navLogin { display: none; }
     .navCta { padding: 0.5rem 0.85rem; font-size: 0.8rem; }
     .hero { padding: 0.35rem 0.6rem 0.6rem; }
-    .heroFrame { min-height: calc(68vh - 24px); min-height: calc(68dvh - 24px); border-radius: 0 0 14px 14px; }
+    .heroFrame { min-height: calc(68vh - 24px); min-height: calc(68dvh - 24px); border-radius: 0; }
     .heroInner { left: 1rem; right: 4.5rem; bottom: 1.75rem; padding: 0; max-width: none; }
     .heroTitle { font-size: clamp(1.55rem, 6.5vw, 2.05rem); line-height: 1.1; letter-spacing: -0.025em; word-break: break-word; hyphens: auto; text-wrap: balance; overflow-wrap: anywhere; }
     .heroNoWrap { white-space: normal; word-break: break-word; }
@@ -4073,3 +4109,102 @@
     .heroInner { padding: 1.4rem 1rem; }
     .provenCard { flex-basis: 84vw; height: 320px; }
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   Refresh: one accent colour, hairline structure.
+   Kept together at the end so it reads as one layer over the rules above.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* One accent: blue is for buttons and key numbers. Large surfaces and
+   second-line headline colour go to ink. */
+.whoWeAreTitleAccent,
+.whoWeAreTitleFill .whoWeAreTitleLine.whoWeAreTitleAccent { color: #141414; }
+.whoWeAreTitleOutline .whoWeAreTitleLine.whoWeAreTitleAccent {
+    color: #141414;
+    filter: url(#cleanTitleOutline);
+    -webkit-filter: url(#cleanTitleOutline);
+}
+.twoWaysExpandedCard {
+    background: #0B1220;
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 10px 30px -8px rgba(11, 18, 32, 0.35), 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+.twoWaysCollapsedCard { background: #0B1220; border-color: rgba(255, 255, 255, 0.08); }
+.twoWaysCollapsedCard:hover { background: #162033; box-shadow: 0 8px 24px rgba(11, 18, 32, 0.28); }
+.twoWaysActionBtn { color: #0B1220; }
+.jobsBenchmarkBarFillTop { background: #4782F6; }
+.ctaCard {
+    background: radial-gradient(110% 90% at 50% 110%, #DCE6F7 0%, #EAF0FA 38%, #F4F6FA 70%, #F8FAFC 100%);
+    border: 1px solid #E7E9EE;
+    box-shadow: none;
+}
+/* The dot grid was white on blue; on the pale panel it becomes a faint ink grid. */
+.ctaCard::before { background-image: radial-gradient(circle, rgba(11, 18, 32, 0.07) 1.25px, transparent 1.25px); }
+/* The page's main action: the one place a large button takes the accent. */
+.ctaDownloadBtn { background: #4782F6; box-shadow: 0 6px 18px -6px rgba(71, 130, 246, 0.55); }
+.ctaDownloadBtn:hover { background: #3B71E8; }
+
+/* Match the newer sections: medium-weight headlines and a footer set in a
+   soft rounded panel. */
+.whoWeAreTitle,
+.whoWeAreSubheading,
+.jobsBenchmarkTitle { font-weight: 500; }
+.jobsBenchmarkLead { font-weight: 400; color: #0E0E0E; }
+.cleanFooter {
+    margin: 0 clamp(0.5rem, 1vw, 0.75rem) clamp(0.5rem, 1vw, 0.75rem);
+    border-radius: 20px;
+    background: #F4F6FA;
+    border-top: none;
+}
+
+/* "Stop winging" section: no lines. It runs straight into the next section. */
+.whoWeAreSection { padding-bottom: clamp(2rem, 4vw, 3.5rem); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   One margin for the whole page.
+   --frame  : the inset of full-bleed panels (nav bar, hero, blue showcase,
+              footer panel).
+   --gutter : the left and right edge of all headings and content.
+   --content: the widest the content column gets on very large screens.
+   Every section below uses these, so headings share one left edge.
+   ══════════════════════════════════════════════════════════════════════ */
+.page {
+    --frame: clamp(0.75rem, 1.4vw, 1.25rem);
+    --gutter: clamp(1.25rem, 4vw, 3.5rem);
+    --content: 1400px;
+}
+.navInner { padding-left: var(--frame); padding-right: var(--frame); }
+.hero { padding-left: var(--frame); padding-right: var(--frame); }
+.heroInner { left: calc(var(--gutter) - var(--frame)); padding-left: 0; padding-right: 0; }
+.whoWeAreHeader { padding-left: var(--gutter); padding-right: var(--gutter); }
+.whoWeAreMediaCol { padding-left: var(--gutter); justify-content: flex-start; }
+.whoWeAreContentCol { padding-right: var(--gutter); }
+/* Stacked (one column): both blocks run gutter to gutter. */
+@media (max-width: 960px) {
+    .whoWeAreMediaCol { padding-right: var(--gutter); }
+    .whoWeAreContentCol { padding-left: var(--gutter); }
+}
+.jobsBenchmarkSection { padding-left: var(--gutter); padding-right: var(--gutter); }
+.jobsBenchmarkInner { max-width: var(--content); }
+.cleanFooter {
+    /* width: auto, so the side margins inset the panel instead of pushing it wide. */
+    width: auto;
+    margin: 0 var(--frame) var(--frame);
+    padding-left: calc(var(--gutter) - var(--frame));
+    padding-right: calc(var(--gutter) - var(--frame));
+}
+.cleanFooterInner { max-width: var(--content); }
+
+/* No rules under headings or between sections: spacing alone separates them.
+   The dividers between job rows stay (they separate items in a list); the
+   list's own top and bottom edges, and the footer's rule, go. */
+.jobsBenchmarkTable { border-top: none; border-bottom: none; }
+.jobsBenchmarkRow:last-child { border-bottom: none; }
+.cleanFooterBottom { border-top: none; padding-top: 0; }
+
+/* Tighter vertical rhythm between sections. */
+.whoWeAreSection { padding-bottom: clamp(1rem, 2vw, 2rem); }
+.jobsBenchmarkSection { padding-top: clamp(1.5rem, 3vw, 2.5rem); padding-bottom: clamp(3rem, 5vw, 4.5rem); }
+.jobsBenchmarkHeader { margin-bottom: clamp(1.5rem, 2.5vw, 2.25rem); }
+.cleanFooterInner { gap: 2.5rem; }

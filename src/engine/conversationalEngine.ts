@@ -85,10 +85,36 @@ export function replySegments(reply: { text: string; bridge?: string | null; que
     const question = reply.question ? cleanSpokenAudioText(reply.question) : "";
     if (question) {
         const bridge = reply.bridge ? cleanSpokenAudioText(reply.bridge) : "";
-        return [...(bridge ? splitSpokenSentences(bridge) : []), question];
+        return [...(bridge ? splitFirstClause(splitSpokenSentences(bridge)) : []), question];
     }
     const text = cleanSpokenAudioText(reply.text);
-    return text ? splitSpokenSentences(text) : [];
+    return text ? splitFirstClause(splitSpokenSentences(text)) : [];
+}
+
+/** Below this many words the first clip is already quick to record. */
+const LONG_FIRST_CLIP_WORDS = 14;
+/** Each side of a clause split keeps at least this many words. */
+const MIN_CLAUSE_WORDS = 4;
+
+/**
+ * Recording time grows with the length of speech, and only the first clip
+ * holds the reply up — the rest record while it plays. So a long first
+ * sentence is spoken as two clips, split at its first natural pause (a comma,
+ * semicolon or dash) with enough words on each side to sound whole.
+ */
+export function splitFirstClause(sentences: string[]): string[] {
+    const [first, ...rest] = sentences;
+    if (!first) return sentences;
+    const words = first.split(/\s+/);
+    if (words.length < LONG_FIRST_CLIP_WORDS) return sentences;
+    for (let i = MIN_CLAUSE_WORDS - 1; i < words.length - MIN_CLAUSE_WORDS; i++) {
+        if (/[,;:]$/.test(words[i]) || words[i + 1] === "—" || words[i + 1] === "-") {
+            const cut = /[,;:]$/.test(words[i]) ? i + 1 : i + 2;
+            if (words.length - cut < MIN_CLAUSE_WORDS) break;
+            return [words.slice(0, cut).join(" "), words.slice(cut).join(" "), ...rest];
+        }
+    }
+    return sentences;
 }
 
 export function cleanSpokenAudioText(text: string): string {
