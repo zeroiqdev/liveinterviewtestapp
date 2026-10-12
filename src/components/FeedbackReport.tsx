@@ -1016,7 +1016,7 @@ export default function FeedbackReport({
                             <Warning size={48} weight="regular" className={styles.errorIcon} />
                             <h2 className={styles.loadingTitle}>Evaluation Encountered an Issue</h2>
                             <p className={styles.loadingSubtitle}>
-                                {errorMessage || "We were unable to complete the AI analysis for this session."}
+                                {errorMessage || "We were unable to complete the analysis for this session."}
                             </p>
                             <button type="button" className={styles.retryBtn} onClick={performFeedbackFetch}>
                                 <Lightning size={16} weight="regular" />
@@ -1091,7 +1091,7 @@ export default function FeedbackReport({
                     <Warning size={48} weight="regular" className={styles.errorIcon} />
                     <h2 className={styles.loadingTitle}>Evaluation Encountered an Issue</h2>
                     <p className={styles.loadingSubtitle}>
-                        {errorMessage || "We were unable to complete the AI analysis for this session."}
+                        {errorMessage || "We were unable to complete the analysis for this session."}
                     </p>
                     <button type="button" className={styles.retryBtn} onClick={performFeedbackFetch}>
                         <Lightning size={16} weight="regular" />

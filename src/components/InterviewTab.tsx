@@ -6,8 +6,17 @@ import { useInterview } from "../context/InterviewContext";
 import { useMediaRecorder } from "../hooks/useMediaRecorder";
 import styles from "./interview.module.css";
 import { blueprintForRole } from "../engine/roleMapping";
+import { normalizeUserRoleFamily } from "../utils/locationDetector";
+import { displayQuestion, revealPoint } from "../lib/questionDisplay";
 import type { EnginePrompt, PublicSessionState } from "../engine/types";
-import { getStoredJobRegion, isAudioReady, lockVoiceRegion, useTtsAudio, waitForAudio } from "../hooks/useTtsAudio";
+import {
+    getStoredJobRegion,
+    isAudioReady,
+    lockVoiceRegion,
+    resolveTtsAudio,
+    useTtsAudio,
+    waitForAudio,
+} from "../hooks/useTtsAudio";
 import {
     NEXT_QUESTION_HOLDS,
     PROBE_HOLDS,
@@ -67,6 +76,7 @@ interface UserProfile {
     email?: string;
     domain?: string;
     role?: string;
+    roleFamily?: string;
     seniority?: string;
     provider?: string;
     name?: string;
@@ -137,14 +147,19 @@ interface TurnDraft {
     verdict: string | null;
     /** The reply text as recorded on the server (no acknowledgement). */
     replyText: string;
+    /** For a new bank question: the question itself, without its lead-in. */
+    question: string | null;
     /** The reply as one flowing line (acknowledgement + reply), every clip recorded. */
     spokenSegments: Array<{ text: string; audioUrl: string }> | null;
     /** The same reply without the acknowledgement, for after a filler "Okay.". */
     plainSegments: Array<{ text: string; audioUrl: string }> | null;
 }
 
-/** After the turn ends, how long fillers may cover for a draft still being made before asking the server directly. */
-const LATE_DRAFT_WAIT_MS = 4000;
+/**
+ * After the turn ends, how long fillers may cover for a draft still being made
+ * before asking the server directly. The server sets it per voice at start.
+ */
+const DEFAULT_LATE_DRAFT_WAIT_MS = 4000;
 
 /** Steps shown while the interviewer "joins the call", in order. */
 const JOIN_STEPS = [
@@ -261,6 +276,10 @@ export default function InterviewTab() {
     const [recognitionError, setRecognitionError] = useState<string | null>(null);
     // The next question couldn't be fetched; the answer is kept for a retry.
     const [turnError, setTurnError] = useState<string | null>(null);
+    // While the interviewer acknowledges the answer ("Okay."), the card keeps
+    // showing the previous question; this holds it until that's been said.
+    const [heldQuestion, setHeldQuestion] = useState<string | null>(null);
+    const shownQuestionRef = useRef("");
     const [faceInFrameChecked, setFaceInFrameChecked] = useState(false);
     const [goodLightingChecked, setGoodLightingChecked] = useState(false);
     const [cameraChecked, setCameraChecked] = useState(false);
@@ -633,6 +652,9 @@ export default function InterviewTab() {
     const recognitionRef = useRef<any>(null);
     const isRecognitionActiveRef = useRef<boolean>(false);
     const accumulatedFinalTranscriptRef = useRef<string>("");
+    // Words heard but not yet confirmed by the browser. Kept so they aren't
+    // lost when transcription restarts in the middle of a long answer.
+    const pendingInterimRef = useRef<string>("");
     const turnEpochRef = useRef(0);
     const preparedTurnRef = useRef<{ text: string; controller: AbortController; turnId: string } | null>(null);
     const activeTurnIdRef = useRef<string | null>(null);
@@ -653,6 +675,7 @@ export default function InterviewTab() {
     // Replies drafted while the candidate talks (from /prepare), by answer
     // snapshot; and drafts still being made.
     const draftsRef = useRef(new Map<string, TurnDraft>());
+    const lateDraftWaitRef = useRef(DEFAULT_LATE_DRAFT_WAIT_MS);
     const pendingDraftsRef = useRef(new Map<string, Promise<TurnDraft | null>>());
     // The commit of a spoken draft, so the next turn waits for it.
     const commitRef = useRef<Promise<void> | null>(null);
@@ -714,6 +737,7 @@ export default function InterviewTab() {
                 accumulatedFinalTranscriptRef.current += finalChunk;
                 setFinalTranscript(accumulatedFinalTranscriptRef.current.trim());
             }
+            pendingInterimRef.current = interimTranscript;
 
             const fullTranscript = (accumulatedFinalTranscriptRef.current + interimTranscript).trim();
             setCurrentAnswer(fullTranscript);
@@ -738,6 +762,16 @@ export default function InterviewTab() {
         };
 
         recognition.onend = () => {
+            // The browser ends a recognition session every minute or so, and
+            // drops whatever it hadn't confirmed yet. Mid-answer, keep those
+            // words so a long answer doesn't lose a sentence at each restart.
+            const unconfirmed = pendingInterimRef.current.trim();
+            pendingInterimRef.current = "";
+            if (unconfirmed && agentActivity.stateRef.current === "listening" && isListeningRef.current && !isEngineBusyRef.current) {
+                accumulatedFinalTranscriptRef.current += unconfirmed + " ";
+                setFinalTranscript(accumulatedFinalTranscriptRef.current.trim());
+                setCurrentAnswer(accumulatedFinalTranscriptRef.current.trim());
+            }
             // Auto-restart only while it is still the candidate's turn.
             if (isRecognitionActiveRef.current && sessionStartedRef.current && !isMutedRef.current && agentActivity.stateRef.current === "listening") {
                 setTimeout(() => {
@@ -816,9 +850,18 @@ export default function InterviewTab() {
         text: string,
         onDone?: () => void,
         segments?: Array<{ text: string; audioUrl: string }>,
-        opts?: { interruptible?: boolean; onStart?: () => void }
+        opts?: { interruptible?: boolean; onStart?: () => void; question?: string }
     ) => {
         bargeInAllowedRef.current = opts?.interruptible ?? true;
+        // When the card should switch to the new text: once the opening
+        // acknowledgement, if any, has been spoken.
+        const reveal = opts?.question && segments?.length ? revealPoint(segments, opts.question) : { index: 0, delayMs: 0 };
+        const holdsQuestion = reveal.index > 0 || reveal.delayMs > 0;
+        let revealTimer: ReturnType<typeof setTimeout> | null = null;
+        const showQuestion = () => {
+            if (revealTimer) clearTimeout(revealTimer);
+            if (speakId === speakIdRef.current) setHeldQuestion(null);
+        };
         falseInterruptionsRef.current = 0;
         const speakId = ++speakIdRef.current;
         let finished = false;
@@ -828,7 +871,9 @@ export default function InterviewTab() {
             if (finished || speakId !== speakIdRef.current) return;
             finished = true;
             clearTimeout(watchdog);
+            showQuestion();
             accumulatedFinalTranscriptRef.current = "";
+            pendingInterimRef.current = "";
             setCurrentAnswer("");
             agentActivity.transitionTo("listening", "Interviewer speech ended, listening for candidate");
             onDone?.();
@@ -857,6 +902,7 @@ export default function InterviewTab() {
         let watchdog = setTimeout(checkStalled, watchdogMs);
         stopRecognition();
         accumulatedFinalTranscriptRef.current = "";
+        pendingInterimRef.current = "";
         agentActivity.transitionTo("speaking", "Starting question playback");
         setIsListening(false);
         setCurrentAnswer("");
@@ -874,10 +920,21 @@ export default function InterviewTab() {
                     }
                 }
                 accumulatedFinalTranscriptRef.current = "";
+                pendingInterimRef.current = "";
+                // Keep the previous question on the card until this one is reached.
+                if (holdsQuestion) {
+                    setHeldQuestion(shownQuestionRef.current);
+                    if (reveal.index === 0) revealTimer = setTimeout(showQuestion, reveal.delayMs);
+                } else {
+                    setHeldQuestion(null);
+                }
                 opts?.onStart?.();
                 agentActivity.transitionTo("speaking", "TTS audio playing");
                 setIsListening(false);
                 setCurrentAnswer("");
+            },
+            onSegmentStart: (index: number) => {
+                if (holdsQuestion && index >= reveal.index) showQuestion();
             },
             onEnd: () => {
                 // Short acoustic grace so speaker echo isn't transcribed as the answer.
@@ -915,6 +972,7 @@ export default function InterviewTab() {
         voiceRegion?: string;
         audioSegments?: Array<{ text: string; audioUrl: string }>;
         voiceLabel?: string | null;
+        lateDraftWaitMs?: number;
     } | null> => {
         const candidateId = user?.email || "anonymous";
         const hasSources =
@@ -945,6 +1003,14 @@ export default function InterviewTab() {
                 interviewType: interviewType || queryInterviewType || undefined,
                 candidateName: candidateDisplayName,
                 companyName: targetCompany,
+                // Picks an opening question that fits the role and round. The
+                // dashboard's rounds follow the profile's family; a role picked
+                // for this interview (e.g. a job) follows that role.
+                candidateRole: configuredRole,
+                roleFamily:
+                    queryRole?.trim() && queryRole.trim() !== user?.role
+                        ? normalizeUserRoleFamily(queryRole)
+                        : user?.roleFamily || normalizeUserRoleFamily(configuredRole),
                 // Fixes the interviewer's voice for the whole session.
                 jobRegion: getStoredJobRegion(),
             }),
@@ -980,6 +1046,7 @@ export default function InterviewTab() {
 
         // One voice for the whole interview, matching what the server uses.
         lockVoiceRegion(started.voiceRegion ?? null);
+        lateDraftWaitRef.current = started.lateDraftWaitMs ?? DEFAULT_LATE_DRAFT_WAIT_MS;
         setInterviewerName(interviewerNameFromVoice(started.voiceLabel));
         // The opening audio was generated during session start; cache it so
         // the first question plays immediately.
@@ -992,9 +1059,27 @@ export default function InterviewTab() {
         // are loaded in this voice. Each wait is capped so a slow network
         // can't hold the interview back.
         setJoinStep(2);
-        const openingUrl = started.audioSegments?.find((segment) => segment.audioUrl)?.audioUrl;
+        // The opening must play in the interviewer's voice. If the server
+        // couldn't prepare it in time, fetch it here (with retries) before the
+        // countdown rather than letting the browser's voice read it.
+        let openingSegments = started.audioSegments?.filter((segment) => segment.audioUrl);
+        if (!openingSegments?.length) {
+            const parts = started.prompt?.openingParts?.length
+                ? started.prompt.openingParts
+                : started.prompt?.text ? [started.prompt.text] : [];
+            // One at a time, to stay inside the voice provider's rate limit;
+            // all of them or none, so the opening never mixes voices.
+            const resolved: Array<{ text: string; audioUrl: string }> = [];
+            for (const part of parts) {
+                const url = await resolveTtsAudio(part, { persona: "recruiter", attempts: 4 });
+                if (!url) break;
+                resolved.push({ text: part, audioUrl: url });
+            }
+            if (resolved.length === parts.length) openingSegments = resolved;
+        }
+        started.audioSegments = openingSegments?.length ? openingSegments : undefined;
         await Promise.all([
-            openingUrl ? waitForAudio(openingUrl, JOIN_AUDIO_WAIT_MS) : Promise.resolve(),
+            ...(started.audioSegments ?? []).map((segment) => waitForAudio(segment.audioUrl, JOIN_AUDIO_WAIT_MS)),
             Promise.race([
                 prefetchFillers({ persona: "recruiter" }),
                 new Promise((resolve) => setTimeout(resolve, JOIN_AUDIO_WAIT_MS)),
@@ -1101,6 +1186,7 @@ export default function InterviewTab() {
         resetDrafts();
         setIsListening(false);
         accumulatedFinalTranscriptRef.current = "";
+        pendingInterimRef.current = "";
         setCurrentAnswer("");
         setFinalTranscript("");
         setTurnError(null);
@@ -1126,9 +1212,12 @@ export default function InterviewTab() {
                         { role: "candidate" as const, text: candidateText },
                         { role: "interviewer" as const, text: draft.replyText },
                     ]);
-                    setCurrentPrompt((prev) => (prev ? { ...prev, text: draft.replyText } : prev));
+                    setCurrentPrompt((prev) =>
+                        prev ? { ...prev, text: draft.replyText, question: draft.question, openingParts: undefined } : prev
+                    );
                     applyCommitted();
                 },
+                question: displayQuestion({ text: draft.replyText }),
             }
         );
 
@@ -1188,7 +1277,8 @@ export default function InterviewTab() {
         //   reply has its own answer-specific lead-in → one topic reflection
         //   direction unknown / objection / weak answer → acknowledgement only
         const lines: string[] = [];
-        if (kind !== "objection") {
+        // A question or objection is answered directly: nothing leads elsewhere.
+        if (kind === "brief" || kind === "substantive") {
             if (draft?.action === "probe") {
                 lines.push(pickFresh(PROBE_LEADINS), pickFresh(PROBE_HOLDS));
             } else if (draft?.action === "next" && !draft.bridge) {
@@ -1253,6 +1343,7 @@ export default function InterviewTab() {
         resetDrafts();
         setIsListening(false);
         accumulatedFinalTranscriptRef.current = "";
+        pendingInterimRef.current = "";
         setCurrentAnswer("");
         setFinalTranscript("");
 
@@ -1261,7 +1352,7 @@ export default function InterviewTab() {
         if (lateDraft) {
             const draft = await Promise.race([
                 lateDraft,
-                new Promise<null>((resolve) => setTimeout(() => resolve(null), LATE_DRAFT_WAIT_MS)),
+                new Promise<null>((resolve) => setTimeout(() => resolve(null), lateDraftWaitRef.current)),
             ]);
             if (turnEpoch !== turnEpochRef.current) return;
             if (draft?.plainSegments && draftCovers(draft.answer, candidateText)) {
@@ -1341,7 +1432,7 @@ export default function InterviewTab() {
                 if (data.prompt.text) {
                     speakQuestion(data.prompt.text, () => {
                         agentActivity.transitionTo("listening", "Interviewer speech ended, listening for candidate");
-                    }, data.audioSegments, { onStart: showReply });
+                    }, data.audioSegments, { onStart: showReply, question: displayQuestion(data.prompt) });
                 } else {
                     showReply();
                     agentActivity.transitionTo("listening", "No prompt text, listening");
@@ -1398,6 +1489,7 @@ export default function InterviewTab() {
         if (!candidateText) return;
         lastCandidateAnswerRef.current = candidateText;
         accumulatedFinalTranscriptRef.current = "";
+        pendingInterimRef.current = "";
         setIsListening(false);
         setCurrentAnswer("");
 
@@ -1487,6 +1579,7 @@ export default function InterviewTab() {
                         bridge: data.bridge ?? null,
                         verdict: data.verdict ?? null,
                         replyText: data.preparedText ?? "",
+                        question: data.question ?? null,
                         spokenSegments,
                         plainSegments,
                     };
@@ -1501,6 +1594,15 @@ export default function InterviewTab() {
             pendingDraftsRef.current.set(transcript, pending);
         },
         isAnswerReady,
+        // Mic hears them but no words are arriving: transcription has stalled.
+        // Stopping it confirms what it has; onend then starts a fresh session.
+        onTranscriptionStalled: () => {
+            try {
+                recognitionRef.current?.stop();
+            } catch {
+                // Already stopping: onend restarts it.
+            }
+        },
         onTurnComplete: (transcript) => {
             handleNext(transcript);
         },
@@ -1517,6 +1619,7 @@ export default function InterviewTab() {
     const handleRetryAnswer = () => {
         setInstantFeedback(null);
         accumulatedFinalTranscriptRef.current = "";
+        pendingInterimRef.current = "";
         setCurrentAnswer("");
         setFinalTranscript("");
         setIsListening(true);
@@ -1577,10 +1680,19 @@ export default function InterviewTab() {
 
     const questionNumber = useMemo(() => {
         const interviewerTurns = localTranscript.filter((t) => t.role === "interviewer").length;
+
         if (interviewerTurns > 0) return interviewerTurns;
         if (sessionStarted && currentPrompt?.text) return 1;
         return 0;
     }, [localTranscript, sessionStarted, currentPrompt]);
+
+    // The card shows what the interviewer says except the opening
+    // acknowledgement ("Okay."), and stays on the previous question until
+    // that acknowledgement has been said.
+    const shownQuestion = heldQuestion ?? displayQuestion(currentPrompt);
+    useEffect(() => {
+        shownQuestionRef.current = shownQuestion;
+    }, [shownQuestion]);
 
     if (loading || !user) return null;
 
@@ -2054,7 +2166,7 @@ export default function InterviewTab() {
                                     <div className={styles.aboutAssessmentCard}>
                                         <div className={styles.aboutAssessmentItem}>
                                             <div>
-                                                <h4 className={styles.aboutAssessmentItemTitle}>This is an AI interview</h4>
+                                                <h4 className={styles.aboutAssessmentItemTitle}>This is an automated interview</h4>
                                                 <p className={styles.aboutAssessmentItemDesc}>
                                                     This interview is built around the role you&apos;re preparing for. It includes focused questions about your experience, skills, and approach to the work, with follow-up questions based on your responses—just like you can expect in a real interview.
                                                 </p>
@@ -2287,7 +2399,7 @@ export default function InterviewTab() {
                                     <h2 className={styles.questionText}>
                                         {/* Stays on the previous question during fillers; the
                                             new one replaces it when it starts playing. */}
-                                        {currentPrompt?.text ?? ""}
+                                        {shownQuestion}
                                     </h2>
                                 </div>
 
@@ -2409,7 +2521,7 @@ export default function InterviewTab() {
                                             <div className={styles.inlineAnalyzingHeader}>
                                                 <div className={styles.inlineCoachBadge}>
                                                     <Sparkle size={14} weight="fill" />
-                                                    <span>AI Coach Evaluating</span>
+                                                    <span>Coach Evaluating</span>
                                                 </div>
                                                 {targetCompany && (
                                                     <span className={styles.inlineTargetCompany}>

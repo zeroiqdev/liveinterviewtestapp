@@ -93,11 +93,49 @@ describe("classifyAnswer", () => {
         for (const text of [
             "There is no company cited",
             "there was no company mentioned, this is a general interview",
-            "What do you mean by that?",
             "I don't know, I haven't worked with Kafka",
             "You didn't say which company this is for",
         ]) {
             assert.equal(classifyAnswer(text), "objection", text);
+        }
+    });
+
+    it("recognises a question to the interviewer, with or without a question mark", async () => {
+        const { classifyAnswer } = await import("../src/config/fillerConfig");
+        for (const text of [
+            "What's the team size?",
+            "how many people are on the team",
+            "Is this role remote or on site",
+            "Can I ask what the salary range is",
+            "I have a question about the company before I answer",
+            "Before I answer, do you have a product in mind",
+            "I led the migration at my last job and it went well. Is that the kind of example you want",
+        ]) {
+            assert.equal(classifyAnswer(text), "question", text);
+        }
+        for (const text of ["What do you mean by that?", "can you repeat the question", "Sorry, I didn't catch that"]) {
+            assert.equal(classifyAnswer(text), "clarify", text);
+        }
+    });
+
+    it("doesn't mistake an answer for a question", async () => {
+        const { classifyAnswer } = await import("../src/config/fillerConfig");
+        for (const text of [
+            "What I did was rebuild the onboarding flow from scratch and measure the drop off at each step for a month.",
+            "When I joined the team there was no testing at all, so I introduced unit tests and a review process first.",
+            "How I approach it depends on the stakeholder, but I usually start by agreeing on the goal and the deadline.",
+            "Where I worked before we shipped every two weeks and I owned the release notes and the rollout plan.",
+            "I would say communication is my strongest skill because I keep everyone informed of progress and risks.",
+        ]) {
+            assert.equal(classifyAnswer(text), "substantive", text);
+        }
+    });
+
+    it("answers a question with a fitting line, never 'Okay, I see'", async () => {
+        const { pickAcknowledgement, QUESTION_ACKNOWLEDGEMENTS, CLARIFY_ACKNOWLEDGEMENTS } = await import("../src/config/fillerConfig");
+        for (let i = 0; i < 20; i++) {
+            assert.ok(QUESTION_ACKNOWLEDGEMENTS.includes(pickAcknowledgement("question")));
+            assert.ok(CLARIFY_ACKNOWLEDGEMENTS.includes(pickAcknowledgement("clarify")));
         }
     });
 

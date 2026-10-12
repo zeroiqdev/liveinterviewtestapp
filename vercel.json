@@ -1,0 +1,7 @@
+{
+  "crons": [
+    { "path": "/api/cron/scrape-jobs", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/scrape-jobs", "schedule": "0 11 * * *" },
+    { "path": "/api/cron/scrape-jobs", "schedule": "0 19 * * *" }
+  ]
+}

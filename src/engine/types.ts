@@ -237,6 +237,9 @@ export interface SessionDoc {
     candidateName?: string | null;
     company?: string | null;
     interviewType?: string | null;
+    /** The role being practised, as the candidate named it. */
+    candidateRole?: string | null;
+    roleFamily?: string | null;
     isSpecificJob?: boolean;
     dedicatedInterviewType?: string | null;
     customQuestionPool?: BankQuestion[];
@@ -287,6 +290,8 @@ export interface EnginePrompt {
     bridge?: string | null;
     /** For a new question: the bank question itself (pre-recorded audio). */
     question?: string | null;
+    /** For the opening: greeting, intro and first question, each its own clip. */
+    openingParts?: string[];
 }
 
 export interface PublicSessionState {

@@ -1,8 +1,9 @@
 import Link from "next/link";
 
 export const metadata = {
-    title: "Terms & Conditions — get prepped",
+    title: "Terms & Conditions",
     description: "Terms and conditions for get prepped by Zero and One Solutions Limited.",
+    alternates: { canonical: "/terms" },
 };
 
 export default function TermsPage() {

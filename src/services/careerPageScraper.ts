@@ -21,7 +21,12 @@ export interface ScrapedJob {
     companyLogo?: string;
     backedBy?: string; // e.g. "Y Combinator", "Wellfound", "Jobberman Nigeria", "LinkedIn Nigeria"
     salaryRange?: string;
+    /** A short summary for lists. */
     description?: string;
+    /** The posting's full text, when the careers system provides it. */
+    fullDescription?: string;
+    /** The duties listed in the posting, when they can be picked out. */
+    responsibilities?: string[];
     datePosted?: string;
     status?: "active" | "expired";
 }
@@ -35,11 +40,12 @@ export interface ScrapeResult {
 
 // ─── ATS & Job Board Provider Detection ──────────────────────────────────
 
-export function detectATSProvider(url: string): "greenhouse" | "lever" | "ashby" | "jobberman" | "linkedin" | "wellfound" | "indeed" | "glassdoor" | "generic" {
+export function detectATSProvider(url: string): "greenhouse" | "lever" | "ashby" | "workable" | "jobberman" | "linkedin" | "wellfound" | "indeed" | "glassdoor" | "generic" {
     const lower = url.toLowerCase();
     if (lower.includes("boards.greenhouse.io") || lower.includes("greenhouse.io")) return "greenhouse";
     if (lower.includes("jobs.lever.co") || lower.includes("lever.co")) return "lever";
     if (lower.includes("jobs.ashbyhq.com") || lower.includes("ashbyhq.com")) return "ashby";
+    if (lower.includes("workable.com")) return "workable";
     if (lower.includes("jobberman.com")) return "jobberman";
     if (lower.includes("linkedin.com")) return "linkedin";
     if (lower.includes("wellfound.com")) return "wellfound";
@@ -121,6 +127,100 @@ export function generateRoleOverview(title: string, roleFamily?: string, company
     }
 }
 
+// ─── Reading a posting's own text ─────────────────────────────────────
+
+const MAX_FULL_DESCRIPTION = 8000;
+const MAX_SUMMARY = 360;
+
+/**
+ * A posting's HTML as plain text: headings become "## Heading" lines and list
+ * items "• item" lines, so sections and duties can still be found afterwards.
+ */
+export function htmlToJobText(html: string): string {
+    if (!html) return "";
+    // Greenhouse double-encodes its HTML ("&lt;p&gt;"): decode before reading tags.
+    let text = /&lt;\/?[a-z]/i.test(html) ? decodeHtmlEntities(html) : html;
+    text = text
+        .replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ")
+        .replace(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/gi, "\n## $1\n")
+        // A paragraph that is only bold text is a heading in most postings.
+        .replace(/<p[^>]*>\s*<(strong|b)[^>]*>([^<]{3,80})<\/\1>\s*:?\s*<\/p>/gi, "\n## $2\n")
+        .replace(/<li[^>]*>/gi, "\n• ")
+        .replace(/<\/(p|div|li|ul|ol|tr|section)>/gi, "\n")
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<[^>]+>/g, " ");
+    text = decodeHtmlEntities(text)
+        .replace(/\u00a0/g, " ")
+        .split("\n")
+        .map((line) => line.replace(/\s+/g, " ").trim())
+        .filter(Boolean)
+        .join("\n");
+    return text.length > MAX_FULL_DESCRIPTION ? `${text.slice(0, MAX_FULL_DESCRIPTION).replace(/\s+\S*$/, "")}…` : text;
+}
+
+const ROLE_HEADING = /^## .*\b(about the (role|job|position|opportunity)|the role|role overview|role summary|job summary|position summary|the opportunity|what you.?ll be doing)/i;
+// Headings that clearly introduce the duties, and weaker ones ("The role")
+// that are only used when a posting has none of the clear ones.
+const DUTIES_HEADING = /^## .*\b(responsibilit|what you.?ll (do|be doing|own|work on)|what you will (do|be doing)|key duties|duties|day[- ]to[- ]day|your impact|what the job involves)/i;
+const ROLE_SECTION_HEADING = /^## .*\b(your role|the role|in this role|you will|about the job)/i;
+// Headings that start a different section: requirements, benefits, the company, the process.
+const OTHER_HEADING = /^## .*\b(requirement|qualif|what you need|what we.?re looking for|who you are|about you|you have|you bring|skills|experience|what sets|nice to have|bonus|benefit|perk|what you.?ll get|what we (can )?offer|offer you|why (join|you|us|work)|compensation|salary|pay|learning|hiring process|interview process|what to expect|how to apply|about (us|the company|the team)|who we are|our (mission|values|culture)|equal opportunity|success metrics|job purpose|location)/i;
+
+/** A short summary for lists: the start of the role section, else of the posting. */
+export function jobSummary(text: string): string {
+    const lines = text.split("\n");
+    const roleAt = lines.findIndex((line) => ROLE_HEADING.test(line));
+    const body = (roleAt >= 0 ? lines.slice(roleAt + 1) : lines).filter((line) => !line.startsWith("## "));
+    const start = body.find((line) => !line.startsWith("• ") && line.length > 60) ?? body.find((line) => line.length > 30) ?? "";
+    const clean = start.replace(/^• /, "");
+    if (clean.length <= MAX_SUMMARY) return clean;
+    const cut = clean.slice(0, MAX_SUMMARY);
+    const sentenceEnd = cut.lastIndexOf(". ");
+    return sentenceEnd > 120 ? cut.slice(0, sentenceEnd + 1) : `${cut.replace(/\s+\S*$/, "")}…`;
+}
+
+/** The duties a posting lists under its "what you'll do" section (up to six). */
+export function extractResponsibilities(text: string): string[] {
+    const lines = text.split("\n");
+    const isSection = (pattern: RegExp) => (line: string) => pattern.test(line) && !OTHER_HEADING.test(line);
+    let start = lines.findIndex(isSection(DUTIES_HEADING));
+    if (start < 0) start = lines.findIndex(isSection(ROLE_SECTION_HEADING));
+    if (start < 0) return [];
+    const fits = (duty: string) => duty.length >= 20 && duty.length <= 260;
+    const bullets: string[] = [];
+    // Some postings write the duties as plain lines; used when there are no bullets.
+    const plain: string[] = [];
+    let pastFirstHeading = false;
+    for (const line of lines.slice(start + 1)) {
+        // Sub-headings inside the section are fine; the next real section ends it.
+        if (line.startsWith("## ")) {
+            if (OTHER_HEADING.test(line)) break;
+            pastFirstHeading = true;
+            continue;
+        }
+        if (line.startsWith("• ")) {
+            const duty = line.slice(2).trim();
+            if (fits(duty)) bullets.push(duty);
+            if (bullets.length === 6) break;
+        } else if (!pastFirstHeading && fits(line)) {
+            plain.push(line);
+        }
+    }
+    return (bullets.length > 0 ? bullets : plain).slice(0, 6);
+}
+
+/** Summary, full text and duties from a posting's HTML (or plain text). */
+function postingDetails(html: string | undefined): Pick<ScrapedJob, "description" | "fullDescription" | "responsibilities"> {
+    const fullDescription = htmlToJobText(html || "");
+    if (fullDescription.length < 80) return {};
+    const responsibilities = extractResponsibilities(fullDescription);
+    return {
+        description: jobSummary(fullDescription) || undefined,
+        fullDescription,
+        responsibilities: responsibilities.length ? responsibilities : undefined,
+    };
+}
+
 // ─── Greenhouse Scraper ───────────────────────────────────────────────
 
 interface GreenhouseJob {
@@ -130,13 +230,15 @@ interface GreenhouseJob {
     location: { name: string };
     departments: { name: string }[];
     updated_at?: string;
+    /** The posting's HTML, entity-encoded (returned with ?content=true). */
+    content?: string;
 }
 
 export async function scrapeGreenhouseJobs(url: string, companyName: string, backedBy?: string): Promise<ScrapeResult> {
     const slug = extractSlug(url);
     if (!slug) return { jobs: [], provider: "greenhouse", error: "Could not extract board slug from URL" };
 
-    const apiUrl = `https://boards-api.greenhouse.io/v1/boards/${slug}/jobs`;
+    const apiUrl = `https://boards-api.greenhouse.io/v1/boards/${slug}/jobs?content=true`;
 
     try {
         const res = await fetch(apiUrl, {
@@ -160,6 +262,7 @@ export async function scrapeGreenhouseJobs(url: string, companyName: string, bac
             company: companyName,
             backedBy,
             datePosted: j.updated_at ? j.updated_at.split("T")[0] : new Date().toISOString().split("T")[0],
+            ...postingDetails(j.content),
         }));
 
         return { jobs, provider: "greenhouse" };
@@ -176,6 +279,8 @@ interface LeverPosting {
     text: string;
     hostedUrl: string;
     createdAt?: number;
+    description?: string;
+    lists?: Array<{ text?: string; content?: string }>;
     categories: {
         location?: string;
         team?: string;
@@ -211,6 +316,10 @@ export async function scrapeLeverJobs(url: string, companyName: string, backedBy
             company: companyName,
             backedBy,
             datePosted: p.createdAt ? new Date(p.createdAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+            // Lever keeps the intro and each headed list separately.
+            ...postingDetails(
+                [p.description || "", ...(p.lists || []).map((list) => `<h3>${list.text || ""}</h3><ul>${list.content || ""}</ul>`)].join("\n")
+            ),
         }));
 
         return { jobs, provider: "lever" };
@@ -234,6 +343,8 @@ interface AshbyJobPosting {
     teamName?: string;
     publishedDate?: string;
     publishedAt?: string;
+    descriptionHtml?: string;
+    descriptionPlain?: string;
 }
 
 interface AshbyApiResponse {
@@ -273,6 +384,7 @@ export async function scrapeAshbyJobs(url: string, companyName: string, backedBy
                 company: companyName,
                 backedBy,
                 datePosted,
+                ...postingDetails(p.descriptionHtml || p.descriptionPlain),
             };
         });
 
@@ -280,6 +392,63 @@ export async function scrapeAshbyJobs(url: string, companyName: string, backedBy
     } catch (err) {
         const msg = err instanceof Error ? err.message : "Unknown error";
         return { jobs: [], provider: "ashby", error: msg };
+    }
+}
+
+// ─── Workable Scraper ─────────────────────────────────────────────────
+
+interface WorkableJob {
+    title: string;
+    url?: string;
+    shortlink?: string;
+    department?: string;
+    city?: string;
+    country?: string;
+    telecommuting?: boolean;
+    published_on?: string;
+    description?: string;
+}
+
+/**
+ * Workable-hosted careers pages (https://apply.workable.com/<account>/),
+ * read through Workable's public widget API.
+ */
+export async function scrapeWorkableJobs(url: string, companyName: string, backedBy?: string): Promise<ScrapeResult> {
+    const slug = extractSlug(url);
+    if (!slug) return { jobs: [], provider: "workable", error: "Could not extract company slug from URL" };
+
+    try {
+        const res = await fetch(`https://apply.workable.com/api/v1/widget/accounts/${slug}?details=true`, {
+            headers: { "User-Agent": "GetPrepped-CareerScraper/1.0", Accept: "application/json" },
+            signal: AbortSignal.timeout(15000),
+            cache: "no-store" as RequestCache,
+        });
+
+        if (!res.ok) {
+            return { jobs: [], provider: "workable", error: `API returned ${res.status}` };
+        }
+
+        const data: { jobs?: WorkableJob[] } = await res.json();
+        const jobs: ScrapedJob[] = (data.jobs || [])
+            .filter((job) => job.title && (job.url || job.shortlink))
+            .map((job) => {
+                const place = [job.city, job.country].filter(Boolean).join(", ") || "Not specified";
+                return {
+                    title: job.title,
+                    url: (job.url || job.shortlink) as string,
+                    location: job.telecommuting ? `${place} (Remote)` : place,
+                    department: job.department || "",
+                    company: companyName,
+                    backedBy,
+                    datePosted: job.published_on || new Date().toISOString().split("T")[0],
+                    ...postingDetails(job.description),
+                };
+            });
+
+        return { jobs, provider: "workable" };
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        return { jobs: [], provider: "workable", error: msg };
     }
 }
 
@@ -416,7 +585,7 @@ function isLikelyJobLink(href: string, text: string): boolean {
 interface PortfolioTarget {
     company: string;
     url: string;
-    atsProvider?: "greenhouse" | "lever" | "ashby" | "jobberman" | "linkedin" | "wellfound" | "indeed" | "glassdoor" | "generic";
+    atsProvider?: "greenhouse" | "lever" | "ashby" | "workable" | "jobberman" | "linkedin" | "wellfound" | "indeed" | "glassdoor" | "generic";
 }
 
 /**
@@ -859,6 +1028,18 @@ async function discoverPortfolioCompaniesFromHTML(vcUrl: string, _vcName: string
     }
 }
 
+/**
+ * The employer's logo as a job board shows it on a listing card: LinkedIn
+ * loads it lazily from its media host, Jobberman from its image host (cards
+ * without an uploaded logo show a coloured initial instead, which gives none).
+ */
+export function listingLogo(cardHtml: string): string | undefined {
+    const address =
+        cardHtml.match(/data-delayed-url="(https:\/\/media\.licdn\.com\/[^"]*company-logo[^"]*)"/i)?.[1] ??
+        cardHtml.match(/<img[^>]*\bsrc="(https:\/\/i\.roamcdn\.net\/kazi\/[^"]+)"/i)?.[1];
+    return address ? address.replace(/&amp;/g, "&") : undefined;
+}
+
 // ─── Jobberman Nigeria Scraper ───────────────────────────────────────
 
 interface JobbermanCategory {
@@ -878,6 +1059,31 @@ const JOBBERMAN_CATEGORIES: JobbermanCategory[] = [
     { slug: "marketing-communications", url: "https://www.jobberman.com/jobs/marketing-communications", department: "Product Marketing" },
     { slug: "information-technology-telecoms", url: "https://www.jobberman.com/jobs/information-technology-telecoms", department: "IT & Telecommunications" },
 ];
+
+/** Pages read per Jobberman category (16 listings a page). */
+const JOBBERMAN_MAX_PAGES = 8;
+/** A short pause between page requests, to go easy on their site. */
+const JOBBERMAN_PAGE_PAUSE_MS = 300;
+
+/**
+ * Jobberman cards carry a relative date ("Today", "Yesterday", "3 days ago",
+ * "2 weeks ago", "2 months ago"). Returns it as YYYY-MM-DD, or null if the
+ * card has none.
+ */
+export function jobbermanPostedDate(cardHtml: string, now: Date = new Date()): string | null {
+    const match = cardHtml.match(/>\s*(Today|Yesterday|(\d+)\s+(minute|hour|day|week|month|year)s?\s+ago)\s*</i);
+    if (!match) return null;
+    const dayMs = 24 * 60 * 60 * 1000;
+    let daysAgo = 0;
+    if (/yesterday/i.test(match[1])) {
+        daysAgo = 1;
+    } else if (match[2]) {
+        const amount = Number(match[2]);
+        const unit = match[3].toLowerCase();
+        daysAgo = unit === "day" ? amount : unit === "week" ? amount * 7 : unit === "month" ? amount * 30 : unit === "year" ? amount * 365 : 0;
+    }
+    return new Date(now.getTime() - daysAgo * dayMs).toISOString().split("T")[0];
+}
 
 export async function scrapeJobbermanJobs(url: string, companyName: string): Promise<ScrapeResult> {
     // If query in URL, scrape that search URL directly; otherwise match category or scrape all
@@ -903,8 +1109,14 @@ export async function scrapeJobbermanJobs(url: string, companyName: string): Pro
     const seen = new Set<string>();
 
     for (const cat of targetCategories) {
+      // Page 1 is the category address itself; later pages add ?page=N. A page
+      // past the end returns 404, which ends the category.
+      for (let page = 1; page <= JOBBERMAN_MAX_PAGES; page++) {
+        const pageUrl = page === 1 ? cat.url : `${cat.url}${cat.url.includes("?") ? "&" : "?"}page=${page}`;
+        if (page > 1) await new Promise((resolve) => setTimeout(resolve, JOBBERMAN_PAGE_PAUSE_MS));
+        let foundOnPage = 0;
         try {
-            const res = await fetch(cat.url, {
+            const res = await fetch(pageUrl, {
                 headers: {
                     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -913,7 +1125,7 @@ export async function scrapeJobbermanJobs(url: string, companyName: string): Pro
                 cache: "no-store" as RequestCache,
             });
 
-            if (!res.ok) continue;
+            if (!res.ok) break;
 
             const html = await res.text();
             // Primary parse: match listing-title-link anchors and trailing card context
@@ -935,6 +1147,8 @@ export async function scrapeJobbermanJobs(url: string, companyName: string): Pro
                 // Extract company name if present in card
                 const compMatch = cardBody.match(/<p[^>]*class="[^"]*text-blue-700[^"]*"[^>]*>([\s\S]*?)<\/p>/);
                 let company = compMatch ? decodeHtmlEntities(compMatch[1].replace(/<[^>]+>/g, "").trim().replace(/\s+/g, " ")) : "";
+                // Some cards give the employer page's title instead of the name.
+                company = company.replace(/^Jobs at (.+?) - Company Review.*$/i, "$1").trim();
                 if (!company || company.toLowerCase().includes("anonymous")) {
                     company = "Jobberman Verified Employer";
                 }
@@ -950,13 +1164,16 @@ export async function scrapeJobbermanJobs(url: string, companyName: string): Pro
                     title: cleanTitle,
                     url: jobUrl,
                     company,
+                    companyLogo: listingLogo(cardBody),
                     location,
                     department: cat.department,
                     backedBy: "Jobberman Nigeria",
                     salaryRange: "Competitive (₦)",
-                    datePosted: new Date().toISOString().split("T")[0],
+                    // The card's own date; today only when the card shows none.
+                    datePosted: jobbermanPostedDate(cardBody) ?? new Date().toISOString().split("T")[0],
                 });
                 foundInCat++;
+                foundOnPage++;
             }
 
             // Fallback parse: broad anchor matching if card structure slightly shifted
@@ -984,11 +1201,16 @@ export async function scrapeJobbermanJobs(url: string, companyName: string): Pro
                         salaryRange: "Competitive (₦)",
                         datePosted: new Date().toISOString().split("T")[0],
                     });
+                    foundOnPage++;
                 }
             }
         } catch {
-            // Ignore single page failures
+            // A failed page ends this category; what was read so far is kept.
+            break;
         }
+        // Nothing new on this page: the listing has run out (or started repeating).
+        if (foundOnPage === 0) break;
+      }
     }
 
     return { jobs, provider: "jobberman" };
@@ -1109,6 +1331,7 @@ export async function scrapeLinkedInNigeriaJobs(url: string, companyName: string
                             title,
                             url: jobUrl,
                             company: comp,
+                            companyLogo: listingLogo(card),
                             location: loc,
                             department,
                             backedBy: "LinkedIn Nigeria",
@@ -1322,6 +1545,8 @@ export async function scrapeCareerPage(
             return scrapeLeverJobs(url, companyName);
         case "ashby":
             return scrapeAshbyJobs(url, companyName);
+        case "workable":
+            return scrapeWorkableJobs(url, companyName);
         case "jobberman":
             return scrapeJobbermanJobs(url, companyName);
         case "linkedin":

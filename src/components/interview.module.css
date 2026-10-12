@@ -2760,3 +2760,19 @@
     .starMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+
+/*
+ * The call view keeps one size. The row used to size itself from the question
+ * card, so a longer question stretched the video with it. On two-column
+ * screens the grid now has a fixed height and a single fixed row: the video
+ * fills it, and a long question scrolls inside its own card instead.
+ */
+@media (min-width: 769px) {
+    .contentGrid {
+        height: 87vh;
+        min-height: 0;
+        max-height: none;
+        grid-template-rows: minmax(0, 1fr);
+    }
+    .videoCard { height: 100%; }
+}

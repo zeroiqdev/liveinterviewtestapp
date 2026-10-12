@@ -56,15 +56,40 @@ function resolveResumeText(item?: StoredResumeOption | null): string {
 }
 
 function JobDescModalComponent({
-    job,
+    job: listedJob,
     onClose,
     onPractice,
-    calibrationSectionTitle = "AI Mock Interview Calibration",
+    calibrationSectionTitle = "Mock Interview Calibration",
     calibrationText,
     userRole,
     resumes: propResumes,
     activeResumeId,
 }: JobDescModalProps) {
+    // The list gives a summary only; the posting's full text and duties are
+    // fetched when the job is opened, and the match waits for them so it is
+    // judged against the real posting (and only once).
+    const [details, setDetails] = useState<{ forId: string; job: Partial<JobItem> | null } | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        if (!listedJob.id) return;
+        fetch(`/api/jobs?id=${encodeURIComponent(listedJob.id)}`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (!cancelled) setDetails({ forId: listedJob.id, job: data?.job ?? null });
+            })
+            .catch(() => {
+                if (!cancelled) setDetails({ forId: listedJob.id, job: null });
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [listedJob.id]);
+    const detailsReady = !listedJob.id || details?.forId === listedJob.id;
+    const job = useMemo<JobItem>(
+        () => (details?.forId === listedJob.id && details.job ? { ...listedJob, ...details.job } : listedJob),
+        [listedJob, details]
+    );
+
     // 1. Resumes State (from props or localStorage)
     const [resumesList, setResumesList] = useState<StoredResumeOption[]>(() => {
         if (propResumes && propResumes.length > 0) return propResumes;
@@ -156,6 +181,8 @@ function JobDescModalComponent({
     }, [selectedResumeId]);
 
     useEffect(() => {
+        // Wait for the posting's full details before scoring against it.
+        if (!detailsReady) return;
         if (!activeResumeText || activeResumeText.length < 30 || !responsibilities.length || !cacheKey) {
             setMatchData(null);
             setMatchError(null);
@@ -185,7 +212,7 @@ function JobDescModalComponent({
                         jobTitle: job.title || roleToUse,
                         jobCompany: job.company || "Target Company",
                         jobResponsibilities: responsibilities,
-                        jobDescription: job.description || responsibilities.join("\n"),
+                        jobDescription: job.fullDescription || job.description || responsibilities.join("\n"),
                         requiredExperience: "",
                         userRole: roleToUse || "",
                         candidateRole: roleToUse || "",
@@ -194,7 +221,8 @@ function JobDescModalComponent({
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || "Match failed");
                 if (!cancelled && data.result) {
-                    setCachedJobMatch(cacheKey, data.result);
+                    // An estimate (analysis unavailable) is shown but not remembered, so the next open retries.
+                    if (!data.estimated) setCachedJobMatch(cacheKey, data.result);
                     setMatchData(data.result);
                 }
             } catch (e: any) {
@@ -226,7 +254,7 @@ function JobDescModalComponent({
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [cacheKey, responsibilities, activeResumeText, activeResumeName, job.title, job.company, job.description, job.roleFamily, roleToUse]);
+    }, [cacheKey, responsibilities, activeResumeText, activeResumeName, job.title, job.company, job.description, job.fullDescription, job.roleFamily, roleToUse, detailsReady]);
 
     return (
         <div className={styles.jobModalBackdrop} onClick={onClose}>

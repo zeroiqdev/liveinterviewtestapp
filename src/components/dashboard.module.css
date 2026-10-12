@@ -5052,3 +5052,49 @@
 
 
 
+
+/* Interview set-up: the two steps under the title */
+.setupSteps {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.6rem;
+}
+
+.setupStep {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #94A3B8;
+}
+
+.setupStepActive {
+    color: #1E2540;
+}
+
+.setupStepNumber {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid #CBD5E1;
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.setupStepActive .setupStepNumber {
+    border-color: #4782F6;
+    background: #EEF4FF;
+    color: #2563EB;
+}
+
+.setupStepLine {
+    width: 28px;
+    height: 1px;
+    background: #CBD5E1;
+}

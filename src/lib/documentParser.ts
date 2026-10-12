@@ -27,11 +27,11 @@ export async function extractDocumentText(
             // Binary string read via FileReader.readAsText
             buffer = Buffer.from(input, "binary");
         } else {
-            // Already plain text / markdown
-            if (ext !== "pdf" && ext !== "docx" && ext !== "doc") {
-                return input.trim();
-            }
-            buffer = Buffer.from(input, "binary");
+            // Already plain text / markdown. The file name doesn't change that:
+            // the app sends a resume's extracted text along with its original
+            // name ("Resume.pdf"), and reading that text as a PDF only failed
+            // ("Invalid PDF structure") before falling back to the text anyway.
+            return input.trim();
         }
     } else {
         return "";

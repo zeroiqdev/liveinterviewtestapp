@@ -3,6 +3,7 @@ import { DraftUnavailableError, submitAnswer, toPublicState } from "@/engine/orc
 import { getProfile, saveSession } from "@/engine/sessionStore";
 import { loadOwnedSession } from "@/engine/sessionAccess";
 import { getCachedAudio, lookupCachedAudio } from "@/services/ttsService";
+import { liveAudioTiming } from "@/config/voiceConfig";
 import type { Persona } from "@/config/voiceConfig";
 
 import { cleanSpokenAudioText, replySegments } from "@/engine/conversationalEngine";
@@ -12,8 +13,6 @@ import { serverError } from "@/lib/apiError";
 // Cold synthesis (Azure en-NG) takes ~1–1.7s. Waiting for it here returns
 // real audio in the turn payload; a shorter budget sends the client to the
 // robotic browser-voice fallback for nearly every freshly generated line.
-const QUICK_AUDIO_BUDGET_MS = 2500;
-
 async function getQuickAudio(
     text: string,
     persona: Persona,
@@ -23,7 +22,7 @@ async function getQuickAudio(
     const audioPromise = getCachedAudio(text, persona, jobRegion, turnId || undefined);
     const quickResult = await Promise.race([
         audioPromise,
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), QUICK_AUDIO_BUDGET_MS)),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), liveAudioTiming(persona, jobRegion).quickBudgetMs)),
     ]);
 
     // Keep warming the persistent cache after the response when a cold

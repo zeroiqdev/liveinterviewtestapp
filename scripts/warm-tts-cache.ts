@@ -24,10 +24,13 @@ config({ path: resolve(process.cwd(), ".env") }); // fills anything .env.local d
 
 // Now import modules that need env vars
 import dbConnect from "../src/lib/mongodb";
-import { getCachedAudio } from "../src/services/ttsService";
-import { getAllPersonas, getSupportedRegions } from "../src/config/voiceConfig";
+import { getCachedAudio, resetVoiceCooldowns } from "../src/services/ttsService";
+import { getAllPersonas, getSupportedRegions, getVoiceForContext } from "../src/config/voiceConfig";
 import type { Persona } from "../src/config/voiceConfig";
 import { CONVERSATIONAL_FILLERS } from "../src/config/fillerConfig";
+import { OPENERS, openerFamily, openingGreeting, openingIntro } from "../src/engine/openers";
+import { KNOWN_ROLES } from "../src/engine/roleMapping";
+import { cleanSpokenAudioText } from "../src/engine/conversationalEngine";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -68,11 +71,26 @@ async function main() {
   const bankQuestions: BankQuestion[] = JSON.parse(raw);
   console.log(`📚 Loaded ${bankQuestions.length} questions from question bank`);
   // Fillers first: they only ever play from cache, so they matter most.
+  // The welcome's fixed parts: the nameless greeting, each role's intro for
+  // each of its rounds (and for a general round), and every opening question.
+  // Spoken text is cleaned exactly as the session route cleans it.
+  const opening = new Set<string>([openingGreeting(null)]);
+  for (const family of Object.values(OPENERS)) {
+    opening.add(family.general);
+    for (const round of family.rounds) opening.add(round.opener);
+  }
+  for (const role of KNOWN_ROLES) {
+    const family = OPENERS[openerFamily(null, role)];
+    opening.add(openingIntro({ role }));
+    for (const round of family.rounds) opening.add(openingIntro({ role, focus: round.focus }));
+  }
+  const openingLines = [...opening].map((text) => cleanSpokenAudioText(text)).filter(Boolean);
   const questions: BankQuestion[] = [
     ...CONVERSATIONAL_FILLERS.map((text) => ({ question: text }) as BankQuestion),
+    ...openingLines.map((text) => ({ question: text }) as BankQuestion),
     ...bankQuestions,
   ];
-  console.log(`💬 Plus ${CONVERSATIONAL_FILLERS.length} conversational fillers`);
+  console.log(`💬 Plus ${CONVERSATIONAL_FILLERS.length} conversational fillers and ${openingLines.length} welcome lines`);
 
   // 2. Get all persona × region combos
   const personas = getAllPersonas();
@@ -126,20 +144,46 @@ async function main() {
   let cacheHits = 0;
   let newSyntheses = 0;
   let errors = 0;
+  let backupInARow = 0;
   const startTime = Date.now();
 
   for (let i = 0; i < totalCombos; i++) {
     const { question, persona, region } = combos[i];
 
+    const clipStart = Date.now();
     try {
       const result = await getCachedAudio(question.question, persona, region);
+
+      // The main voice failed and its backup answered. That keeps live
+      // interviews talking, but here nothing new was recorded in the main
+      // voice. Usually a per-minute limit: wait it out and retry this clip;
+      // give up after several tries (e.g. a daily quota or no credit left).
+      if (result.voiceLabel !== getVoiceForContext(persona, region).label) {
+        if (++backupInARow >= 5) {
+          console.error(`\n🛑 ${getVoiceForContext(persona, region).label} still isn't available after ${backupInARow} tries (quota or billing). Stopped at ${i + 1}/${totalCombos}; run again later to continue.`);
+          break;
+        }
+        console.log(`⏳ ${getVoiceForContext(persona, region).label} is unavailable (rate limit or credit) — waiting 65s, then retrying (${backupInARow}/5)...`);
+        await sleep(65_000);
+        resetVoiceCooldowns();
+        i--;
+        continue;
+      }
+      backupInARow = 0;
 
       if (result.cacheHit) {
         cacheHits++;
       } else {
         newSyntheses++;
-        // Small delay between new syntheses to respect rate limits (free plan)
-        await sleep(500);
+        // Stay under the provider's per-minute limit. Gemini allows 10
+        // requests a minute on Tier 1: at most one every 6.5s. Spitch allows
+        // 180 seconds of speech a minute: record at most ~120s a minute (half
+        // a second per second of speech, ~2.6 words a second), leaving the
+        // rest for live interviews running meanwhile.
+        const provider = getVoiceForContext(persona, region).provider;
+        const spokenSeconds = question.question.split(/\s+/).length / 2.6;
+        const minGapMs = provider === "gemini" ? 6500 : provider === "spitch" ? spokenSeconds * 500 : 500;
+        await sleep(Math.max(500, minGapMs - (Date.now() - clipStart)));
       }
     } catch (err) {
       errors++;

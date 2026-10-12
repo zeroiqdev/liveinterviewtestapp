@@ -27,6 +27,8 @@ export interface JobMatchResult {
     strengthsForRole: string[];
     gapsForRole: string[];
     interviewFocusAreas: string[];
+    /** True when the detailed analysis was unavailable and this is a keyword-based estimate. */
+    estimated?: boolean;
 }
 
 const JOB_MATCH_SYSTEM = `You are an elite hiring manager and ATS matcher for top tech/fintech.
@@ -159,12 +161,13 @@ Candidate Role/Domain: ${effectiveUserRole || "Inferred from resume"}
 Required experience: ${requiredExperience || "Not specified; infer from seniority"}
 Responsibilities (${responsibilities.length}):
 ${responsibilities.map((r, i) => `${i + 1}. ${r}`).join("\n")}
-Full description: ${jobDescription.slice(0, 3000) || "(none)"}
+Full description: ${jobDescription.slice(0, 6000) || "(none)"}
 
 CANDIDATE RESUME:
 ${parsedText.slice(0, 10000)}`;
 
         let result: JobMatchResult;
+        let estimated = false;
         try {
             result = await callJSON<JobMatchResult>({
                 system: JOB_MATCH_SYSTEM,
@@ -185,6 +188,10 @@ ${parsedText.slice(0, 10000)}`;
                 },
                 effectiveUserRole
             );
+            // A keyword count, not a reading of the resume: say so.
+            estimated = true;
+            result.estimated = true;
+            result.summary = `Quick estimate (the detailed analysis is unavailable right now, try again shortly). ${result.summary}`;
         }
 
         // Post-process guard: clamp scores and derive status if LLM missed it
@@ -207,10 +214,11 @@ ${parsedText.slice(0, 10000)}`;
             }));
         }
 
-        // Cache result before returning
-        serverMatchCache.set(cacheKey, { result, responsibilities, extractedText: parsedText });
+        // Cache real analyses so a re-open shows the same score. An estimate
+        // isn't cached: the next request should try the real analysis again.
+        if (!estimated) serverMatchCache.set(cacheKey, { result, responsibilities, extractedText: parsedText });
 
-        return NextResponse.json({ success: true, result, responsibilities, extractedText: parsedText });
+        return NextResponse.json({ success: true, result, responsibilities, extractedText: parsedText, estimated });
     } catch (err) {
         return serverError("api/resume/job-match", err, "Failed to compute job match");
     }

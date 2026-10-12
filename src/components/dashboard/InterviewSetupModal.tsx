@@ -92,6 +92,8 @@ export function InterviewSetupModal({
 
     // ── 1. Interview Mode (Mock Interview vs Live Coaching) ──
     const [interviewMode, setInterviewMode] = useState<"live_coaching" | "post_interview">("post_interview");
+    // Step 1: resume (optional). Step 2: interview mode.
+    const [step, setStep] = useState<1 | 2>(1);
 
     // ── 2. Resume Selection & Upload State ──
     const [savedResumes, setSavedResumes] = useState<StoredResumeItem[]>([]);
@@ -172,7 +174,8 @@ export function InterviewSetupModal({
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || "Match failed");
                 if (!cancelled && data.result) {
-                    setCachedJobMatch(cacheKey, data.result);
+                    // An estimate (analysis unavailable) is shown but not remembered, so the next open retries.
+                    if (!data.estimated) setCachedJobMatch(cacheKey, data.result);
                     setMatchData(data.result);
                 }
             } catch (e: any) {
@@ -214,6 +217,7 @@ export function InterviewSetupModal({
     // Load available resumes & active selection from localStorage
     useEffect(() => {
         if (!isOpen) return;
+        setStep(1);
 
         const raw = typeof window !== "undefined" ? localStorage.getItem("useladder_user") : null;
         if (raw) {
@@ -293,6 +297,13 @@ export function InterviewSetupModal({
 
     // Handle selecting an existing resume
     const handleSelectResume = (item: StoredResumeItem) => {
+        // A resume is optional: choosing the selected one again clears it.
+        if (item.id === selectedResumeId) {
+            setSelectedResumeId("");
+            setActiveResumeName("");
+            setActiveResumeText("");
+            return;
+        }
         setSelectedResumeId(item.id);
         setActiveResumeName(item.name);
         setActiveResumeText(resolveResumeText(item));
@@ -492,9 +503,10 @@ export function InterviewSetupModal({
 
         // Ensure engine selects this resume
         const raw = typeof window !== "undefined" ? localStorage.getItem("useladder_user") : null;
-        if (raw && selectedResumeId) {
+        if (raw) {
             try {
                 const parsed = JSON.parse(raw);
+                // Empty when they chose to practise without a resume.
                 parsed.selectedResumeId = selectedResumeId;
                 const match = savedResumes.find((r) => r.id === selectedResumeId);
                 if (match) parsed.resume = match;
@@ -521,6 +533,17 @@ export function InterviewSetupModal({
                 <div className={styles.settingsModalHeader}>
                     <div>
                         <h2 className={styles.settingsModalTitle}>Configure Interview Session</h2>
+                        <div className={styles.setupSteps} aria-label={`Step ${step} of 2`}>
+                            <span className={`${styles.setupStep} ${styles.setupStepActive}`}>
+                                <span className={styles.setupStepNumber}>{step === 2 ? <CheckCircleFilled size={16} color="#2563EB" /> : "1"}</span>
+                                Your resume
+                            </span>
+                            <span className={styles.setupStepLine} />
+                            <span className={`${styles.setupStep} ${step === 2 ? styles.setupStepActive : ""}`}>
+                                <span className={styles.setupStepNumber}>2</span>
+                                Interview mode
+                            </span>
+                        </div>
                     </div>
                     <button className={styles.settingsCloseBtn} onClick={onClose} aria-label="Close configuration">
                         <CloseRegular size={18} />
@@ -541,7 +564,8 @@ export function InterviewSetupModal({
                         <div className={styles.timelineItemsList}>
                             <div className={styles.timelineConnectorLine} />
 
-                            {/* ── ITEM 1 (AT THE TOP): INTERVIEW MODE ── */}
+                            {/* ── STEP 2: INTERVIEW MODE ── */}
+                            {step === 2 && (
                             <div className={styles.timelineItem}>
                                 <div className={styles.timelineAvatarCircle} title="Recruiter">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -574,7 +598,7 @@ export function InterviewSetupModal({
                                                 </span>
                                             </div>
                                             <p className={styles.modeTabDesc}>
-                                                A realistic, uninterrupted interview with no interruptions — get a full evaluation and benchmark score at the end.
+                                                A realistic interview from start to finish, with no interruptions. You get a full evaluation and score at the end.
                                             </p>
                                         </div>
 
@@ -590,20 +614,23 @@ export function InterviewSetupModal({
                                                 </span>
                                             </div>
                                             <p className={styles.modeTabDesc}>
-                                                Receive real-time critiques, strengths, coach tips, and top 1% model answers immediately after each question.
+                                                Get feedback after every answer: what worked, what to fix, and a model answer to compare with.
                                             </p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* ── ITEM 2: RESUME PICKER & CALIBRATION ── */}
+                            )}
+
+                            {/* ── STEP 1: RESUME PICKER (OPTIONAL) ── */}
+                            {step === 1 && (
                             <div className={styles.timelineItem}>
-                                <div className={styles.timelineAvatarCircle} title="AI Interview Coach">
+                                <div className={styles.timelineAvatarCircle} title="Interview Coach">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
                                         src={COACH_AVATAR}
-                                        alt="AI Coach"
+                                        alt="Coach"
                                         className={styles.timelineAvatarImg}
                                         draggable={false}
                                     />
@@ -612,7 +639,7 @@ export function InterviewSetupModal({
                                 <div className={styles.timelineItemTopRow}>
                                     <div className={styles.greetingChipRow}>
                                         <div className={styles.greetingBadge}>
-                                            Select a resume so I can ask detailed questions around your experience, and achievements
+                                            Add a resume if you'd like questions about your own experience. This is optional
                                         </div>
                                     </div>
                                 </div>
@@ -630,7 +657,7 @@ export function InterviewSetupModal({
                                     {savedResumes.length > 0 && !isUploadingNew && (
                                         <div>
                                             <div className={styles.resumePickerHeader}>
-                                                <span className={styles.resumePickerTitle}>Select Resume for Session</span>
+                                                <span className={styles.resumePickerTitle}>Select Resume for Session (optional)</span>
                                                 <span className={styles.resumePickerCount}>
                                                     {savedResumes.length} {savedResumes.length === 1 ? "resume" : "resumes"} available
                                                 </span>
@@ -743,8 +770,10 @@ export function InterviewSetupModal({
                                 </div>
                             </div>
 
-                            {/* ── ITEM 3: RESUME ↔ ROLE MATCH ── */}
-                            {Boolean(effectiveResponsibilities.length > 0) && (
+                            )}
+
+                            {/* ── STEP 1: RESUME ↔ ROLE MATCH (once a resume is chosen) ── */}
+                            {step === 1 && Boolean(effectiveResponsibilities.length > 0) && Boolean(selectedResumeId) && (
                                 <div className={styles.timelineItem}>
                                     <div className={styles.timelineAvatarCircle} title="Recruiter">
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -926,16 +955,16 @@ export function InterviewSetupModal({
                     <button
                         type="button"
                         className={styles.settingsCancelFooterBtn}
-                        onClick={onClose}
+                        onClick={step === 1 ? onClose : () => setStep(1)}
                     >
-                        Cancel
+                        {step === 1 ? "Cancel" : "Back"}
                     </button>
                     <button
                         type="button"
                         className={styles.settingsSaveFooterBtn}
-                        onClick={handleStartSession}
+                        onClick={step === 1 ? () => setStep(2) : handleStartSession}
                     >
-                        <span>Start Interview</span>
+                        <span>{step === 1 ? (selectedResumeId ? "Continue" : "Continue without a resume") : "Start Interview"}</span>
                         <ArrowRightRegular size={16} />
                     </button>
                 </div>

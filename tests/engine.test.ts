@@ -246,6 +246,17 @@ describe("endpointDelayMs", () => {
         const { endpointDelayMs } = await import("../src/hooks/useTurnDetection");
         assert.equal(endpointDelayMs("Yes, mostly", opts), 2400);
     });
+
+    it("gives a long answer more room to pause and think", async () => {
+        const { endpointDelayMs, readyEndpointMs } = await import("../src/hooks/useTurnDetection");
+        const sentence = "We rebuilt the onboarding flow and measured the drop off at every step.";
+        const long = Array(10).fill(sentence).join(" ");
+        assert.equal(endpointDelayMs(long, opts), 2800);
+        assert.ok(endpointDelayMs(long, opts) > endpointDelayMs(sentence, opts));
+        // A ready reply comes in sooner after a short answer than mid-story.
+        assert.equal(readyEndpointMs(sentence), 1200);
+        assert.equal(readyEndpointMs(long), 1800);
+    });
 });
 
 describe("stripLeadingAcknowledgement", () => {

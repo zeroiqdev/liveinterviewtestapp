@@ -5,12 +5,12 @@ import { loadOwnedSession } from "@/engine/sessionAccess";
 import { traceTurn } from "@/engine/turnTrace";
 import { replySegments } from "@/engine/conversationalEngine";
 import { getCachedAudio } from "@/services/ttsService";
+import { liveAudioTiming } from "@/config/voiceConfig";
 import type { Persona } from "@/config/voiceConfig";
 import { LIMITS, rateLimit } from "@/lib/rateLimit";
 import { classifyAnswer, pickAcknowledgement } from "@/config/fillerConfig";
 
 /** Longest a draft waits for its audio before replying without the links. */
-const DRAFT_AUDIO_BUDGET_MS = 4000;
 
 /**
  * Read-only turn warm-up. This never writes to the interview session or asks
@@ -71,7 +71,9 @@ export async function POST(
             );
             const ready = await Promise.race([
                 synthesis.then(() => true),
-                new Promise<false>((resolve) => setTimeout(() => resolve(false), DRAFT_AUDIO_BUDGET_MS)),
+                new Promise<false>((resolve) =>
+                    setTimeout(() => resolve(false), liveAudioTiming(voicePersona, region).draftBudgetMs)
+                ),
             ]);
             if (!ready) after(() => synthesis.then(() => undefined));
         }

@@ -68,7 +68,7 @@ function claimToken(jti: string, expSeconds: number): boolean {
 
 // Azure neural voices usable by Voice Live (ElevenLabs voices are not).
 const VOICE_BY_REGION: Record<string, string> = {
-    nigeria: "en-NG-AbeoNeural",
+    nigeria: "en-NG-EzinneNeural",
     uk: "en-GB-RyanNeural",
     us: "en-US-AndrewNeural",
     "international-default": "en-US-AndrewNeural",
@@ -233,7 +233,7 @@ wss.on("connection", async (client, req) => {
                     session: {
                         modalities: ["text", "audio"],
                         instructions: buildRealtimeInstructions(session),
-                        voice: { type: "azure-standard", name: voice, rate: "0.95" },
+                        voice: { type: "azure-standard", name: voice, rate: "1.06" },
                         input_audio_sampling_rate: 24000,
                         input_audio_noise_reduction: { type: "azure_deep_noise_suppression" },
                         input_audio_echo_cancellation: { type: "server_echo_cancellation" },

@@ -6,6 +6,12 @@ import { detectVoiceCommand } from "../engine/voiceCommands";
 /** How often the silence clock is checked. */
 const POLL_MS = 100;
 /**
+ * The mic hears the candidate but no words are arriving. First assume the
+ * transcription has stalled (browsers do this in long answers) and ask for it
+ * to be restarted, which gives it time to catch up before the cut-off below.
+ */
+const TRANSCRIPTION_STALLED_MS = 2000;
+/**
  * The mic may report "speech" from steady background noise. If it does so for
  * this long with no new transcript, stop trusting it and fall back to the
  * transcript alone so noise can't hold a turn open.
@@ -20,9 +26,28 @@ const DRAFT_PAUSE_MS = 350;
 const DRAFT_MIN_NEW_WORDS = 8;
 const DRAFT_MIN_WORDS = 10;
 const DRAFT_MIN_INTERVAL_MS = 1500;
+/**
+ * Deep into a long answer, drafts are made less often: each one is thrown
+ * away as the answer grows, and a five-minute answer shouldn't use up the
+ * hour's allowance of drafts.
+ */
+const LONG_ANSWER_WORDS = 120;
+const LONG_ANSWER_DRAFT_NEW_WORDS = 25;
+const LONG_ANSWER_DRAFT_INTERVAL_MS = 5000;
 
 /** Silence that ends a turn when the reply to it is already drafted and ready. */
 const READY_ENDPOINT_MS = 1200;
+/**
+ * Someone telling a longer story pauses to think between sentences, so once
+ * an answer is this long a ready reply waits longer before coming in.
+ */
+const STORY_WORDS = 60;
+const STORY_READY_ENDPOINT_MS = 1800;
+
+/** Silence needed before a ready reply may end the turn. */
+export function readyEndpointMs(answer: string): number {
+    return answer.split(/\s+/).filter(Boolean).length >= STORY_WORDS ? STORY_READY_ENDPOINT_MS : READY_ENDPOINT_MS;
+}
 
 /** Answers ending like this are mid-thought and get the longest pause. */
 const TRAILING_THOUGHT =
@@ -46,7 +71,8 @@ export function endpointDelayMs(answer: string, opts: EndpointOptions): number {
     if (detectVoiceCommand(answer) !== null) return 700;
     if (TRAILING_THOUGHT.test(answer.trim())) return opts.maxDelayMs;
     if (words < opts.minWords) return Math.min(opts.maxDelayMs, opts.minDelayMs + 400);
-    return Math.min(opts.maxDelayMs - 500, opts.minDelayMs + Math.min(words, 60) * 8);
+    // Long answers get close to the full pause: 2.5s by 60 words, 2.8s by 100.
+    return Math.min(opts.maxDelayMs - 200, opts.minDelayMs + Math.min(words, 100) * 8);
 }
 
 export interface VoiceState {
@@ -88,6 +114,11 @@ interface UseTurnDetectionOptions {
      * to say next — unless the answer is clearly unfinished.
      */
     isAnswerReady?: (transcript: string) => boolean;
+    /**
+     * The mic hears the candidate but no words have arrived for a few
+     * seconds: the caller should restart transcription.
+     */
+    onTranscriptionStalled?: () => void;
     /** Speech resumed or STT advanced after a preview; caller should abort it. */
     onTurnActivity?: (transcript: string) => void;
     onTurnComplete: (transcript: string) => void;
@@ -107,6 +138,7 @@ export function useTurnDetection({
     onTurnLikelyComplete,
     isAnswerReady,
     onTurnActivity,
+    onTranscriptionStalled,
     onTurnComplete,
 }: UseTurnDetectionOptions) {
     const [silenceRemainingMs, setSilenceRemainingMs] = useState<number | null>(null);
@@ -118,11 +150,13 @@ export function useTurnDetection({
     const draftWordsRef = useRef(0);
     const draftAtRef = useRef(0);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    /** The transcript time a stall was last reported for (once per stall). */
+    const stallReportedForRef = useRef(0);
 
-    const callbacks = useRef({ onTurnComplete, onTurnLikelyComplete, onTurnActivity, getVoiceState, isAnswerReady });
+    const callbacks = useRef({ onTurnComplete, onTurnLikelyComplete, onTurnActivity, onTranscriptionStalled, getVoiceState, isAnswerReady });
     useEffect(() => {
-        callbacks.current = { onTurnComplete, onTurnLikelyComplete, onTurnActivity, getVoiceState, isAnswerReady };
-    }, [onTurnComplete, onTurnLikelyComplete, onTurnActivity, getVoiceState, isAnswerReady]);
+        callbacks.current = { onTurnComplete, onTurnLikelyComplete, onTurnActivity, onTranscriptionStalled, getVoiceState, isAnswerReady };
+    }, [onTurnComplete, onTurnLikelyComplete, onTurnActivity, onTranscriptionStalled, getVoiceState, isAnswerReady]);
 
     const optsRef = useRef({ minDelayMs, maxDelayMs, minWords, preparationDelayMs });
     useEffect(() => {
@@ -185,6 +219,10 @@ export function useTurnDetection({
             // Trust the mic only while transcription is keeping up with it.
             const voiceTrusted = voice && now - lastTextAtRef.current < VOICE_WITHOUT_TEXT_MAX_MS;
             if (voiceTrusted && voice.speaking) {
+                if (now - lastTextAtRef.current >= TRANSCRIPTION_STALLED_MS && stallReportedForRef.current !== lastTextAtRef.current) {
+                    stallReportedForRef.current = lastTextAtRef.current;
+                    callbacks.current.onTranscriptionStalled?.();
+                }
                 setIsCountingDown(false);
                 setSilenceRemainingMs(null);
                 return;
@@ -196,7 +234,7 @@ export function useTurnDetection({
             let threshold = endpointDelayMs(answer, endpointOpts);
             // Reply already drafted and ready: respond sooner (never when mid-thought).
             if (threshold < endpointOpts.maxDelayMs && callbacks.current.isAnswerReady?.(answer)) {
-                threshold = Math.min(threshold, READY_ENDPOINT_MS);
+                threshold = Math.min(threshold, readyEndpointMs(answer));
             }
 
             if (preparedForRef.current !== answer && detectVoiceCommand(answer) === null) {
@@ -204,11 +242,12 @@ export function useTurnDetection({
                 // Final draft once they go quiet; earlier drafts at natural
                 // pauses mid-answer, throttled so cost stays bounded.
                 const finalDraft = silence >= prepMs;
+                const longAnswer = words >= LONG_ANSWER_WORDS;
                 const midAnswerDraft =
                     silence >= DRAFT_PAUSE_MS &&
                     words >= DRAFT_MIN_WORDS &&
-                    words - draftWordsRef.current >= DRAFT_MIN_NEW_WORDS &&
-                    now - draftAtRef.current >= DRAFT_MIN_INTERVAL_MS;
+                    words - draftWordsRef.current >= (longAnswer ? LONG_ANSWER_DRAFT_NEW_WORDS : DRAFT_MIN_NEW_WORDS) &&
+                    now - draftAtRef.current >= (longAnswer ? LONG_ANSWER_DRAFT_INTERVAL_MS : DRAFT_MIN_INTERVAL_MS);
                 if (finalDraft || midAnswerDraft) {
                     preparedForRef.current = answer;
                     draftWordsRef.current = words;

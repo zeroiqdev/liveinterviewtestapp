@@ -1081,11 +1081,14 @@ export function matchResumeToJob(
         const respScore = Math.min(15, Math.round((respAvg / 100) * 15));
         overallScore = Math.min(65, Math.max(30, 35 + kwScore + respScore));
     } else {
-        // Direct role match: accurate, dynamic score reflecting resume keyword density and duty coverage
+        // Direct role match. This is a keyword count: it can tell the role fits,
+        // not how well the resume fits this particular job, so it stays in a
+        // modest band (50–80). The old formula (55 + up to 25 + up to 20) put
+        // almost every same-role resume at about 92%.
         const respAvg = responsibilityMatches.reduce((a, b) => a + b.score, 0) / (responsibilityMatches.length || 1);
-        const kwScore = Math.min(25, Math.round(kwRatio * 35));
-        const respScore = Math.min(20, Math.round((respAvg / 100) * 20));
-        overallScore = Math.min(96, Math.max(50, 55 + kwScore + respScore));
+        const kwScore = Math.round(Math.min(1, kwRatio) * 15);
+        const respScore = Math.round((respAvg / 100) * 15);
+        overallScore = Math.min(80, Math.max(50, 50 + kwScore + respScore));
     }
 
     let summary = "";

@@ -932,11 +932,11 @@ export function SettingsModal({
                             {/* ── ITEM 2: UPLOAD YOUR RESUME & PORTFOLIO ── */}
                             <div className={styles.timelineItem}>
                                 {/* AI Coach Character Avatar Node */}
-                                <div className={styles.timelineAvatarCircle} title="AI Interview Coach">
+                                <div className={styles.timelineAvatarCircle} title="Interview Coach">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
                                         src={COACH_AVATAR}
-                                        alt="AI Coach"
+                                        alt="Coach"
                                         className={styles.timelineAvatarImg}
                                         draggable={false}
                                     />

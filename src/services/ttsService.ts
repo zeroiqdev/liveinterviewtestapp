@@ -29,14 +29,46 @@ import TtsCacheModel from "@/models/TtsCache";
 import { synthesizeSpeech } from "@/lib/elevenlabs";
 import { synthesizeYarnGptSpeech } from "@/lib/yarngpt";
 import { synthesizeAzureSpeech } from "@/lib/azureTts";
+import { synthesizeGeminiSpeech } from "@/lib/geminiTts";
+import { synthesizeSpitchSpeech } from "@/lib/spitchTts";
 import { uploadToStorage, checkStorageExists, withCurrentStorageDomain } from "@/lib/r2Storage";
-import { getVoiceForContext, type Persona } from "@/config/voiceConfig";
+import {
+  getVoiceForContext,
+  maxConcurrentSyntheses,
+  type Persona,
+  type VoiceEntry,
+  type VoiceProvider,
+} from "@/config/voiceConfig";
 import { normalizeRegion } from "@/utils/regionNormalizer";
 import { traceTurn } from "@/engine/turnTrace";
 
 // ─── In-memory cache & concurrency guard ────────────────────────────
 
 const memoryCache = new Map<string, string>();
+
+/*
+ * Cap concurrent provider requests per server instance and provider. Azure's
+ * free tier allows ~20 requests a minute; an interview start used to fire the
+ * opening sentences and ~40 filler clips at once, Azure refused them, and the
+ * first question fell back to the browser's voice.
+ */
+const activeSyntheses = new Map<string, number>();
+const synthesisQueues = new Map<string, Array<() => void>>();
+
+async function withSynthesisSlot<T>(provider: VoiceProvider, task: () => Promise<T>): Promise<T> {
+  const queue = synthesisQueues.get(provider) ?? [];
+  synthesisQueues.set(provider, queue);
+  if ((activeSyntheses.get(provider) ?? 0) >= maxConcurrentSyntheses(provider)) {
+    await new Promise<void>((resolve) => queue.push(resolve));
+  }
+  activeSyntheses.set(provider, (activeSyntheses.get(provider) ?? 0) + 1);
+  try {
+    return await task();
+  } finally {
+    activeSyntheses.set(provider, (activeSyntheses.get(provider) ?? 1) - 1);
+    queue.shift()?.();
+  }
+}
 const inFlight = new Map<string, Promise<string>>();
 
 // ─── Hash computation ───────────────────────────────────────────────
@@ -78,15 +110,24 @@ export interface CachedAudioResult {
  */
 function resolveVoice(text: string, persona: Persona, jobRegion: string) {
   const region = normalizeRegion(jobRegion);
-  const voiceEntry = getVoiceForContext(persona, region);
+  return { region, ...voiceKey(text, getVoiceForContext(persona, region)) };
+}
+
+function voiceKey(text: string, voiceEntry: VoiceEntry) {
   const provider = voiceEntry.provider || "elevenlabs";
   // Whatever shapes the audio is part of the cache key, so tuning pacing or
   // voice settings re-synthesizes instead of replaying stale clips.
-  const audioSettings = (provider === "azure" ? voiceEntry.prosody : voiceEntry.voiceSettings) as
-    | Record<string, unknown>
-    | undefined;
+  const audioSettings = (
+    provider === "azure"
+      ? voiceEntry.prosody
+      : provider === "gemini"
+        ? voiceEntry.gemini
+        : provider === "spitch"
+          ? voiceEntry.spitch
+          : voiceEntry.voiceSettings
+  ) as Record<string, unknown> | undefined;
   const hash = computeCacheHash(text, voiceEntry.voiceId, audioSettings, provider);
-  return { region, voiceEntry, provider, audioSettings, hash };
+  return { voiceEntry, provider, audioSettings, hash };
 }
 
 /**
@@ -151,7 +192,30 @@ export async function lookupCachedAudio(
 ): Promise<CachedAudioResult | null> {
   const { region, voiceEntry, hash } = resolveVoice(text, persona, jobRegion);
   const audioUrl = await lookupStored(hash, turnId);
-  return audioUrl ? { audioUrl, cacheHit: true, region, voiceLabel: voiceEntry.label } : null;
+  if (audioUrl) return { audioUrl, cacheHit: true, region, voiceLabel: voiceEntry.label };
+  // While the main voice is down, the backup voice's recordings stand in.
+  if (voiceEntry.fallback && coolingDown(voiceEntry)) {
+    const backup = voiceKey(text, voiceEntry.fallback);
+    const backupUrl = await lookupStored(backup.hash, turnId);
+    if (backupUrl) return { audioUrl: backupUrl, cacheHit: true, region, voiceLabel: voiceEntry.fallback.label };
+  }
+  return null;
+}
+
+/*
+ * After a voice fails (e.g. its daily free quota is used up), skip straight to
+ * its backup for a while instead of waiting on retries for every clip.
+ */
+const PRIMARY_COOLDOWN_MS = 5 * 60_000;
+const cooldownUntil = new Map<string, number>();
+
+/** For scripts that would rather wait for the main voice than use its backup. */
+export function resetVoiceCooldowns(): void {
+  cooldownUntil.clear();
+}
+
+function coolingDown(entry: VoiceEntry): boolean {
+  return (cooldownUntil.get(entry.voiceId) ?? 0) > Date.now();
 }
 
 export async function getCachedAudio(
@@ -160,7 +224,37 @@ export async function getCachedAudio(
   jobRegion: string,
   turnId?: string
 ): Promise<CachedAudioResult> {
-  const { region, voiceEntry, provider, audioSettings, hash } = resolveVoice(text, persona, jobRegion);
+  const region = normalizeRegion(jobRegion);
+  const voiceEntry = getVoiceForContext(persona, region);
+  const { fallback } = voiceEntry;
+  if (fallback && coolingDown(voiceEntry)) {
+    // Already-recorded clips in the main voice are still fine to use.
+    const stored = await lookupStored(voiceKey(text, voiceEntry).hash, turnId);
+    if (stored) return { audioUrl: stored, cacheHit: true, region, voiceLabel: voiceEntry.label };
+    return audioForVoice(text, persona, region, fallback, turnId);
+  }
+  try {
+    return await audioForVoice(text, persona, region, voiceEntry, turnId);
+  } catch (err) {
+    if (!fallback) throw err;
+    cooldownUntil.set(voiceEntry.voiceId, Date.now() + PRIMARY_COOLDOWN_MS);
+    // Still the same accent and gender, and often already recorded.
+    console.warn(
+      `[ttsService] ${voiceEntry.label} failed (${(err as Error).message.slice(0, 160)}); ` +
+      `using ${fallback.label} for the next ${PRIMARY_COOLDOWN_MS / 60_000} minutes`
+    );
+    return audioForVoice(text, persona, region, fallback, turnId);
+  }
+}
+
+async function audioForVoice(
+  text: string,
+  persona: Persona,
+  region: string,
+  entry: VoiceEntry,
+  turnId?: string
+): Promise<CachedAudioResult> {
+  const { voiceEntry, provider, audioSettings, hash } = voiceKey(text, entry);
   const { voiceId, voiceSettings, prosody, label } = voiceEntry;
 
   // Join an identical synthesis already running (e.g. a prefetch) first.
@@ -197,17 +291,16 @@ export async function getCachedAudio(
       );
 
       // Synthesize via selected provider
-      let audioBuffer: Buffer;
-      if (provider === "azure") {
-        audioBuffer = await synthesizeAzureSpeech(text, voiceId, prosody);
-      } else if (provider === "yarngpt") {
-        audioBuffer = await synthesizeYarnGptSpeech(text, voiceId);
-      } else {
+      const audioBuffer: Buffer = await withSynthesisSlot(provider, () => {
+        if (provider === "gemini" && voiceEntry.gemini) return synthesizeGeminiSpeech(text, voiceId, voiceEntry.gemini);
+        if (provider === "spitch" && voiceEntry.spitch) return synthesizeSpitchSpeech(text, voiceId, voiceEntry.spitch);
+        if (provider === "azure") return synthesizeAzureSpeech(text, voiceId, prosody);
+        if (provider === "yarngpt") return synthesizeYarnGptSpeech(text, voiceId);
         if (!voiceSettings) {
           throw new Error(`Missing voiceSettings for ElevenLabs voice ${voiceId}`);
         }
-        audioBuffer = await synthesizeSpeech(text, voiceId, voiceSettings);
-      }
+        return synthesizeSpeech(text, voiceId, voiceSettings);
+      });
 
       // Upload to Cloudflare R2 Storage
       const storagePath = `tts-cache/${hash}.mp3`;

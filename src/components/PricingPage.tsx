@@ -107,7 +107,7 @@ export default function PricingPage() {
                                             <polyline points="2.5 6 4.8 8.5 9.5 3.5" />
                                         </svg>
                                     </span>
-                                    <span>Live interview with the AI Recruiter</span>
+                                    <span>Live interview with the Recruiter</span>
                                 </li>
                                 <li className={styles.featureItem}>
                                     <span className={styles.checkIconWrap}>
@@ -115,7 +115,7 @@ export default function PricingPage() {
                                             <polyline points="2.5 6 4.8 8.5 9.5 3.5" />
                                         </svg>
                                     </span>
-                                    <span>Instant feedback from your AI Coach</span>
+                                    <span>Instant feedback from your Coach</span>
                                 </li>
                                 <li className={styles.featureItem}>
                                     <span className={styles.checkIconWrap}>

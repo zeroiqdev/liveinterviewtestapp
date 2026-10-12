@@ -28,6 +28,7 @@ import {
 import { draftCovers } from "./utterance";
 import { RESUME_QUESTION_ID, pickResumeQuestion, resumeQuestionDue } from "./resumeQuestion";
 import { questionsForCompany, realCompanyName } from "./company";
+import { openingGreeting, openingIntro, planOpening, resolveOpener } from "./openers";
 import {
     executeConversationalTurn,
     fallbackProbe,
@@ -108,7 +109,7 @@ const EMPTY_SELECTION: SelectionResult = {
  * candidate stops talking, so the reply must not open with another one.
  */
 const LEADING_ACK =
-    /^\s*(?:(?:got it|okay|ok|alright|all right|right|i see|understood|great|thanks?(?: you)?(?: for sharing(?: that)?)?|thank you(?: for sharing(?: that)?)?)[,.!]\s+)+/i;
+    /^\s*(?:(?:got it|got you|okay|ok|alright|all right|right|i see|understood|great|good|nice|no worries|sure(?: thing)?|of course|(?:that'?s a )?(?:good|great|fair) question|happy to answer that|that makes sense|fair (?:point|enough)|thanks?(?: you)?(?: for sharing(?: that)?)?|thank you(?: for sharing(?: that)?)?)[,.!]\s+)+/i;
 
 /**
  * Separates a next-question line into its spoken lead-in and the question
@@ -249,6 +250,8 @@ export async function startSession(opts: {
     interviewType?: string | null;
     candidateName?: string | null;
     companyName?: string | null;
+    candidateRole?: string | null;
+    roleFamily?: string | null;
     probeDepth?: ProbeDepth | null;
     voiceRegion?: string;
 }): Promise<{ session: SessionDoc; prompt: EnginePrompt }> {
@@ -290,6 +293,8 @@ export async function startSession(opts: {
         // Placeholder names ("General Industry Benchmark") mean no company.
         company: realCompanyName(opts.companyName),
         interviewType: opts.interviewType ?? null,
+        candidateRole: opts.candidateRole?.trim() || null,
+        roleFamily: opts.roleFamily ?? null,
         blueprintId: blueprint.blueprintId,
         hasProfile: profile?.hasProfile ?? {
             resume: false,
@@ -374,6 +379,7 @@ async function askNextQuestion(
     profile: CandidateProfile | null
 ): Promise<EnginePrompt> {
     const comp = currentCompetency(session, blueprint);
+    if (session.turnCount === 0) return askOpening(session, blueprint, comp);
     const pool = questionsForCompany(comp ? queryPool(comp.questionPoolFilter) : generalPool(), session.company);
 
     const selection = await selectQuestion({
@@ -411,23 +417,12 @@ async function askNextQuestion(
     session.turnCount++;
     session.phase = "awaiting_answer";
 
-    let questionText = selection.questionText;
-    const isOpening = session.turnCount === 1;
-
-    if (isOpening) {
-        const candidateGreeting = session.candidateName ? `Hello ${session.candidateName},` : "Hello,";
-        const roleLabel = session.interviewType || blueprint.role || "this role";
-        const company = realCompanyName(session.company);
-        const companySegment = company ? ` with ${company}` : "";
-
-        const firstQuestion = selection.questionText || "could you share a bit about your background and what excites you about this role?";
-        questionText = `${candidateGreeting} welcome! I'll be your interviewer today for the ${roleLabel} position${companySegment}. Over the next 20 to 30 minutes, we'll dive into your background and key competencies for the position. Take all the time you need to think through your answers. To get us started: ${firstQuestion.replace(/^[A-Z]/, (c) => c.toLowerCase())}`;
-    }
+    const questionText = selection.questionText;
 
     session.pendingQuestion = {
         text: questionText,
         competencyId: comp?.id ?? GENERAL_ID,
-        kind: isOpening ? "opening" : "scripted",
+        kind: "scripted",
         questionId: selection.questionId,
     };
     session.probeThread = {
@@ -440,7 +435,7 @@ async function askNextQuestion(
         role: "interviewer",
         text: questionText,
         competencyId: comp?.id ?? GENERAL_ID,
-        kind: isOpening ? "opening" : "scripted",
+        kind: "scripted",
         timestamp: new Date().toISOString(),
     });
     await saveSession(session);
@@ -452,6 +447,57 @@ async function askNextQuestion(
         competencyLabel: comp?.label ?? GENERAL_LABEL,
         kind: session.pendingQuestion.kind,
         questionId: selection.questionId,
+    };
+}
+
+/**
+ * The welcome and a warm-up question that fits the role and round, asked
+ * before any bank question. Spoken as three clips — greeting, intro, opener —
+ * so only the short greeting is ever new; the rest is recorded once.
+ */
+async function askOpening(session: SessionDoc, blueprint: Blueprint, comp: Competency | null): Promise<EnginePrompt> {
+    const role = session.candidateRole || blueprint.role || "";
+    const company = realCompanyName(session.company);
+    const plan = planOpening({
+        roleFamily: session.roleFamily,
+        role,
+        interviewType: session.interviewType,
+        company,
+    });
+    const opener = await resolveOpener(plan, { role, interviewType: session.interviewType || "" });
+    const greeting = openingGreeting(session.candidateName);
+    const intro = openingIntro({ role, company, focus: plan.round?.focus });
+    const questionText = `${greeting} ${intro} ${opener.replace(/^[A-Z]/, (c) => c.toLowerCase())}`;
+    audit(session, "selector", "opening", `${plan.key} — ${plan.round ? "fixed round line" : plan.opener ? "general line" : "written line"}`);
+
+    // The opener covers background, so the bank's own "tell me about
+    // yourself" questions would only repeat it.
+    for (const q of generalPool()) {
+        if (/tell me about yourself/i.test(q.question)) session.generalAsked.questionIds.push(q.id);
+    }
+
+    session.turnCount++;
+    session.phase = "awaiting_answer";
+    const competencyId = comp?.id ?? GENERAL_ID;
+    session.pendingQuestion = { text: questionText, competencyId, kind: "opening", questionId: null };
+    session.probeThread = { rootQuestion: questionText, competencyId, followUps: 0, lastVerdict: null };
+    session.transcript.push({
+        role: "interviewer",
+        text: questionText,
+        competencyId,
+        kind: "opening",
+        timestamp: new Date().toISOString(),
+    });
+    await saveSession(session);
+
+    return {
+        type: "question",
+        text: questionText,
+        competencyId,
+        competencyLabel: comp?.label ?? GENERAL_LABEL,
+        kind: "opening",
+        questionId: null,
+        openingParts: [greeting, intro, opener],
     };
 }
 

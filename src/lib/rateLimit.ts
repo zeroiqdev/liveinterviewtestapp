@@ -97,7 +97,7 @@ export const LIMITS = {
     login: { bucket: "login", limit: 10, windowSeconds: 15 * 60, action: "login attempts" },
     emailCodeSend: { bucket: "email-code-send", limit: 5, windowSeconds: 60 * 60, action: "code requests" },
     signup: { bucket: "signup", limit: 20, windowSeconds: 60 * 60, action: "sign-up attempts" },
-    llm: { bucket: "llm", limit: 60, windowSeconds: 60 * 60, action: "AI requests" },
+    llm: { bucket: "llm", limit: 60, windowSeconds: 60 * 60, action: "requests" },
     tts: { bucket: "tts", limit: 1000, windowSeconds: 60 * 60, action: "voice requests" },
     parse: { bucket: "parse", limit: 30, windowSeconds: 60 * 60, action: "uploads" },
     interview: { bucket: "interview", limit: 20, windowSeconds: 24 * 60 * 60, action: "interviews started today" },

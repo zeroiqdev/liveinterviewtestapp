@@ -58,11 +58,12 @@ const FALLBACK_ROLES = [
     { title: "HSE / Safety Officer", domain: "Engineering & Energy" },
 ];
 
+// Years of experience in the role, and the level interviews are pitched at.
 const EXPERIENCE_OPTIONS = [
-    { value: "internship", label: "Internship" },
-    { value: "professional", label: "Professional" },
-    { value: "projects", label: "Project experience" },
-    { value: "transitioning", label: "Career Transition" },
+    { value: "none", label: "No job experience", level: "Entry-Level" },
+    { value: "0-3", label: "0–3 years", level: "Junior" },
+    { value: "3-5", label: "3–5 years", level: "Mid-Level" },
+    { value: "5+", label: "5+ years", level: "Senior" },
 ] as const;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -195,7 +196,7 @@ export default function OnboardingPage() {
 
     const step4Message = useMemo(() => {
         const roleTitle = selectedRole?.role || "Product Manager";
-        if (experience === "professional") {
+        if (experience && experience !== "none") {
             return `You’ve got some real skin in the game as a ${roleTitle}`;
         }
         return `Starting out as a ${roleTitle} is a great move`;
@@ -298,8 +299,8 @@ export default function OnboardingPage() {
             role: roleVal,
             roleFamily,
             specialization: roleVal,
-            seniority: experience || "professional",
-            experienceInRole: experience || "professional",
+            seniority: EXPERIENCE_OPTIONS.find((opt) => opt.value === experience)?.level || "Mid-Level",
+            experienceInRole: experience || "3-5",
             portfolioUrl: portfolioUrl.trim(),
             linkedinUrl: linkedinUrl.trim(),
             resumes,
@@ -732,10 +733,12 @@ export default function OnboardingPage() {
                             </div>
                         </div>
 
-                        <h2 className={styles.stepTitleParabole}>what stage of your career are you in?</h2>
-                        <p className={styles.stepSubtitle} style={{ marginBottom: "1.5rem" }}>
-                            I&apos;ll shape your mock interviews to match where you are in your career and give you great feedback to standout
+                        <h2 className={styles.stepTitleParabole}>how many years of experience do you have?</h2>
+                        <p className={styles.stepSubtitle} style={{ marginBottom: "1.25rem" }}>
+                            I&apos;ll pitch your mock interviews and feedback at the right level for where you are
                         </p>
+
+                        <div className={styles.resultsHeaderLabel}>Years of experience</div>
 
                         <div className={styles.roleResultsList}>
                             {EXPERIENCE_OPTIONS.map((opt) => {

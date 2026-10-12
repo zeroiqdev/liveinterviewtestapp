@@ -171,7 +171,7 @@ Every question MUST evaluate past behavior, conflict resolution, dealing with am
         typeGuideline = `INTERVIEW TYPE: ${interviewType}. Align questions directly to the technical and operational responsibilities of ${role}.`;
     }
 
-    const systemPrompt = `You are a Principal Interview Architect at Get Prepped AI. Your job is to generate rigorous, authentic, deeply realistic interview questions.
+    const systemPrompt = `You are a Principal Interview Architect at Get Prepped. Your job is to generate rigorous, authentic, deeply realistic interview questions.
 
 Rules:
 1. STRICT TYPE ALIGNMENT: Questions must perfectly match the requested interview type (${interviewType}).
