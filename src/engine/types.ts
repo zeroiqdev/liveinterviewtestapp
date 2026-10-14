@@ -252,6 +252,8 @@ export interface SessionDoc {
     voiceRegion?: string;
     /** Question about one resume line, asked once (see resumeQuestion.ts). */
     resumeQuestion?: { claim: string; sourceLocation: string; text: string; asked: boolean } | null;
+    /** What this person was asked in recent interviews, so this one covers new ground (engine/history). */
+    history?: { questionIds: string[]; questions: string[]; openings: string[] } | null;
 }
 
 /* ── Engine I/O ── */

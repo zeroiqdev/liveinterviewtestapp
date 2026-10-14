@@ -39,6 +39,10 @@ export interface IUser extends Document {
     portfolioUrl?: string;
     linkedinUrl?: string;
     resumes: IResume[];
+    /** When they last opened the app. */
+    lastSeenAt?: Date;
+    /** Where they last used the app from, as the hosting network reports it (never typed in). */
+    location?: { country?: string; region?: string; city?: string; updatedAt?: Date };
     createdAt: Date;
     updatedAt: Date;
 }
@@ -86,6 +90,13 @@ const UserSchema = new Schema<IUser>(
         portfolioUrl: { type: String, default: "" },
         linkedinUrl: { type: String, default: "" },
         resumes: [ResumeSchema],
+        lastSeenAt: { type: Date },
+        location: {
+            country: { type: String },
+            region: { type: String },
+            city: { type: String },
+            updatedAt: { type: Date },
+        },
     },
     { timestamps: true }
 );

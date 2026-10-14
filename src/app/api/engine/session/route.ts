@@ -10,6 +10,13 @@ import { cleanSpokenAudioText } from "@/engine/conversationalEngine";
 import { getCachedAudio } from "@/services/ttsService";
 import { normalizeRegion } from "@/utils/regionNormalizer";
 import { liveAudioTiming } from "@/config/voiceConfig";
+import { claimInterviewStart } from "@/lib/passWallet";
+import { isAdminSession } from "@/lib/session";
+import dbConnect from "@/lib/mongodb";
+import TrySession from "@/models/TrySession";
+import { TRY_COOKIE, TRY_QUESTIONS } from "@/lib/tryInterview";
+import type { CarryOver } from "@/engine/orchestrator";
+import { loadInterviewHistory } from "@/engine/history";
 
 /** Upper bound on preparing the opening audio before giving up on it. */
 const OPENING_AUDIO_BUDGET_MS = 15_000;
@@ -68,22 +75,59 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // An interview begun before sign-up carries on here. It is theirs only
+        // if this browser holds its cookie, and it can be carried over once.
+        const tryId = body?.continueTry ? req.cookies.get(TRY_COOKIE)?.value || "" : "";
+        let tried: InstanceType<typeof TrySession> | null = null;
+        if (tryId) {
+            await dbConnect();
+            tried = await TrySession.findOne({ tryId, claimedBy: null });
+            if (tried && tried.answers.length < TRY_QUESTIONS) tried = null;
+        }
+
+        // The first interview is free; after that an interview needs a pass.
+        // Checked last, after the request is known to be valid, so a bad
+        // request never uses up a pass or the free interview.
+        const entry = await claimInterviewStart(authResult.session.email, await isAdminSession(authResult.session));
+        if (!entry.allowed) {
+            return NextResponse.json(
+                { error: "You've used your free interview. Get a pass to keep practising.", code: "pass_required" },
+                { status: 402 }
+            );
+        }
+
         // Profile is enrichment, not dependency — null is a first-class case.
-        const profile = await getProfile(candidateId);
+        // History: what their recent interviews asked, so this one covers new ground.
+        const [profile, history] = await Promise.all([
+            getProfile(candidateId),
+            loadInterviewHistory([candidateId, authResult.session.email]),
+        ]);
 
         const { session, prompt } = await startSession({
             candidateId,
             ownerId: candidateId,
             blueprintId,
             profile,
-            interviewType,
+            interviewType: tried ? `${tried.title} Interview` : interviewType,
             candidateName,
-            companyName,
+            companyName: tried ? tried.company || companyName : companyName,
+            carryOver: tried
+                ? ({
+                      title: tried.title,
+                      turns: tried.answers.slice(0, TRY_QUESTIONS).map((answer, i) => ({ question: tried!.questions[i], answer: answer.text })),
+                      nextQuestions: tried.questions.slice(TRY_QUESTIONS),
+                  } satisfies CarryOver)
+                : null,
             candidateRole: typeof candidateRole === "string" ? candidateRole.slice(0, 120) : null,
             roleFamily: typeof roleFamily === "string" ? roleFamily.slice(0, 60) : authResult.session.roleFamily || null,
             probeDepth: probeDepth === "deep" ? "deep" : "standard",
             voiceRegion,
+            history,
         });
+
+        if (tried) {
+            await TrySession.updateOne({ tryId, claimedBy: null }, { $set: { claimedBy: authResult.session.email, claimedSessionId: session.sessionId } });
+        }
 
         // Ready the first question's audio now so it plays the moment the
         // interview starts, in the same voice as every later question.
@@ -100,6 +144,7 @@ export async function POST(req: NextRequest) {
             prompt,
             state: toPublicState(session),
             voiceRegion,
+            carriedOver: Boolean(tried),
             audioSegments: opening?.audioSegments,
             voiceLabel: opening?.voiceLabel ?? null,
             // Slower voices get longer for a draft still being recorded.

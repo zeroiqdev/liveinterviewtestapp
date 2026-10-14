@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./feedback.module.css";
+import { FeedbackButton } from "./FeedbackButton";
 import {
     ArrowLeft,
     Check,
@@ -18,6 +19,7 @@ import {
     Plus,
     Info,
     Sparkle,
+    UploadSimple,
 } from "@phosphor-icons/react";
 import type { ResumeScanFeedbackItem } from "./dashboard/constants";
 import {
@@ -35,11 +37,14 @@ import {
     isCompanyDescriptionLine,
     parseResumeTextToStructured,
     normalizeStructuredForDisplay,
+    structuredToText,
+    isEmptyResume,
+    hasReadableResumeText,
     DATE_RANGE_RE,
     DATE_AT_END_RE,
     ANY_DATE_RE,
 } from "@/lib/resumeParser";
-import { calculateStructuredAtsScore, calculateAtsScore, AtsScoreResult } from "@/lib/atsScorer";
+import { scoreStructuredResume, introducesNumbers } from "@/lib/atsScorer";
 
 export type { StructuredResume, StructuredJob, StructuredBullet, SuggestionItem };
 
@@ -130,6 +135,8 @@ function getInitialResumeState(initialData?: ResumeScanFeedbackItem | null): Res
     let uStrengths: string[] = [];
     let uMissingKeywords: string[] = [];
     let rawSuggestions: any[] = [];
+    // Lines whose numbers came from an accepted rewrite (kept so the score stays honest after a reload).
+    let exampleLines: string[] = [];
 
     if (typeof window !== "undefined") {
         try {
@@ -185,6 +192,7 @@ function getInitialResumeState(initialData?: ResumeScanFeedbackItem | null): Res
                     if (Array.isArray(fb.strengths) && fb.strengths.length > 0) uStrengths = fb.strengths;
                     if (Array.isArray(fb.suggestions) && fb.suggestions.length > 0) rawSuggestions = fb.suggestions;
                     if (Array.isArray(fb.missingKeywords) && fb.missingKeywords.length > 0) uMissingKeywords = fb.missingKeywords;
+                    if (Array.isArray(fb.exampleLines)) exampleLines = fb.exampleLines;
                     const fbCandidateText = fb.resumeText || fb.rawText;
                     if (fbCandidateText && !isDummyTemplate(fbCandidateText)) {
                         uResumeText = fbCandidateText;
@@ -205,26 +213,6 @@ function getInitialResumeState(initialData?: ResumeScanFeedbackItem | null): Res
         if (initialData.missingKeywords && initialData.missingKeywords.length > 0) uMissingKeywords = initialData.missingKeywords;
     }
 
-    if (!uSummary) {
-        uSummary = `Your resume has been loaded into the inline editor. Enhance your bullet points and metrics with our Google X-Y-Z improver to maximize callback rates.`;
-    }
-    if (uStrengths.length === 0) {
-        uStrengths = [
-            `Demonstrated functional ownership and leadership across ${uRole} milestones.`,
-            `Clear alignment with modern cross-functional execution and industry standards.`,
-            `Demonstrated technical depth and delivery impact.`,
-        ];
-    }
-    if (uMissingKeywords.length === 0) {
-        uMissingKeywords = [
-            "Quantifiable Metrics",
-            "Cross-Functional Leadership",
-            "Data-Driven Roadmaps",
-            "High-Scale Execution",
-            "Customer Impact",
-        ];
-    }
-
     const { structured, suggestions } = parseResumeTextToStructured(
         uResumeText,
         uName,
@@ -233,39 +221,16 @@ function getInitialResumeState(initialData?: ResumeScanFeedbackItem | null): Res
         rawSuggestions
     );
 
-    const initialAts = calculateStructuredAtsScore(structured, uRole, uResumeText);
-    if (!uScore || uScore === 82) {
-        uScore = initialAts.overallScore;
-    }
-    if (!uSummary || uSummary.includes("inline editor")) {
-        uSummary = initialAts.summary;
-    }
-    if (initialAts.strengths.length > 0 && (uStrengths.length <= 3 && uStrengths[0]?.includes("milestones"))) {
-        uStrengths = initialAts.strengths;
-    }
-    if (initialAts.metrics.missingKeywords.length > 0 && uMissingKeywords.includes("Quantifiable Metrics")) {
-        uMissingKeywords = initialAts.metrics.missingKeywords;
+    if (exampleLines.length > 0) {
+        const marked = new Set(exampleLines);
+        for (const job of structured.jobs) for (const bullet of job.bullets) if (marked.has(bullet.text)) bullet.exampleNumbers = true;
     }
 
+    // The page always shows the score worked out from the resume as it stands.
+    const initialAts = scoreStructuredResume(structured, uRole);
+    uScore = initialAts.overallScore;
+
     const allSuggestions: SuggestionItem[] = [...suggestions];
-    for (const extra of initialAts.extraBulletSuggestions) {
-        if (!allSuggestions.some((s) => s.id === extra.id || s.proposedText === extra.proposedText)) {
-            allSuggestions.push({
-                id: extra.id,
-                category: extra.category,
-                title: extra.recommendation,
-                feedback: extra.feedback,
-                recommendation: extra.recommendation,
-                targetSnippet: extra.targetSnippet,
-                proposedText: extra.proposedText,
-                scoreLift: extra.scoreLift,
-                applied: false,
-                type: "addition",
-                targetJobId: extra.targetJobId,
-                targetJobLabel: extra.targetCompany,
-            });
-        }
-    }
 
     const report: ResumeScanFeedbackItem = {
         id: "active-cv-feedback",
@@ -342,8 +307,8 @@ export default function ResumeFeedbackReport({
     const [hasMounted, setHasMounted] = useState(false);
     const [isAnalyzingNewResume, setIsAnalyzingNewResume] = useState(false);
     const [analyzeError, setAnalyzeError] = useState<string | null>(null);
-    const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
-    const [pastedText, setPastedText] = useState("");
+    const ownSaveRef = useRef(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
 
     const bulletRefs = useRef<{ [key: string]: HTMLElement | null }>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -351,6 +316,55 @@ export default function ResumeFeedbackReport({
     useEffect(() => {
         setHasMounted(true);
     }, []);
+
+    // The resume lives on the account. If this browser has no copy of it (a
+    // new device, or its saved data was cleared), fetch it from the server
+    // instead of showing "add your resume" to someone who already has one.
+    const fetchedFromServerRef = useRef(false);
+    useEffect(() => {
+        if (!hasMounted || initialData || fetchedFromServerRef.current) return;
+        if (!isEmptyResume(structuredResume)) return;
+        fetchedFromServerRef.current = true;
+        let cancelled = false;
+        fetch("/api/auth/me", { cache: "no-store" })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const resumes: any[] = Array.isArray(data?.user?.resumes) ? data.user.resumes : [];
+                const stored = [...resumes]
+                    .filter((resume) => hasReadableResumeText(resume?.rawText))
+                    .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0];
+                if (cancelled || !stored) return;
+                const payload = {
+                    id: stored.id,
+                    resumeName: stored.name || "Resume",
+                    role: data.user.role || report.role,
+                    resumeText: stored.rawText,
+                    score: stored.score,
+                    summary: stored.summary || "",
+                    strengths: stored.strengths || [],
+                    suggestions: stored.suggestions || [],
+                    missingKeywords: stored.missingKeywords || [],
+                    updatedAt: stored.updatedAt,
+                };
+                try {
+                    localStorage.setItem("useladder_last_resume_feedback", JSON.stringify(payload));
+                } catch {
+                    // Saved data is full or blocked: the resume still shows.
+                }
+                const loaded = getInitialResumeState(payload);
+                setReport(loaded.report);
+                setStructuredResume(loaded.structured);
+                setSuggestions(loaded.suggestions);
+                if (loaded.suggestions.length > 0) setActiveSuggestionId(loaded.suggestions[0].id);
+            })
+            .catch(() => undefined);
+        return () => {
+            cancelled = true;
+        };
+        // Runs once, after the first draw, and only if there was nothing local.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hasMounted]);
 
     // Detect original font from uploaded docx to preserve it in preview + download
     useEffect(() => {
@@ -377,6 +391,9 @@ export default function ResumeFeedbackReport({
     // Sync when report changes or when a scan update event fires
     useEffect(() => {
         const handleScanUpdated = () => {
+            // The page announces its own saves with this event, for the dashboard.
+            // Reloading from them here threw away which rewrites had been applied.
+            if (ownSaveRef.current) return;
             const updated = getInitialResumeState(initialData);
             setReport(updated.report);
             if (updated.report.resumeText && updated.report.resumeText.length > 30) {
@@ -520,7 +537,7 @@ export default function ResumeFeedbackReport({
                 }
 
                 const cleanExtractedText = data.extractedText || content;
-                const newScore = data.result?.score || 82;
+                const newScore = data.result?.score ?? 0;
 
                 const newPayload = {
                     id: `cv_${Date.now()}`,
@@ -593,132 +610,10 @@ export default function ResumeFeedbackReport({
         }
     };
 
-    const handlePasteSubmit = async () => {
-        if (!pastedText.trim() || pastedText.trim().length < 25) {
-            setAnalyzeError("Please paste at least a few sentences of your resume text.");
-            return;
-        }
-
-        setIsAnalyzingNewResume(true);
-        setAnalyzeError(null);
-        setIsPasteModalOpen(false);
-
-        try {
-            let userEmail = "";
-            let userName = structuredResume.name || "";
-            if (typeof window !== "undefined") {
-                try {
-                    const raw = localStorage.getItem("useladder_user");
-                    if (raw) {
-                        const u = JSON.parse(raw);
-                        if (u.email) userEmail = u.email;
-                        if (u.name) userName = u.name;
-                    }
-                } catch {}
-            }
-
-            const res = await fetch("/api/resume/scan", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    resumeText: pastedText.trim(),
-                    resumeName: "Pasted_Resume.txt",
-                    role: report.role || "Product Manager",
-                    domain: report.domain || "Product & Design",
-                    email: userEmail,
-                }),
-            });
-
-            const data = await res.json();
-            if (!res.ok || data.error) {
-                throw new Error(data.error || "Failed to analyze resume text");
-            }
-
-            const cleanExtractedText = data.extractedText || pastedText.trim();
-            const newScore = data.result?.score || 82;
-
-            const newPayload = {
-                id: `cv_${Date.now()}`,
-                resumeName: "Pasted_Resume.txt",
-                role: report.role || "Product Manager",
-                domain: report.domain || "Product & Design",
-                resumeText: cleanExtractedText,
-                score: newScore,
-                summary: data.result.summary || "",
-                strengths: data.result.strengths || [],
-                suggestions: data.result.suggestions || [],
-                missingKeywords: data.result.missingKeywords || [],
-                updatedAt: new Date().toISOString(),
-            };
-
-            setReport(newPayload);
-            if (typeof window !== "undefined") {
-                localStorage.setItem("useladder_last_resume_feedback", JSON.stringify(newPayload));
-            }
-
-            const { structured, suggestions: parsedSugs } = parseResumeTextToStructured(
-                cleanExtractedText,
-                userName,
-                report.role || "Product Manager",
-                userEmail,
-                data.result.suggestions
-            );
-
-            setStructuredResume(structured);
-            setSuggestions(parsedSugs);
-            if (parsedSugs.length > 0) {
-                setActiveSuggestionId(parsedSugs[0].id);
-            }
-
-            // Sync with useladder_user
-            if (typeof window !== "undefined") {
-                const rawUser = localStorage.getItem("useladder_user");
-                if (rawUser) {
-                    try {
-                        const parsedUser = JSON.parse(rawUser);
-                        const newResumeItem = {
-                            id: newPayload.id,
-                            name: "Pasted_Resume.txt",
-                            data: cleanExtractedText,
-                            rawText: cleanExtractedText,
-                            score: newScore,
-                            updatedAt: new Date().toISOString(),
-                        };
-                        const existing = Array.isArray(parsedUser.resumes) ? parsedUser.resumes : [];
-                        parsedUser.resumes = [newResumeItem, ...existing.filter((r: any) => r.id !== newResumeItem.id)];
-                        parsedUser.selectedResumeId = newResumeItem.id;
-                        parsedUser.resume = newResumeItem;
-                        localStorage.setItem("useladder_user", JSON.stringify(parsedUser));
-                    } catch {}
-                }
-            }
-        } catch (err: any) {
-            console.error("Paste scan failed:", err);
-            setAnalyzeError(err?.message || "Failed to scan pasted resume.");
-        } finally {
-            setIsAnalyzingNewResume(false);
-        }
-    };
-
     const displayResume = useMemo(() => normalizeStructuredForDisplay(structuredResume), [structuredResume]);
 
     // Live ATS Scoring Engine based on active document state
-    const liveAtsResult = useMemo(() => {
-        const liveText = [
-            displayResume.name,
-            displayResume.headline,
-            displayResume.contact,
-            displayResume.summaryTitle || "Professional Summary",
-            displayResume.summary,
-            displayResume.experienceTitle || "Product Management Experience",
-            displayResume.jobs.map((j) => `${j.title} at ${j.company} (${j.date || ""})\n${j.bullets.map((b) => b.text).join("\n")}`).join("\n\n"),
-            displayResume.skillsTitle || "Technical Competencies & Skills",
-            (displayResume.skills || []).map((s) => `${s.category}: ${s.items}`).join("\n"),
-            (displayResume.education || []).map((e) => `${e.degree} at ${e.institution} (${e.date || ""})`).join("\n"),
-        ].filter(Boolean).join("\n\n");
-
-        return calculateStructuredAtsScore(displayResume, report.role, liveText);
-    }, [displayResume, report.role]);
+    const liveAtsResult = useMemo(() => scoreStructuredResume(structuredResume, report.role || "Product Manager"), [structuredResume, report.role]);
 
     const currentScore = liveAtsResult.overallScore;
     const appliedCount = suggestions.filter((s) => s.applied).length;
@@ -727,6 +622,8 @@ export default function ResumeFeedbackReport({
     // Sync rating everywhere when resume is improved (keeps Update Credentials → Coach DMs → Resume Feedback consistent)
     useEffect(() => {
         if (!hasMounted) return;
+        // Nothing to save until there is a resume.
+        if (isEmptyResume(displayResume)) return;
         // Avoid spamming on every keystroke – only sync when score actually changed from stored
         try {
             const rawUser = localStorage.getItem("useladder_user");
@@ -744,24 +641,9 @@ export default function ResumeFeedbackReport({
             }
             if (!needsSync) return;
 
-            // Build live full resume text from current structured state (improved bullets)
-            let liveFullText = "";
-            try {
-                liveFullText = [
-                    displayResume.name,
-                    displayResume.headline,
-                    displayResume.contact,
-                    displayResume.summaryTitle || "Professional Summary",
-                    displayResume.summary,
-                    displayResume.experienceTitle || "Experience",
-                    ...displayResume.jobs.flatMap((j) => [j.title, j.company, j.date || "", ...j.bullets.map((b) => b.text)]),
-                    displayResume.skillsTitle || "Skills",
-                    ...(displayResume.skills || []).map((s) => `${s.category}: ${s.items}`),
-                    ...(displayResume.education || []).map((e) => `${e.degree} ${e.institution} ${e.date || ""}`),
-                ]
-                    .filter(Boolean)
-                    .join("\n\n");
-            } catch {}
+            // The resume as it now stands, in a form that reads back into the same structure.
+            const liveFullText = isEmptyResume(displayResume) ? "" : structuredToText(displayResume);
+            const exampleLinesNow = structuredResume.jobs.flatMap((job) => job.bullets.filter((bullet) => bullet.exampleNumbers).map((bullet) => bullet.text));
 
             if (rawUser) {
                 const u = JSON.parse(rawUser);
@@ -789,8 +671,8 @@ export default function ResumeFeedbackReport({
                             const fb2 = JSON.parse(fbRaw2);
                             fb2.resumeText = liveFullText;
                             fb2.rawText = liveFullText;
+                            fb2.exampleLines = exampleLinesNow;
                             fb2.score = currentScore;
-                            fb2.summary = liveAtsResult.summary || fb2.summary;
                             localStorage.setItem("useladder_last_resume_feedback", JSON.stringify(fb2));
                         }
                     } catch {}
@@ -799,7 +681,7 @@ export default function ResumeFeedbackReport({
             if (rawFb) {
                 const fb = JSON.parse(rawFb);
                 fb.score = currentScore;
-                fb.summary = liveAtsResult.summary || fb.summary;
+                fb.exampleLines = exampleLinesNow;
                 if (liveFullText) {
                     fb.resumeText = liveFullText;
                     (fb as any).rawText = liveFullText;
@@ -813,7 +695,6 @@ export default function ResumeFeedbackReport({
                         const foundIdx = all.findIndex((x: any) => x.id === fid);
                         if (foundIdx >= 0) {
                             all[foundIdx].score = currentScore;
-                            all[foundIdx].summary = fb.summary;
                             all[foundIdx].resumeText = liveFullText || fb.resumeText;
                             (all[foundIdx] as any).rawText = liveFullText || fb.resumeText;
                         } else if (all[0]) {
@@ -827,7 +708,9 @@ export default function ResumeFeedbackReport({
                     }
                 }
             }
+            ownSaveRef.current = true;
             window.dispatchEvent(new Event("useladder_resume_scanned"));
+            ownSaveRef.current = false;
             // backend sync – fire and forget
             try {
                 const u2 = JSON.parse(rawUser || "{}");
@@ -904,8 +787,8 @@ export default function ResumeFeedbackReport({
             jobs: prev.jobs.map((job) => ({
                 ...job,
                 bullets: job.bullets.map((b) => {
-                    if (b.suggestionId === sugId || b.text.includes(sug.targetSnippet.slice(0, 30))) {
-                        return { ...b, text: sug.proposedText };
+                    if (b.suggestionId === sugId) {
+                        return { ...b, text: sug.proposedText, exampleNumbers: introducesNumbers(sug.targetSnippet, sug.proposedText) || undefined };
                     }
                     return b;
                 }),
@@ -939,8 +822,8 @@ export default function ResumeFeedbackReport({
             jobs: prev.jobs.map((job) => ({
                 ...job,
                 bullets: job.bullets.map((b) => {
-                    if (b.suggestionId === sugId || b.text === sug.proposedText || b.text.includes(sug.proposedText.slice(0, 30))) {
-                        return { ...b, text: sug.targetSnippet };
+                    if (b.suggestionId === sugId) {
+                        return { ...b, text: sug.targetSnippet, exampleNumbers: undefined };
                     }
                     return b;
                 }),
@@ -955,11 +838,10 @@ export default function ResumeFeedbackReport({
             let updatedJobs = prev.jobs.map((job) => ({
                 ...job,
                 bullets: job.bullets.map((b) => {
-                    const matchedSug = suggestions.find(
-                        (s) => s.type !== "addition" && (s.id === b.suggestionId || b.text.includes(s.targetSnippet.slice(0, 30)))
-                    );
+                    // Each rewrite goes to its own line and nowhere else.
+                    const matchedSug = suggestions.find((s) => s.type !== "addition" && !s.applied && s.id === b.suggestionId);
                     if (matchedSug) {
-                        return { ...b, text: matchedSug.proposedText };
+                        return { ...b, text: matchedSug.proposedText, exampleNumbers: introducesNumbers(matchedSug.targetSnippet, matchedSug.proposedText) || undefined };
                     }
                     return b;
                 }),
@@ -1331,52 +1213,36 @@ export default function ResumeFeedbackReport({
 
     // Save current document to user profile
     const handleSaveToProfile = async () => {
-        const fullMarkdown = `# ${structuredResume.name}\n${structuredResume.headline}\n\n## Experience\n` +
-            structuredResume.jobs.map(j => `### ${j.title} | ${j.company}\n` + j.bullets.map(b => `- ${b.text}`).join("\n")).join("\n\n");
+        setSaveError(null);
+        setSavedSuccess(false);
+        try {
+            const text = structuredToText(displayResume);
+            const parsed = JSON.parse(localStorage.getItem("useladder_user") || "{}");
+            const resumeItem = {
+                id: report.id && report.id !== "active-cv-feedback" ? report.id : parsed.selectedResumeId || `cv_${Date.now()}`,
+                name: report.resumeName || "Resume",
+                data: text,
+                rawText: text,
+                score: currentScore,
+                updatedAt: new Date().toISOString(),
+            };
+            const res = await fetch("/api/auth/user", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: parsed.email, resume: { id: resumeItem.id, name: resumeItem.name, rawText: text, score: currentScore } }),
+            });
+            if (!res.ok) throw new Error("save failed");
 
-        if (typeof window !== "undefined") {
-            try {
-                const userRaw = localStorage.getItem("useladder_user");
-                if (userRaw) {
-                    const parsed = JSON.parse(userRaw);
-                    const resumeItem = {
-                        id: report.id || `cv_${Date.now()}`,
-                        name: report.resumeName || "Improved_Resume.md",
-                        data: fullMarkdown,
-                        score: currentScore,
-                        updatedAt: new Date().toISOString(),
-                    };
-                    const existing = Array.isArray(parsed.resumes) ? parsed.resumes : [];
-                    parsed.resumes = [resumeItem, ...existing.filter((r: { id: string }) => r.id !== resumeItem.id)];
-                    parsed.selectedResumeId = resumeItem.id;
-                    parsed.resume = resumeItem;
-                    localStorage.setItem("useladder_user", JSON.stringify(parsed));
-
-                    // Update last feedback
-                    const updatedPayload = { ...report, score: currentScore, resumeText: fullMarkdown };
-                    localStorage.setItem("useladder_last_resume_feedback", JSON.stringify(updatedPayload));
-                    setReport(updatedPayload);
-
-                    // Sync to MongoDB
-                    await fetch("/api/profile", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            email: parsed.email,
-                            role: parsed.role || report.role,
-                            domain: parsed.domain || report.domain,
-                            resumes: parsed.resumes,
-                            selectedResumeId: parsed.selectedResumeId,
-                        }),
-                    });
-                }
-            } catch (err) {
-                console.error("Failed to save resume:", err);
-            }
+            const existing = Array.isArray(parsed.resumes) ? parsed.resumes : [];
+            parsed.resumes = [resumeItem, ...existing.filter((r: { id: string }) => r.id !== resumeItem.id)];
+            parsed.selectedResumeId = resumeItem.id;
+            parsed.resume = resumeItem;
+            localStorage.setItem("useladder_user", JSON.stringify(parsed));
+            setSavedSuccess(true);
+            setTimeout(() => setSavedSuccess(false), 2500);
+        } catch {
+            setSaveError("We couldn't save your resume just now. Please try again.");
         }
-
-        setSavedSuccess(true);
-        setTimeout(() => setSavedSuccess(false), 2500);
     };
 
     const handleCopyKeyword = (keyword: string) => {
@@ -1529,7 +1395,8 @@ export default function ResumeFeedbackReport({
         return parts.length > 0 ? <>{parts}</> : text;
     };
 
-    const isDocLoading = !hasMounted || isAnalyzingNewResume || !displayResume.name || displayResume.jobs.length === 0;
+    const hasNoResume = hasMounted && !isAnalyzingNewResume && isEmptyResume(displayResume);
+    const isDocLoading = !hasMounted || isAnalyzingNewResume;
 
     const radius = 38;
     const circumference = 2 * Math.PI * radius;
@@ -1542,6 +1409,20 @@ export default function ResumeFeedbackReport({
             : currentScore >= 65
             ? styles.verdictAvg
             : styles.verdictNeedsWork;
+
+    // First draw, on the server and in the browser alike: nothing from the
+    // browser's saved data. Drawing that data straight away made the page draw
+    // twice and flash a placeholder score.
+    if (!hasMounted) {
+        return (
+            <div className={styles.feedbackPage}>
+                <div className={styles.loadingContainer}>
+                    <div className={styles.loadingSpinner} />
+                    <h2 className={styles.loadingTitle}>Opening your resume…</h2>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className={styles.feedbackPage}>
@@ -1565,6 +1446,7 @@ export default function ResumeFeedbackReport({
                         accept=".pdf,.docx,.doc,.txt,.md"
                         style={{ display: "none" }}
                     />
+                    <FeedbackButton section="Resume feedback" />
                     {onClose ? (
                         <button
                             type="button"
@@ -1582,7 +1464,8 @@ export default function ResumeFeedbackReport({
                             onClick={() => router.replace("/dashboard")}
                         >
                             <ArrowLeft size={15} weight="regular" />
-                            <span>Back to Dashboard</span>
+                            <span className={styles.backLabelLong}>Back to Dashboard</span>
+                            <span className={styles.backLabelShort}>Back</span>
                         </button>
                     )}
                 </div>
@@ -1592,11 +1475,13 @@ export default function ResumeFeedbackReport({
                 {/* ── Window Header ── */}
                 <div className={styles.windowHeader}>
                     <div className={styles.windowTitleGroup}>
-                        <h1 className={styles.windowTitle}>Resume / CV In-Line Feedback & Improver</h1>
+                        <h1 className={styles.windowTitle}>Resume review</h1>
                         <p className={styles.windowSubtitle}>
                             {isDocLoading
-                                ? "Auditing ATS metrics and loading candidate history..."
-                                : `File: ${report.resumeName || "Uploaded Resume"} · Target Role: ${report.role || "Software Engineer"}`}
+                                ? "Reading your resume…"
+                                : hasNoResume
+                                ? `For ${report.role || "your role"}`
+                                : `${report.resumeName || "Your resume"} · For ${report.role || "your role"}`}
                         </p>
                     </div>
                     {isModal && onClose && (
@@ -1611,6 +1496,28 @@ export default function ResumeFeedbackReport({
                     )}
                 </div>
 
+                {/* No resume yet: say so and offer the upload. Never a sample resume. */}
+                {hasNoResume && (
+                    <div style={{ background: "#FFFFFF", border: "1px solid #E4E4E7", borderRadius: 14, padding: "3rem 1.5rem", textAlign: "center", maxWidth: 560, margin: "2rem auto" }}>
+                        <UploadSimple size={30} weight="regular" color="#4782F6" />
+                        <h2 style={{ fontSize: "1.2rem", fontWeight: 500, color: "#18181B", margin: "0.75rem 0 0.4rem", letterSpacing: "-0.01em" }}>Add your resume to get a review</h2>
+                        <p style={{ fontSize: "0.9rem", lineHeight: 1.55, color: "#52525B", margin: "0 auto 1.25rem", maxWidth: "44ch" }}>
+                            Upload your resume and you&rsquo;ll see how it reads for {report.role || "your role"}, with suggested rewrites for the lines that could be stronger.
+                        </p>
+                        <button
+                            type="button"
+                            className={styles.improverActionSmallBtn}
+                            onClick={() => fileInputRef.current?.click()}
+                            style={{ background: "linear-gradient(135deg, #4782F6 0%, #3B71E8 100%)", color: "#FFFFFF", borderColor: "transparent", padding: "0.6rem 1.2rem", fontSize: "0.88rem" }}
+                        >
+                            <UploadSimple size={15} weight="bold" /> Upload resume
+                        </button>
+                        <p style={{ fontSize: "0.78rem", color: "#71717A", margin: "0.75rem 0 0" }}>PDF, Word, or plain text</p>
+                        {analyzeError && <p role="alert" style={{ fontSize: "0.82rem", color: "#B91C1C", margin: "0.9rem 0 0" }}>{analyzeError}</p>}
+                    </div>
+                )}
+
+                {!hasNoResume && (<>
                 {/* ── Performance Summary Banner (Unified Header) ── */}
                 <div className={styles.summaryBanner}>
                     <div className={styles.scoreCircleWrap}>
@@ -1640,13 +1547,13 @@ export default function ResumeFeedbackReport({
                             </span>
                             {liveAtsResult.seniority && (
                                 <span style={{ fontSize: "0.78rem", color: "#64748B", fontWeight: 500, marginLeft: "0.5rem" }}>
-                                    Experience Tier: <strong style={{ color: "#334155" }}>{liveAtsResult.seniority.label}</strong> ({liveAtsResult.seniority.totalYears} yrs detected)
+                                    Experience: <strong style={{ color: "#334155" }}>{liveAtsResult.seniority.label}</strong> ({liveAtsResult.seniority.totalYears} years)
                                 </span>
                             )}
                         </div>
 
                         <p className={styles.summaryParagraph}>
-                            {report.summary || "Your resume displays solid technical depth. Select any suggestion on the left to highlight and implement Google X-Y-Z bullet points directly into your document on the right."}
+                            {report.summary || liveAtsResult.summary}
                         </p>
 
                         <div className={styles.rubricRow}>
@@ -1669,7 +1576,7 @@ export default function ResumeFeedbackReport({
                                 </span>
                             </div>
                             <div className={styles.rubricPill}>
-                                <span>Structure & ATS:</span>
+                                <span>Layout:</span>
                                 <span className={styles.rubricVal}>{liveAtsResult.metrics.structureScore}%</span>
                             </div>
                         </div>
@@ -1684,7 +1591,7 @@ export default function ResumeFeedbackReport({
                             <div className={styles.suggestionsToolbar}>
                                 <span className={styles.suggestionsCountLabel}>
                                     <span>
-                                        {appliedCount} of {totalCount} improvements applied
+                                        {totalCount === 0 ? "Suggested rewrites" : `${appliedCount} of ${totalCount} improvements applied`}
                                     </span>
                                 </span>
                                 {appliedCount < totalCount && (
@@ -1692,7 +1599,7 @@ export default function ResumeFeedbackReport({
                                         type="button"
                                         className={styles.suggestionsApplyAllBtn}
                                         onClick={handleApplyAll}
-                                        title="Apply all suggested Google X-Y-Z bullets to document"
+                                        title="Apply every suggested rewrite"
                                     >
                                         Apply All
                                     </button>
@@ -1710,8 +1617,8 @@ export default function ResumeFeedbackReport({
                                 <div style={{ background: "#F0FDF4", border: "1px solid #DCFCE7", borderRadius: 10, padding: "0.9rem 1rem", display: "flex", gap: 8, alignItems: "flex-start" }}>
                                     <CheckCircle size={18} weight="fill" color="#16A34A" style={{ flexShrink: 0, marginTop: 1 }} />
                                     <div>
-                                        <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "#166534" }}>Section is okay — no rewrite needed</div>
-                                        <div style={{ fontSize: "0.76rem", color: "#15803D", lineHeight: 1.45, marginTop: 3 }}>Your experience bullets are already strong (rated 7/10+). Company descriptions are shown as muted text and not scored. Only weaker bullets would appear here.</div>
+                                        <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "#166534" }}>No rewrites needed</div>
+                                        <div style={{ fontSize: "0.76rem", color: "#15803D", lineHeight: 1.45, marginTop: 3 }}>Nothing here needs rewriting. Lines that could be stronger would be listed here.</div>
                                     </div>
                                 </div>
                             ) : null}
@@ -1757,12 +1664,7 @@ export default function ResumeFeedbackReport({
                                                 <Info size={14} weight="regular" />
                                             </span>
                                             <h4 className={styles.suggestionTitle} style={{ margin: 0 }}>
-                                                {(() => {
-                                                    const cat = String(sug.category);
-                                                    if (cat === "Action Verbs & Brevity" || cat === "Clarity") return "Rewrite to emphasize product ownership, user validation";
-                                                    if (cat === "Impact & Metrics" || cat === "Impact") return "Rewrite to emphasize measurable impact and scale";
-                                                    return sug.title;
-                                                })()}
+                                                {sug.title}
                                             </h4>
                                         </div>
 
@@ -1785,6 +1687,12 @@ export default function ResumeFeedbackReport({
                                             <strong>Improvement:</strong>{" "}
                                             {sug.fusedKeyword ? highlightKeyword(sug.proposedText, sug.fusedKeyword) : sug.proposedText}
                                         </div>
+
+                                        {sug.type !== "addition" && introducesNumbers(sug.targetSnippet, sug.proposedText) && (
+                                            <p style={{ margin: "0.45rem 0 0", fontSize: "0.72rem", lineHeight: 1.4, color: "#92400E", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 6, padding: "0.35rem 0.5rem" }}>
+                                                The numbers here are examples. Change them to your real ones before you send this, and your score will count them.
+                                            </p>
+                                        )}
 
                                         <div className={styles.suggestionActionRow}>
                                             <span style={{ fontSize: "0.74rem", color: "#64748B" }}>
@@ -1828,7 +1736,7 @@ export default function ResumeFeedbackReport({
                                         </span>
                                     </div>
                                     <p style={{ fontSize: "0.76rem", color: "#64748B", margin: "0 0 0.65rem", lineHeight: 1.4 }}>
-                                        ATS bots scan for these. <span style={{ color: "#0F172A", fontWeight: 600 }}>Copy</span> or <span style={{ color: "#475569", fontWeight: 600 }}>Add</span> it neatly into an existing experience bullet — no new bullet, just a natural weave.
+                                        Employers&rsquo; screening software looks for these words. <span style={{ color: "#0F172A", fontWeight: 600 }}>Copy</span> one, or <span style={{ color: "#475569", fontWeight: 600 }}>Add</span> it to a line you already have.
                                     </p>
                                     <div style={{ display: "flex", flexWrap: "wrap", gap: "0.45rem" }}>
                                         {report.missingKeywords.map((kw, i) => {
@@ -1897,6 +1805,14 @@ export default function ResumeFeedbackReport({
                                     <button
                                         type="button"
                                         className={styles.improverActionSmallBtn}
+                                        onClick={() => fileInputRef.current?.click()}
+                                        title="Replace this with a different resume file"
+                                    >
+                                        <UploadSimple size={14} weight="bold" /> Upload a resume
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={styles.improverActionSmallBtn}
                                         onClick={handleSaveToProfile}
                                         style={{ background: "linear-gradient(135deg, #4782F6 0%, #3B71E8 100%)", color: "#FFFFFF", borderColor: "transparent", boxShadow: "0 4px 14px rgba(71, 130, 246, 0.22)" }}
                                         title="Save to active resume"
@@ -1918,7 +1834,12 @@ export default function ResumeFeedbackReport({
 
                             {savedSuccess && (
                                 <div style={{ color: "#15803D", background: "#F0FDF4", border: "1px solid #DCFCE7", padding: "0.55rem 0.85rem", borderRadius: 7, fontSize: "0.78rem" }}>
-                                    ✓ Document saved to your active profile and synced with your account!
+                                    Saved to your profile.
+                                </div>
+                            )}
+                            {saveError && (
+                                <div role="alert" style={{ color: "#B91C1C", background: "#FEF2F2", border: "1px solid #FECACA", padding: "0.55rem 0.85rem", borderRadius: 7, fontSize: "0.78rem" }}>
+                                    {saveError}
                                 </div>
                             )}
 
@@ -2094,8 +2015,8 @@ export default function ResumeFeedbackReport({
                                                                                         </span>
                                                                                     )}
                                                                                     {!matchingSug && suggestions.length > 0 && (
-                                                                                        <span style={{ fontSize: "0.68rem", color: "#475569", background: "#F1F5F9", padding: "0.1rem 0.4rem", borderRadius: "4px", fontWeight: 600, flexShrink: 0, border: "1px solid #E2E8F0", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }} title="Rated 7/10+ — no rewrite needed">
-                                                                                            Section is okay
+                                                                                        <span style={{ fontSize: "0.68rem", color: "#475569", background: "#F1F5F9", padding: "0.1rem 0.4rem", borderRadius: "4px", fontWeight: 600, flexShrink: 0, border: "1px solid #E2E8F0", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }} title="No rewrite suggested for this line">
+                                                                                            No change needed
                                                                                         </span>
                                                                                     )}
                                                                                     {isApplied && (
@@ -2151,6 +2072,7 @@ export default function ResumeFeedbackReport({
                         </div>
                     </div>
                 </div>
+                </>)}
 
                 {/* Loading Analysis Overlay */}
                 {isAnalyzingNewResume && (
@@ -2175,95 +2097,15 @@ export default function ResumeFeedbackReport({
                         }}>
                             <SpinnerGap size={36} color="#2563EB" style={{ animation: "spin 1s linear infinite", margin: "0 auto 1rem", display: "block" }} />
                             <h3 style={{ fontSize: "1.05rem", fontWeight: 600, color: "#0F172A", margin: "0 0 0.5rem" }}>
-                                Analyzing Your Resume
+                                Reading your resume
                             </h3>
                             <p style={{ fontSize: "0.82rem", color: "#64748B", margin: 0, lineHeight: 1.5 }}>
-                                Extracting candidate history with native document parsers and auditing ATS metrics against your target role...
+                                This usually takes about half a minute.
                             </p>
                         </div>
                     </div>
                 )}
 
-                {/* Paste / Edit CV Text Modal */}
-                {isPasteModalOpen && (
-                    <div style={{
-                        position: "fixed",
-                        inset: 0,
-                        background: "rgba(15, 23, 42, 0.5)",
-                        backdropFilter: "blur(3px)",
-                        zIndex: 90,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: "1rem",
-                    }}>
-                        <div style={{
-                            background: "#FFFFFF",
-                            borderRadius: "14px",
-                            padding: "1.5rem",
-                            maxWidth: "640px",
-                            width: "100%",
-                            boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
-                        }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-                                <h3 style={{ fontSize: "1.05rem", fontWeight: 600, margin: 0, color: "#0F172A" }}>
-                                    Paste or Edit Your Resume Content
-                                </h3>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsPasteModalOpen(false)}
-                                    style={{ background: "none", border: "none", cursor: "pointer", color: "#64748B", padding: "0.2rem" }}
-                                >
-                                    <X size={18} />
-                                </button>
-                            </div>
-                            <p style={{ fontSize: "0.78rem", color: "#64748B", margin: "0 0 0.85rem", lineHeight: 1.4 }}>
-                                Paste your actual resume text (from Word, Google Docs, LinkedIn, or text editor). We will extract your real experience, roles, and bullets and generate in-line Google X-Y-Z suggestions.
-                            </p>
-                            <textarea
-                                value={pastedText}
-                                onChange={(e) => setPastedText(e.target.value)}
-                                placeholder="Paste your CV text here..."
-                                rows={14}
-                                style={{
-                                    width: "100%",
-                                    borderRadius: "8px",
-                                    border: "1px solid #CBD5E1",
-                                    padding: "0.75rem",
-                                    fontSize: "0.82rem",
-                                    fontFamily: "monospace",
-                                    lineHeight: 1.5,
-                                    resize: "vertical",
-                                    boxSizing: "border-box",
-                                    outline: "none",
-                                }}
-                            />
-                            {analyzeError && (
-                                <p style={{ fontSize: "0.78rem", color: "#DC2626", margin: "0.5rem 0 0" }}>
-                                    {analyzeError}
-                                </p>
-                            )}
-                            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "1rem" }}>
-                                <button
-                                    type="button"
-                                    className={styles.improverActionSmallBtn}
-                                    onClick={() => setIsPasteModalOpen(false)}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="button"
-                                    className={styles.suggestionApplyBtn}
-                                    onClick={handlePasteSubmit}
-                                    disabled={!pastedText.trim()}
-                                >
-                                    <Sparkle size={14} weight="fill" />
-                                    Load & Audit Document
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </main>
         </div>
     );

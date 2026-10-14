@@ -12,7 +12,9 @@ import {
 } from "@mingcute/react/core-regular";
 import { CheckCircleFilled } from "@mingcute/react/core-filled";
 import { Warning, SpinnerGap, Trash, FileText } from "@phosphor-icons/react";
+import { FeedbackButton } from "../FeedbackButton";
 import styles from "../dashboard.module.css";
+import { MODE_LABEL } from "@/lib/interviewModes";
 import { COACH_AVATAR, RECRUITER_AVATAR } from "./constants";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
 import {
@@ -90,7 +92,7 @@ export function InterviewSetupModal({
 }: InterviewSetupModalProps) {
     const router = useRouter();
 
-    // ── 1. Interview Mode (Mock Interview vs Live Coaching) ──
+    // ── 1. Interview Mode (Real Interview vs Interactive Practice) ──
     const [interviewMode, setInterviewMode] = useState<"live_coaching" | "post_interview">("post_interview");
     // Step 1: resume (optional). Step 2: interview mode.
     const [step, setStep] = useState<1 | 2>(1);
@@ -545,9 +547,12 @@ export function InterviewSetupModal({
                             </span>
                         </div>
                     </div>
-                    <button className={styles.settingsCloseBtn} onClick={onClose} aria-label="Close configuration">
-                        <CloseRegular size={18} />
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", alignSelf: "flex-start" }}>
+                        <FeedbackButton className={styles.settingsCloseBtn} section="Starting an interview" detail={step === 1 ? "Step 1: resume" : "Step 2: mode"} />
+                        <button className={styles.settingsCloseBtn} onClick={onClose} aria-label="Close configuration">
+                            <CloseRegular size={18} />
+                        </button>
+                    </div>
                 </div>
 
                 {/* ── Preparation For Heading ── */}
@@ -589,32 +594,32 @@ export function InterviewSetupModal({
                                     {/* Mode Tabs with Divider & Underline Selected State */}
                                     <div className={styles.modeTabsRow}>
                                         <div
-                                            className={`${styles.modeTabCol} ${interviewMode === "post_interview" ? styles.modeTabColActive : ""}`}
-                                            onClick={() => setInterviewMode("post_interview")}
+                                            className={`${styles.modeTabCol} ${interviewMode === "live_coaching" ? styles.modeTabColActive : ""}`}
+                                            onClick={() => setInterviewMode("live_coaching")}
                                         >
                                             <div className={styles.modeTabHeaderWrap}>
                                                 <span className={styles.modeTabHeader}>
-                                                    Mock Interview
+                                                    {MODE_LABEL.live_coaching}
                                                 </span>
                                             </div>
                                             <p className={styles.modeTabDesc}>
-                                                A realistic interview from start to finish, with no interruptions. You get a full evaluation and score at the end.
+                                                Get feedback after every answer: what worked, what to fix, and a stronger answer to compare with.
                                             </p>
                                         </div>
 
                                         <div className={styles.modeTabDivider} />
 
                                         <div
-                                            className={`${styles.modeTabCol} ${interviewMode === "live_coaching" ? styles.modeTabColActive : ""}`}
-                                            onClick={() => setInterviewMode("live_coaching")}
+                                            className={`${styles.modeTabCol} ${interviewMode === "post_interview" ? styles.modeTabColActive : ""}`}
+                                            onClick={() => setInterviewMode("post_interview")}
                                         >
                                             <div className={styles.modeTabHeaderWrap}>
                                                 <span className={styles.modeTabHeader}>
-                                                    Live Coaching
+                                                    {MODE_LABEL.post_interview}
                                                 </span>
                                             </div>
                                             <p className={styles.modeTabDesc}>
-                                                Get feedback after every answer: what worked, what to fix, and a model answer to compare with.
+                                                A realistic interview from start to finish, with no interruptions. You get a full evaluation and score at the end.
                                             </p>
                                         </div>
                                     </div>
@@ -639,7 +644,7 @@ export function InterviewSetupModal({
                                 <div className={styles.timelineItemTopRow}>
                                     <div className={styles.greetingChipRow}>
                                         <div className={styles.greetingBadge}>
-                                            Add a resume if you'd like questions about your own experience. This is optional
+                                            Add a resume if you&apos;d like questions about your own experience. This is optional
                                         </div>
                                     </div>
                                 </div>

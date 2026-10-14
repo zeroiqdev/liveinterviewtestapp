@@ -1,0 +1,365 @@
+/* The phone's home screen and the menu behind the avatar. Only shown where the
+   dashboard switches to its tabbed mobile view (1024px and below). */
+
+.home {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    background: #FFFFFF;
+}
+
+/* ── The blue band from the desktop dashboard, with the interview types to swipe through ── */
+.band {
+    flex-shrink: 0;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    background: #4782F6;
+    color: #FFFFFF;
+    padding: 18px 0 16px;
+}
+
+.hello {
+    margin: 0 16px;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.85;
+}
+
+.heading {
+    font-family: var(--font-display);
+    font-weight: 700;
+    margin: 4px 16px 14px;
+    font-size: 19px;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+    text-wrap: balance;
+    color: #FFFFFF;
+}
+
+.deck {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding: 0 16px;
+    scroll-snap-type: x mandatory;
+    scroll-padding: 0 16px;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.deck::-webkit-scrollbar {
+    display: none;
+}
+
+.type {
+    flex: 0 0 86%;
+    max-width: 420px;
+    scroll-snap-align: start;
+    background: #FFFFFF;
+    color: #0F172A;
+    border-radius: 18px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: min(300px, 44dvh);
+    box-sizing: border-box;
+}
+
+.typeNumber {
+    font-size: 11px;
+    font-weight: 600;
+    color: #4782F6;
+    font-variant-numeric: tabular-nums;
+}
+
+.typeTitle {
+    margin: 4px 0 0;
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    color: #1E2540;
+}
+
+.typeTagline {
+    font-size: 12px;
+    line-height: 1.4;
+    color: #64748B;
+}
+
+.typeArt {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    place-items: center;
+    padding: 6px 0;
+}
+
+.typeArt img {
+    display: block;
+    max-height: 132px;
+    width: auto;
+    max-width: 78%;
+    object-fit: contain;
+}
+
+.typeStart {
+    height: 42px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    border: 0;
+    background: #4782F6;
+    color: #FFFFFF;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.typeStart:active {
+    background: #2563EB;
+}
+
+.dots {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 12px;
+}
+
+.dots i {
+    width: 6px;
+    height: 6px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.45);
+    transition: width 0.2s;
+}
+
+.dots i.dotOn {
+    width: 18px;
+    background: #FFFFFF;
+}
+
+/* ── Two rows, edge to edge, filling the space from the band down to the tab bar ── */
+.rows {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #FFFFFF;
+}
+
+.row {
+    flex: 1;
+    min-height: 76px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 16px;
+    border: 0;
+    border-radius: 0;
+    background: #FFFFFF;
+    color: #0F172A;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.row + .row {
+    border-top: 1px solid #E2E8F0;
+}
+
+.row:active {
+    background: #F8FAFC;
+}
+
+.rowFace {
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #FFFFFF;
+    box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 3.5px #4782F6;
+}
+
+.rowText {
+    flex: 1;
+    min-width: 0;
+}
+
+.rowText small {
+    display: inline-block;
+    font-size: 10.5px;
+    font-weight: 500;
+    color: #2563EB;
+    background: #EAF1FF;
+    border: 1px solid #C9DBFF;
+    border-radius: 5px;
+    padding: 1px 6px;
+}
+
+.rowText b {
+    display: block;
+    margin-top: 4px;
+    font-size: 13.5px;
+    font-weight: 500;
+    line-height: 1.3;
+}
+
+.rowText > span {
+    display: block;
+    margin-top: 1px;
+    font-size: 12px;
+    color: #64748B;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rowChevron {
+    flex-shrink: 0;
+    color: #94A3B8;
+}
+
+/* ── The menu behind the avatar ── */
+.sheetBack {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    background: rgba(15, 23, 42, 0.55);
+    display: flex;
+    align-items: flex-end;
+}
+
+/* The feedback form opens over the page; the menu steps aside while it's up. */
+.sheetBackHidden {
+    display: none;
+}
+
+.sheet {
+    width: 100%;
+    background: #FFFFFF;
+    border-radius: 18px 18px 0 0;
+    padding: 10px 16px calc(18px + env(safe-area-inset-bottom));
+    animation: sheetUp 0.2s ease-out;
+}
+
+.sheet::before {
+    content: "";
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 4px;
+    background: #CBD5E1;
+    margin: 0 auto 12px;
+}
+
+.sheetMe {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #E2E8F0;
+    margin-bottom: 6px;
+}
+
+.sheetAvatar {
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #4782F6;
+    color: #FFFFFF;
+    font-size: 13px;
+    font-weight: 600;
+    display: grid;
+    place-items: center;
+}
+
+.sheetMe b {
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    color: #0F172A;
+}
+
+.sheetMe span {
+    font-size: 12px;
+    color: #64748B;
+}
+
+.sheetItem {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-align: left;
+    border: 0;
+    background: none;
+    padding: 13px 4px;
+    font-family: inherit;
+    font-size: 14.5px;
+    color: #0F172A;
+    border-radius: 8px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.sheetItem:active {
+    background: #F1F5F9;
+}
+
+.sheetItem svg {
+    flex-shrink: 0;
+    color: #64748B;
+}
+
+.sheetItemGrow {
+    flex: 1;
+}
+
+.sheetItemNote {
+    font-size: 12px;
+    color: #64748B;
+}
+
+.sheetItemNoteNeeded {
+    color: #2563EB;
+    font-weight: 500;
+}
+
+.sheetItemOut,
+.sheetItemOut svg {
+    color: #B91C1C;
+}
+
+@keyframes sheetUp {
+    from {
+        transform: translateY(24px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dots i {
+        transition: none;
+    }
+    .sheet {
+        animation: none;
+    }
+}

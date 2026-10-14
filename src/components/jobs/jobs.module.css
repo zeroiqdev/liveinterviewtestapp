@@ -1,0 +1,28 @@
+/* The jobs page header and job rows; they stack on phones. */
+.header { background: #FFFFFF; border-bottom: 1px solid #E2E8F0; padding: 0 2rem; height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; position: sticky; top: 0; z-index: 100; }
+.headerLeft { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.back { display: inline-flex; align-items: center; gap: 6px; color: #4782F6; background: none; border: none; padding: 0; cursor: pointer; font-size: 13px; font-weight: 600; font-family: inherit; white-space: nowrap; }
+.divider { color: #CBD5E1; }
+.title { font-weight: 700; font-size: 16px; color: #0F172A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.headerRight { display: flex; align-items: center; gap: 0.6rem; flex-shrink: 0; }
+.short { display: none; }
+
+.row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 1rem; padding: 1rem 1.25rem; transition: background 0.15s ease; }
+.rowDivider { border-bottom: 1px solid #F1F5F9; }
+.info { min-width: 0; }
+.jobTitle { font-weight: 400; color: #0F172A; font-size: 0.95rem; margin-bottom: 4px; overflow-wrap: anywhere; }
+.meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.actions { display: flex; align-items: center; gap: 6px; }
+
+@media (max-width: 640px) {
+    .header { padding: 0 1rem; height: 56px; }
+    .headerLeft { gap: 10px; }
+    .divider { display: none; }
+    .title { font-size: 15px; }
+    .long { display: none; }
+    .short { display: inline; }
+
+    .row { grid-template-columns: 40px minmax(0, 1fr); gap: 0.75rem; padding: 0.9rem 1rem; }
+    /* Buttons go under the job, from the text's left edge. */
+    .actions { grid-column: 2; flex-wrap: wrap; }
+}

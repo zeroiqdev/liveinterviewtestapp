@@ -1564,8 +1564,63 @@ export async function scrapeCareerPage(
 
 // ─── Role Classification ──────────────────────────────────────────────
 
-export function classifyRoleFamily(title: string, department?: string): string {
-    const text = ((title || "") + " " + (department || "")).toLowerCase();
+/**
+ * Words a real job description uses for each kind of role. A job whose title
+ * doesn't say what it is can still be filed under a role when its description
+ * talks about that work (two or more of these), which is how a category on a
+ * job board is confirmed instead of being taken on trust.
+ */
+const DESCRIPTION_SIGNALS: Record<string, RegExp[]> = {
+    product_manager: [/product (roadmap|strategy|vision|requirements|discovery|backlog|lifecycle|launch)/, /\broadmap\b/, /user (research|stories|needs)/, /\bprd\b/, /prioriti[sz]/, /product (manager|management|owner)/, /go[- ]to[- ]market/, /a\/b test/],
+    product_designer: [/user (experience|research|flows|journeys)/, /wirefram/, /prototyp/, /\bfigma\b/, /usability/, /design system/, /interaction design/],
+    ui_designer: [/visual design/, /\bfigma\b/, /design system/, /typograph/, /user interface/, /high[- ]fidelity/],
+    product_marketer: [/go[- ]to[- ]market/, /positioning/, /product marketing/, /messaging/, /campaign/, /launch/],
+    data_analyst: [/\bsql\b/, /dashboard/, /data (analysis|analytics|visuali[sz]ation|models?|pipelines?)/, /\b(tableau|power bi|looker)\b/, /statistic/, /python/],
+    frontend_developer: [/\b(react|vue|angular|typescript|javascript)\b/, /front[- ]?end/, /\bcss\b/, /web application/, /mobile app/],
+    backend_engineer: [/software (engineer|development)/, /\bapis?\b/, /\b(java|python|golang|node\.?js|c\+\+|c#|ruby|rust)\b/, /microservices?/, /databases?/, /code review/, /distributed systems/],
+    devops_sre: [/\b(kubernetes|docker|terraform)\b/, /ci\/cd/, /\b(aws|azure|gcp)\b/, /site reliability/, /infrastructure as code/, /monitoring/],
+    business_analyst: [/business (analysis|requirements|process)/, /stakeholders?/, /process (improvement|mapping)/, /requirements gathering/, /operations?/],
+    oil_gas: [/oil (and|&) gas/, /\b(drilling|upstream|downstream|offshore|refinery|petroleum)\b/, /\bhse\b/, /wellsite/],
+};
+/** Job-board categories specific enough to trust without a description to confirm them. */
+const TRUSTED_CATEGORY_FAMILIES = new Set(["sales", "customer_service", "banking_finance", "virtual_assistant"]);
+
+/**
+ * The kind of role a job is. The title decides. When the title alone doesn't
+ * say (so only the job board's category does), the job's own description has
+ * to back the category up: a board's "Product & Project Management" category
+ * also holds production managers and procurement officers, who are not
+ * product managers.
+ */
+export function classifyRoleFamily(title: string, department?: string, description?: string): string {
+    const fromTitle = familyFromText(title || "");
+    if (!department) return fromTitle;
+    const fromCategory = familyFromText(`${title || ""} ${department}`);
+    // "Engineer" in an oil and gas category is a field engineer, not a software one.
+    if (fromTitle === "backend_engineer" && fromCategory === "oil_gas") return "oil_gas";
+    if (fromTitle !== "general") return fromTitle;
+    return descriptionSupportsFamily(fromCategory, description) ? fromCategory : "general";
+}
+
+/** Whether a job filed under `family` only by its category belongs there. */
+export function descriptionSupportsFamily(family: string, description?: string): boolean {
+    if (family === "general") return true;
+    if (TRUSTED_CATEGORY_FAMILIES.has(family)) return true;
+    const signals = DESCRIPTION_SIGNALS[family];
+    const text = (description || "").toLowerCase();
+    // No description to check against: a category alone isn't enough.
+    if (!signals || text.length < 200) return false;
+    return signals.filter((signal) => signal.test(text)).length >= 2;
+}
+
+function familyFromText(input: string): string {
+    const text = input.toLowerCase();
+
+    // Program and project managers run delivery in any field: the field named
+    // in their title ("…, Infrastructure") is not the job they do.
+    if (/\b(program|programme|project) (manager|management|coordinator|lead|director|officer)\b/.test(text) || /\bscrum master\b/.test(text)) {
+        return "general";
+    }
 
     // 0. Recruiter & HR roles must NEVER be matched as designers or engineers
     if (
@@ -1765,7 +1820,6 @@ export function classifyRoleFamily(title: string, department?: string): string {
         (text.includes("product manager") ||
         text.includes("product management") ||
         text.includes("product lead") ||
-        text.includes("program manager") ||
         text.includes("product owner") ||
         text.includes("product ops") ||
         text.includes("technical product manager") ||
@@ -1773,10 +1827,9 @@ export function classifyRoleFamily(title: string, department?: string): string {
         text.includes("director of product") ||
         text.includes("head of product") ||
         text.includes("vp of product") ||
-        text.includes("cpo") ||
-        text.includes("scrum master") ||
-        text.includes("project manager"))
+        /\bcpo\b/.test(text))
     ) {
+        // Program, project and production managers are different jobs.
         return "product_manager";
     }
 

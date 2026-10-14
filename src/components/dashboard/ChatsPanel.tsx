@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { X } from "@phosphor-icons/react";
 import styles from "../dashboard.module.css";
 import { buildCharactersForUser, type ResumeScanFeedbackItem } from "./constants";
 import { DmRow } from "./DmRow";
+import type { TipAction } from "@/lib/weeklyTips";
 import FeedbackReport from "../FeedbackReport";
 import type { FeedbackReportData } from "@/app/api/feedback/generate/route";
 import type { JobItem } from "@/app/api/jobs/route";
@@ -15,6 +17,8 @@ interface ChatsPanelProps {
     onPractice?: () => void;
     onOpenJob?: (job: JobItem) => void;
     onOpenFeedback?: () => void;
+    /** Told how many messages are unread and what this week's tip is, for the phone's Home and tab bar. */
+    onSummary?: (summary: { unread: number; tip: { topic: string; title: string } | null }) => void;
 }
 
 export function ChatsPanel({
@@ -24,6 +28,7 @@ export function ChatsPanel({
     onPractice,
     onOpenJob,
     onOpenFeedback,
+    onSummary,
 }: ChatsPanelProps) {
     const router = useRouter();
     const [openedDmId, setOpenedDmId] = useState<string | null>(() => {
@@ -44,7 +49,7 @@ export function ChatsPanel({
         return null;
     });
     const [showRoleBubble, setShowRoleBubble] = useState(true);
-    const [lastFeedback] = useState<FeedbackReportData | null>(() => {
+    const [lastFeedback, setLastFeedback] = useState<FeedbackReportData | null>(() => {
         if (typeof window === "undefined") return null;
         try {
             const raw = localStorage.getItem("useladder_last_feedback");
@@ -150,6 +155,8 @@ export function ChatsPanel({
 
     const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
+    const handleOpenJobs = useCallback(() => router.push("/jobs"), [router]);
+
     const handleOpenFeedback = useCallback(() => {
         setIsFeedbackModalOpen(true);
         if (onOpenFeedback) {
@@ -187,6 +194,44 @@ export function ChatsPanel({
         router.push("/resume-feedback");
     }, [router]);
 
+    // Their latest report lives on the server: on a new device, or after this
+    // browser's saved data is cleared, it is fetched instead of being lost.
+    useEffect(() => {
+        if (lastFeedback) return;
+        let cancelled = false;
+        fetch("/api/feedback/report", { cache: "no-store" })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (cancelled || !data?.report || typeof data.report.overallScore !== "number") return;
+                setLastFeedback(data.report);
+                try {
+                    localStorage.setItem("useladder_last_feedback", JSON.stringify(data.report));
+                    if (data.sessionId && !localStorage.getItem("useladder_last_session_id")) localStorage.setItem("useladder_last_session_id", data.sessionId);
+                } catch {
+                    // Saved data is full or blocked: the report still shows.
+                }
+            })
+            .catch(() => undefined);
+        return () => {
+            cancelled = true;
+        };
+    }, [lastFeedback]);
+
+    // This week's and last week's approved tips for this person's kind of role.
+    const [weeklyTips, setWeeklyTips] = useState<Array<{ week: number; topic: string; title: string; body: string; tryThis: string; action?: TipAction }> | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        fetch("/api/weekly-tips")
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (!cancelled && Array.isArray(data?.tips)) setWeeklyTips(data.tips);
+            })
+            .catch(() => undefined);
+        return () => {
+            cancelled = true;
+        };
+    }, [userRoleFamily]);
+
     const coachProfile = useMemo(() => {
         const characters = buildCharactersForUser({
             userRole,
@@ -196,8 +241,10 @@ export function ChatsPanel({
             lastResumeFeedback,
             allResumeFeedbacks,
             hasAdminTips,
+            weeklyTips,
             onPractice,
             onOpenJob,
+            onOpenJobs: handleOpenJobs,
             onOpenFeedback: handleOpenFeedback,
             onOpenResumeFeedback: handleOpenResumeFeedback,
         });
@@ -210,8 +257,10 @@ export function ChatsPanel({
         lastResumeFeedback,
         allResumeFeedbacks,
         hasAdminTips,
+        weeklyTips,
         onPractice,
         onOpenJob,
+        handleOpenJobs,
         handleOpenFeedback,
         handleOpenResumeFeedback,
     ]);
@@ -226,6 +275,33 @@ export function ChatsPanel({
         }
     });
 
+    // What they've opened is kept on their account, so a message read on one
+    // device isn't unread again on another. The browser's copy shows it at once.
+    useEffect(() => {
+        let cancelled = false;
+        fetch("/api/coach/read", { cache: "no-store" })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (cancelled || !Array.isArray(data?.read)) return;
+                setReadDmIds((prev) => {
+                    const merged = new Set([...prev, ...(data.read as string[])]);
+                    try {
+                        localStorage.setItem("useladder_read_dms", JSON.stringify(Array.from(merged)));
+                    } catch {}
+                    return merged;
+                });
+            })
+            .catch(() => undefined);
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    const coachItemsRef = useRef(coachProfile.items);
+    useEffect(() => {
+        coachItemsRef.current = coachProfile.items;
+    }, [coachProfile.items]);
+
     const handleToggleDm = useCallback((id: string) => {
         setOpenedDmId((prev) => (prev === id ? null : id));
         setReadDmIds((prev) => {
@@ -235,11 +311,20 @@ export function ChatsPanel({
             try {
                 localStorage.setItem("useladder_read_dms", JSON.stringify(Array.from(updated)));
             } catch {}
+            const label = coachItemsRef.current.find((item) => item.id === id)?.badgeLabel;
+            void fetch("/api/coach/read", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, label }) }).catch(() => undefined);
             return updated;
         });
     }, []);
 
     const dynamicUnreadCount = coachProfile.items.filter((item) => !readDmIds.has(item.id)).length;
+
+    const weeklyTipItem = coachProfile.items.find((item) => item.id.startsWith("coach-tip-week-"));
+    const tipTopic = weeklyTipItem?.badgeLabel?.replace(/^Weekly tip · /, "") ?? "";
+    const tipTitle = weeklyTipItem?.messages[0] ?? "";
+    useEffect(() => {
+        onSummary?.({ unread: dynamicUnreadCount, tip: tipTitle ? { topic: tipTopic, title: tipTitle } : null });
+    }, [onSummary, dynamicUnreadCount, tipTopic, tipTitle]);
 
     // Collapsed: show 5 at a glance, rest via scroll (like recruiter jobPickList). Open: single DM takes entire section.
     const visibleCoachItems = useMemo(() => {
@@ -323,13 +408,16 @@ export function ChatsPanel({
             </div>
 
             {/* ── Feedback Report Modal (Opened via Coach Message CTA) ── */}
-            {isFeedbackModalOpen && (
-                <FeedbackReport
-                    isModal
-                    onClose={() => setIsFeedbackModalOpen(false)}
-                    initialReportData={lastFeedback}
-                />
-            )}
+            {/* Mounted on the page itself: inside this panel it sat underneath the jobs panel beside it. */}
+            {isFeedbackModalOpen &&
+                createPortal(
+                    <FeedbackReport
+                        isModal
+                        onClose={() => setIsFeedbackModalOpen(false)}
+                        initialReportData={lastFeedback}
+                    />,
+                    document.body
+                )}
         </div>
     );
 }

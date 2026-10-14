@@ -2,6 +2,7 @@ import React from "react";
 import { ArrowSquareOut, FileText, Play } from "@phosphor-icons/react";
 import type { JobItem } from "@/app/api/jobs/route";
 import styles from "@/components/dashboard.module.css";
+import css from "./jobs.module.css";
 import { CompanyLogo } from "./CompanyLogo";
 import { cleanJobTitle } from "../dashboard/utils";
 
@@ -14,26 +15,14 @@ interface JobRowProps {
 
 function JobRowComponent({ job, isLast, onOpenDesc, onPractice }: JobRowProps) {
     return (
-        <div
-            style={{
-                display: "grid",
-                gridTemplateColumns: "40px minmax(0, 1fr) auto auto",
-                alignItems: "center",
-                gap: "1rem",
-                padding: "1rem 1.25rem",
-                borderBottom: isLast ? "none" : "1px solid #F1F5F9",
-                transition: "background 0.15s ease",
-            }}
-        >
+        <div className={`${css.row} ${isLast ? "" : css.rowDivider}`}>
             <div className={styles.lessonCompanyLogoWrap} style={{ width: "40px", height: "40px" }}>
                 <CompanyLogo company={job.company} logoUrl={job.companyLogo} size={40} />
             </div>
 
-            <div>
-                <div style={{ fontWeight: 400, color: "#0F172A", fontSize: "0.95rem", marginBottom: "4px" }}>
-                    {cleanJobTitle(job.title)}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            <div className={css.info}>
+                <div className={css.jobTitle}>{cleanJobTitle(job.title)}</div>
+                <div className={css.meta}>
                     <span style={{ fontSize: "12px", fontWeight: 600, color: "#0F172A" }}>{job.company}</span>
                     <span className={styles.jobLocationTag}>
                         {job.location}
@@ -47,15 +36,16 @@ function JobRowComponent({ job, isLast, onOpenDesc, onPractice }: JobRowProps) {
                 </div>
             </div>
 
+            <div className={css.actions}>
             <button
                 type="button"
                 className={styles.jobDescBtn}
                 onClick={() => onOpenDesc(job)}
+                title="Job description"
             >
-                <FileText size={13} /> Job Description
+                <FileText size={14} weight="regular" /> <span>View details</span>
             </button>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <button
                     type="button"
                     className={styles.roleSimulateBtn}

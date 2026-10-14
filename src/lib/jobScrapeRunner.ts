@@ -23,6 +23,7 @@ import {
     updateScrapedJobDetails,
 } from "@/lib/jobStorage";
 import { companyKey, resolveCompanyLogos } from "@/lib/companyLogos";
+import { fileWaitingJobs } from "@/lib/jobRoleClassifier";
 
 const MAX_POSTING_AGE_DAYS = 14;
 /** Sources scraped at the same time. */
@@ -121,7 +122,7 @@ async function scrapeSource(source: ScraperSource, existingUrls: Map<string, str
     for (const scraped of candidates) {
         const jobUrl = scraped.url.toLowerCase();
         if (existingUrls.has(jobUrl)) continue;
-        const roleFamily = classifyRoleFamily(scraped.title, scraped.department);
+        const roleFamily = classifyRoleFamily(scraped.title, scraped.department, scraped.fullDescription);
         const company = scraped.company || source.companyName;
         newJobs.push({
             id: `scrape_${source.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -221,6 +222,10 @@ export async function runScrape(opts: { sourceId?: string | null; budgetMs: numb
         });
         scraped += batch.length;
     }
+
+    // Jobs whose title didn't say what they are get filed by their description.
+    // A few each run; anything left waits for the next one.
+    await fileWaitingJobs({ limit: 180, budgetMs: 45_000 }).catch((err) => console.warn("[scrape] filing jobs by description failed:", err));
 
     return {
         sourcesDue: due.length,

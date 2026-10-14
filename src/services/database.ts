@@ -4,7 +4,8 @@
  * It uses Next.js Server Actions to securely interact with MongoDB.
  */
 
-import { getUserStatsAction, updateStatsAction } from "@/app/actions/stats";
+import { getUserStatsAction } from "@/app/actions/stats";
+import type { PrepScore } from "@/lib/prepScore";
 
 export interface UserStats {
     interviewsCompleted: number;
@@ -14,6 +15,8 @@ export interface UserStats {
         name: string;
         value: number;
     }[];
+    /** Worked out on the server from recent interviews (see lib/prepScore). */
+    prep?: PrepScore;
 }
 
 class DatabaseService {
@@ -32,18 +35,6 @@ class DatabaseService {
                 totalPracticeTime: 0,
                 skills: []
             };
-        }
-    }
-
-    /**
-     * Logic to process a new interview result and update the global stats in MongoDB.
-     */
-    async recordInterviewSession(sessionScore: number, durationMinutes: number) {
-        try {
-            return await updateStatsAction(sessionScore, durationMinutes);
-        } catch (error) {
-            console.error("Failed to update MongoDB stats:", error);
-            return null;
         }
     }
 }

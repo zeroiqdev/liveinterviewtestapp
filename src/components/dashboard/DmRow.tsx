@@ -1,5 +1,5 @@
 import React from "react";
-import { BookmarkSimple, CaretDown, CaretUp } from "@phosphor-icons/react";
+import { CaretDown, CaretUp } from "@phosphor-icons/react";
 import styles from "../dashboard.module.css";
 import type { ChatDmItem } from "./constants";
 
@@ -106,9 +106,6 @@ function DmRowComponent({ dm, isOpen, isUnread, onToggle, onPractice }: DmRowPro
                                     </button>
                                 );
                             })}
-                            <button type="button" className={styles.conversationBtnIcon} title="Bookmark" aria-label="Bookmark">
-                                <BookmarkSimple size={16} weight="bold" />
-                            </button>
                         </div>
                     )}
                 </div>

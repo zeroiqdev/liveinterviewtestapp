@@ -197,9 +197,9 @@
 }
 
 .preInterviewTitle {
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-display);
+    font-weight: 700;
     font-size: 2.1rem;
-    font-weight: 400;
     color: #0F172A;
     letter-spacing: -0.025em;
     margin: 0;
@@ -743,9 +743,9 @@
 
 /* ── Video Area ── */
 .videoCard {
-    background: #141414;
-    border: 1px solid #141414;
-    border-radius: 0;
+    background: #0E121A;
+    border: 1px solid #0E121A;
+    border-radius: 16px;
     position: relative;
     overflow: hidden;
     display: flex;
@@ -861,52 +861,74 @@
 }
 
 /* ── Video Controls ── */
+/* Call controls: one dark glass bar, centred under the interviewer. */
 .videoControls {
+    position: absolute;
+    left: 50%;
+    bottom: 1rem;
+    transform: translateX(-50%);
+    z-index: 10;
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: 0.5rem;
-    padding: 1rem;
-    background: transparent;
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 10;
+    padding: 0.45rem;
+    border-radius: 9999px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 }
 
 .controlBtn {
-    width: 44px;
-    height: 44px;
+    width: 46px;
+    height: 46px;
     border-radius: 50%;
-    border: none;
+    border: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: all 0.2s ease;
-    color: #ffffff;
-    background: rgba(255, 255, 255, 0.15);
-    backdrop-filter: blur(10px);
+    color: #FFFFFF;
+    background: rgba(255, 255, 255, 0.1);
+    transition: background 0.15s ease, transform 0.15s ease;
 }
 
 .controlBtn:hover {
-    background: rgba(255, 255, 255, 0.25);
-    transform: scale(1.1);
+    background: rgba(255, 255, 255, 0.2);
 }
 
+.controlBtn:active {
+    transform: scale(0.95);
+}
+
+.controlBtn:focus-visible {
+    outline: 2px solid #6B9BFA;
+    outline-offset: 2px;
+}
+
+.controlBtn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+/* Hang up: the one red, wider button. */
 .controlBtnEnd {
+    width: 60px;
+    border-radius: 9999px;
     background: #EF4444;
-    width: 52px;
-    height: 52px;
-}
-
-.controlBtnActive {
-    background: #EF4444 !important;
+    border-color: #EF4444;
 }
 
 .controlBtnEnd:hover {
     background: #DC2626;
+}
+
+/* Muted or camera off: white disc, red icon, so the state reads at a glance. */
+.controlBtnActive {
+    background: #FFFFFF !important;
+    color: #DC2626;
+    border-color: #FFFFFF;
 }
 
 /* ── Right Column ── */
@@ -1190,22 +1212,29 @@
     box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
 }
 
+/* "Done speaking" and "Try again", in the white question card. */
 .quickSendBtn {
-    background: rgba(255, 255, 255, 0.08);
-    color: #e2e8f0;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    padding: 0.2rem 0.55rem;
+    background: #4782F6;
+    color: #ffffff;
+    border: 1px solid #4782F6;
+    padding: 0.45rem 0.9rem;
     border-radius: 6px;
-    font-size: 0.75rem;
+    font-family: inherit;
+    font-size: 0.8rem;
     font-weight: 500;
     cursor: pointer;
     margin-left: 0.25rem;
-    transition: all 0.15s ease;
+    transition: background 0.15s ease;
 }
 
 .quickSendBtn:hover {
-    background: rgba(255, 255, 255, 0.18);
-    color: #ffffff;
+    background: #3B71E8;
+    border-color: #3B71E8;
+}
+
+.quickSendBtn:disabled {
+    opacity: 0.6;
+    cursor: default;
 }
 
 .pulsingIcon {
@@ -1243,6 +1272,9 @@
 }
 
 /* ── In-call tiles (Meet-style): interviewer stage + candidate self-view ── */
+/* The interviewer's tile: a lit stage, their initials on a brand-blue disc,
+   and a name plate that shows when they're talking. Shared by the full
+   interview and the try-before-sign-up questions. */
 .speakerStage {
     position: absolute;
     inset: 0;
@@ -1250,35 +1282,45 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1.25rem;
-    background: radial-gradient(circle at 50% 45%, #1F2937 0%, #141414 70%);
+    gap: 1.1rem;
+    background:
+        radial-gradient(circle at 50% 42%, rgba(71, 130, 246, 0.22) 0%, rgba(71, 130, 246, 0) 38%),
+        radial-gradient(circle at 50% 50%, #1B2333 0%, #0E121A 72%);
 }
 
 .speakerAvatar {
     position: relative;
-    width: clamp(96px, 18vw, 148px);
-    height: clamp(96px, 18vw, 148px);
+    width: clamp(104px, 17vw, 152px);
+    height: clamp(104px, 17vw, 152px);
     border-radius: 9999px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #4782F6;
-    box-shadow: 0 0 0 0 rgba(71, 130, 246, 0);
-    transition: box-shadow 0.25s ease;
+    background: linear-gradient(150deg, #6B9BFA 0%, #4782F6 48%, #2F64DB 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.28),
+        0 0 0 6px rgba(255, 255, 255, 0.04),
+        0 18px 40px rgba(0, 0, 0, 0.45);
+    transition: box-shadow 0.3s ease;
 }
 
 .speakerAvatarSpeaking {
-    box-shadow: 0 0 0 4px rgba(71, 130, 246, 0.55);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.28),
+        0 0 0 6px rgba(71, 130, 246, 0.35),
+        0 0 48px rgba(71, 130, 246, 0.45),
+        0 18px 40px rgba(0, 0, 0, 0.45);
 }
 
 .speakerInitials {
     position: relative;
     z-index: 1;
     font-family: 'Inter', sans-serif;
-    font-size: clamp(2.25rem, 5vw, 3.5rem);
+    font-size: clamp(2.4rem, 5vw, 3.6rem);
     font-weight: 500;
     color: #FFFFFF;
-    letter-spacing: 0.02em;
+    letter-spacing: -0.01em;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
     user-select: none;
 }
 
@@ -1286,29 +1328,104 @@
     position: absolute;
     inset: 0;
     border-radius: 9999px;
-    border: 2px solid rgba(71, 130, 246, 0.6);
+    border: 2px solid rgba(107, 155, 250, 0.7);
     opacity: 0;
     pointer-events: none;
 }
 
 .speakerAvatarSpeaking .speakerRing {
-    animation: speakerRipple 1.6s ease-out infinite;
+    animation: speakerRipple 1.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
 
 .speakerAvatarSpeaking .speakerRingDelayed {
-    animation-delay: 0.8s;
+    animation-delay: 0.9s;
 }
 
+/* Name plate: talking bars (or a still mic), the name, and their role. */
 .speakerName {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.4rem 0.85rem 0.4rem 0.6rem;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
     font-family: 'Inter', sans-serif;
-    font-size: 0.9rem;
+    font-size: 0.86rem;
+    color: #FFFFFF;
+}
+
+.speakerNameText {
+    font-weight: 500;
+}
+
+.speakerRole {
+    color: rgba(255, 255, 255, 0.55);
     font-weight: 400;
-    color: rgba(255, 255, 255, 0.85);
+}
+
+.speakerRole::before {
+    content: "·";
+    margin-right: 0.45rem;
+    color: rgba(255, 255, 255, 0.35);
+}
+
+.speakingBars {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    width: 22px;
+    height: 22px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.speakingBars i {
+    display: block;
+    width: 3px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.55);
+    transition: background 0.2s ease;
+}
+
+.speakingBarsOn {
+    background: #4782F6;
+}
+
+.speakingBarsOn i {
+    background: #FFFFFF;
+    animation: speakingBar 0.9s ease-in-out infinite;
+}
+
+.speakingBarsOn i:nth-child(2) {
+    animation-delay: 0.15s;
+}
+
+.speakingBarsOn i:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+@keyframes speakingBar {
+    0%, 100% { height: 4px; }
+    50% { height: 12px; }
 }
 
 @keyframes speakerRipple {
-    0% { transform: scale(1); opacity: 0.85; }
-    100% { transform: scale(1.6); opacity: 0; }
+    0% { transform: scale(1); opacity: 0.8; }
+    100% { transform: scale(1.55); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .speakerAvatarSpeaking .speakerRing,
+    .speakingBarsOn i {
+        animation: none;
+    }
+    .speakingBarsOn i {
+        height: 10px;
+    }
 }
 
 .selfTile {
@@ -1317,11 +1434,11 @@
     bottom: 5.25rem;
     width: clamp(132px, 22%, 220px);
     aspect-ratio: 16 / 10;
-    border-radius: 8px;
+    border-radius: 12px;
     overflow: hidden;
     background: #1F2937;
-    border: 2px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
     z-index: 5;
     transition: border-color 0.2s ease;
 }
@@ -1437,8 +1554,9 @@
 }
 
 .joiningTitle {
+    font-family: var(--font-display);
     font-size: 1.35rem;
-    font-weight: 500;
+    font-weight: 700;
     color: #0F172A;
     letter-spacing: -0.02em;
     margin: 0 0 0.35rem;
@@ -2775,4 +2893,193 @@
         grid-template-rows: minmax(0, 1fr);
     }
     .videoCard { height: 100%; }
+}
+
+
+/* ── Live coaching: the coach's note on each answer ──
+   The resume editor's suggestion card (feedback.module.css .suggestion*):
+   a small category line, a bold one-line title, a grey quoted snippet, the
+   green "try this" box, and Implement-style buttons. No decorative icons. */
+.coachCard {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0.9rem 1rem;
+    background: #FFFFFF;
+    border: 1px solid #E4E4E7;
+    border-radius: 10px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #18181B;
+    animation: inlineCardEnter 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.coachCardTop {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.4rem;
+}
+
+.coachCardCategory {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #475569;
+}
+
+.coachCardScore {
+    font-size: 0.7rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.coachRatingStrong { color: #15803D; }
+.coachRatingAverage { color: #B45309; }
+.coachRatingWork { color: #B91C1C; }
+
+.coachCardTitle {
+    margin: 0 0 0.55rem;
+    font-size: 0.84rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: #18181B;
+}
+
+.coachCardLabel {
+    display: block;
+    margin-bottom: 2px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #475569;
+}
+
+.coachCardSnippet {
+    margin-bottom: 0.55rem;
+    padding: 0.3rem 0.55rem;
+    background: #F1F5F9;
+    border-left: 2px solid #64748B;
+    border-radius: 0 4px 4px 0;
+    font-size: 0.73rem;
+    line-height: 1.45;
+    color: #334155;
+}
+
+.coachCardSnippet ul {
+    margin: 0;
+    padding-left: 1rem;
+}
+
+.coachCardProposed {
+    margin-bottom: 0.6rem;
+    padding: 0.45rem 0.65rem;
+    background: #F0FDF4;
+    border: 1px solid #DCFCE7;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: #166534;
+}
+
+.coachCardActions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.15rem;
+}
+
+.coachCardHint {
+    font-size: 0.74rem;
+    color: #64748B;
+}
+
+.coachCardButtons {
+    display: flex;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
+/* The editor's "Implement" button. */
+.coachCardPrimary {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.75rem;
+    background: linear-gradient(135deg, #4782F6 0%, #3B71E8 100%);
+    color: #FFFFFF;
+    border: none;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(71, 130, 246, 0.22);
+    transition: all 0.15s ease;
+}
+
+.coachCardPrimary:hover {
+    filter: brightness(1.05);
+}
+
+/* The editor's "Undo" button. */
+.coachCardSecondary {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.6rem;
+    background: #FFFFFF;
+    color: #52525B;
+    border: 1px solid #E4E4E7;
+    border-radius: 5px;
+    font-family: inherit;
+    font-size: 0.74rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.coachCardSecondary:hover {
+    background: #F8FAFC;
+}
+
+/* While the coach reads: one quiet bar, no spinner. */
+.coachCardLoading {
+    height: 4px;
+    border-radius: 4px;
+    background: #EAF1FF;
+    overflow: hidden;
+}
+
+.coachCardLoading span {
+    display: block;
+    width: 40%;
+    height: 100%;
+    border-radius: 4px;
+    background: #4782F6;
+    animation: coachLoading 1.2s ease-in-out infinite;
+}
+
+@keyframes coachLoading {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(250%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .coachCardLoading span { animation: none; width: 60%; }
+}
+
+/* The answer-structure scores, as a card in the same style. */
+.starScorePanel {
+    border: 1px solid #E4E4E7 !important;
+    border-radius: 10px;
+    background: #FFFFFF !important;
+    padding: 1rem 1.25rem 1.1rem !important;
+}
+
+.starOverall {
+    font-family: var(--font-display);
+    color: #1E2540 !important;
+    font-size: 1.4rem !important;
 }

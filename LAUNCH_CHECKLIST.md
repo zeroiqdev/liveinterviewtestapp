@@ -60,3 +60,9 @@ Written 10 October 2026. "Known" means it was seen while working on the code; "C
 ## 3. Housekeeping
 - [ ] About 290 unused logo files are left in storage from the first logo pass.
 - [ ] Existing users have old experience values ("professional", "internship"). New sign-ups store years. Nothing breaks, but old users are treated as mid-level.
+
+## 4. Backlog
+
+### Stop interviews repeating themselves
+Done 14 October 2026: each interview now leaves out the bank questions asked in that person's last five interviews (falling back only when a section runs out), tells the question picker what they covered before, and writes a different opening question when they've heard the usual one.
+- [ ] Top up the thin sections with newly written questions, approved in admin first. Some sections have 1–3 questions (oil and gas "Nigeria context" has one); DevOps and data roles have 7–9 per section. Heavy users of those roles will still see repeats after five interviews. The question generator for this exists (`src/engine/questionSynthesizer.ts`) but interviews don't use it.

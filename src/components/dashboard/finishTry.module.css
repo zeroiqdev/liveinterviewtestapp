@@ -1,0 +1,83 @@
+/* The "finish your interview" reminder: a white row in the dashboard's card style, coach on the left, one blue button. */
+.banner {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    margin: 1rem 0;
+    padding: 0.9rem 1rem 0.9rem 0.9rem;
+    background: #FFFFFF;
+    border: 1px solid #C9DBFF;
+    border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    font-family: 'Inter', sans-serif;
+}
+
+.face {
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: #FFFFFF;
+    box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 3.5px #4782F6;
+}
+
+.text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.text b {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #0F172A;
+    overflow-wrap: anywhere;
+}
+
+.text span {
+    font-size: 0.84rem;
+    line-height: 1.45;
+    color: #64748B;
+}
+
+.cta {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    height: 40px;
+    padding: 0 1.1rem;
+    border-radius: 8px;
+    background: #4782F6;
+    color: #FFFFFF;
+    font-size: 0.88rem;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.cta:hover {
+    background: #3B71E8;
+}
+
+/* Phone home screen: edge to edge, the button under the text. */
+.compact {
+    margin: 0;
+    border-radius: 0;
+    border-width: 0 0 1px;
+    border-color: #E2E8F0;
+    box-shadow: none;
+    padding: 14px 16px;
+    flex-wrap: wrap;
+}
+
+.compact .text b { font-size: 13.5px; }
+.compact .text span { font-size: 12px; }
+.compact .cta { width: 100%; justify-content: center; height: 38px; font-size: 13px; }
+
+@media (max-width: 640px) {
+    .banner { flex-wrap: wrap; }
+    .cta { width: 100%; justify-content: center; }
+}

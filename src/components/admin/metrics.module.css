@@ -1,0 +1,28 @@
+/* Admin metrics: the admin's white cards and Parabole numbers. */
+.wrap { display: flex; flex-direction: column; gap: 1.25rem; }
+.tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1rem; }
+.tile { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 6px; padding: 1.1rem 1.15rem; display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.tileTitle { font-size: 0.8rem; font-weight: 500; color: #334155; }
+.tileValue { font-family: var(--font-display); font-size: 30px; font-weight: 700; color: #0F172A; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tileDetail { font-size: 0.76rem; color: #64748B; }
+.tileHelp { margin-top: 0.35rem; padding-top: 0.5rem; border-top: 1px solid #F1F5F9; font-size: 0.74rem; line-height: 1.45; color: #94A3B8; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+.row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.card { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 6px; padding: 1.1rem 1.2rem; min-width: 0; }
+.cardTitle { margin: 0 0 0.85rem; font-size: 0.9rem; font-weight: 600; color: #0F172A; }
+.money { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.money div, .funnel li { display: flex; flex-direction: column; gap: 0.15rem; }
+.money b, .funnel b { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: #0F172A; font-variant-numeric: tabular-nums; }
+.money span, .funnel span { font-size: 0.78rem; color: #64748B; }
+.funnel { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.note { margin: 0.85rem 0 0; font-size: 0.74rem; color: #94A3B8; }
+.num { text-align: right !important; font-variant-numeric: tabular-nums; }
+.bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.55rem; }
+.bars li { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; align-items: center; gap: 0.6rem; font-size: 0.8rem; }
+.barLabel { color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.barTrack { height: 8px; border-radius: 4px; background: #EAF1FF; overflow: hidden; }
+.barTrack i { display: block; height: 100%; border-radius: 4px; background: #4782F6; }
+.barCount { color: #0F172A; font-variant-numeric: tabular-nums; min-width: 2ch; text-align: right; }
+.empty { margin: 0; font-size: 0.85rem; color: #64748B; }
+@media (max-width: 1100px) { .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } .row3 { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 760px) { .tiles, .row { grid-template-columns: minmax(0, 1fr); } }

@@ -99,3 +99,34 @@ describe("duplicate jobs in lists", () => {
         assert.equal(collapseDuplicateJobs([job("Product Manager", "Stripe", "Remote"), job("Product Manager", "Vercel", "Remote"), job("Senior Product Manager", "Stripe", "Remote")]).length, 3);
     });
 });
+
+describe("which role a job is filed under", () => {
+    it("goes by the title", async () => {
+        const { classifyRoleFamily } = await import("../src/services/careerPageScraper");
+        assert.equal(classifyRoleFamily("Senior Product Manager, Payments"), "product_manager");
+        assert.equal(classifyRoleFamily("Head of Product"), "product_manager");
+        assert.equal(classifyRoleFamily("Customer Service Representative"), "customer_service");
+    });
+
+    it("doesn't file production, project or program managers as product managers", async () => {
+        const { classifyRoleFamily } = await import("../src/services/careerPageScraper");
+        for (const title of ["Production Manager", "Project Manager", "Technical Program Manager, Infrastructure", "Procurement Officer", "Project Coordinator", "Scrum Master"]) {
+            assert.notEqual(classifyRoleFamily(title, "Product Management"), "product_manager", title);
+            assert.notEqual(classifyRoleFamily(title), "product_manager", title);
+        }
+    });
+
+    it("lets a job board's category count only when the description backs it up", async () => {
+        const { classifyRoleFamily } = await import("../src/services/careerPageScraper");
+        const productWork =
+            "You will own the product roadmap for our lending app, run user research with customers, write clear product requirements and prioritise the backlog with engineering. ".repeat(2);
+        const factoryWork =
+            "You will supervise the production line, plan shift schedules, maintain machinery, enforce safety rules on the factory floor and report daily output to the plant manager. ".repeat(2);
+        assert.equal(classifyRoleFamily("Growth Lead", "Product Management", productWork), "product_manager");
+        assert.equal(classifyRoleFamily("Operations Lead", "Product Management", factoryWork), "general");
+        // No description to check: the category alone isn't enough...
+        assert.equal(classifyRoleFamily("Operations Lead", "Product Management"), "general");
+        // ...except for categories that are specific already.
+        assert.equal(classifyRoleFamily("Team Member", "Customer Service & Support"), "customer_service");
+    });
+});

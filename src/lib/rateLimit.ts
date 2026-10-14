@@ -104,4 +104,10 @@ export const LIMITS = {
     realtime: { bucket: "realtime", limit: 30, windowSeconds: 60 * 60, action: "voice connections" },
     // Reply drafts made while the candidate talks: several per answer.
     draft: { bucket: "draft", limit: 600, windowSeconds: 60 * 60, action: "draft requests" },
+    feedback: { bucket: "feedback", limit: 20, windowSeconds: 60 * 60, action: "feedback messages" },
+    checkout: { bucket: "checkout", limit: 15, windowSeconds: 60 * 60, action: "payment attempts" },
+    // Before sign-up, by network address: each try costs model calls and new audio.
+    tryStart: { bucket: "try-start", limit: 4, windowSeconds: 24 * 60 * 60, action: "practice tries today" },
+    tryAnswer: { bucket: "try-answer", limit: 20, windowSeconds: 60 * 60, action: "answers" },
+    roleRequest: { bucket: "role-request", limit: 5, windowSeconds: 60 * 60, action: "role requests" },
 } satisfies Record<string, RateRule>;

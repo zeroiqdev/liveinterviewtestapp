@@ -312,9 +312,9 @@
 }
 
 .heroHeading {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: var(--font-display);
+    font-weight: 700;
     font-size: 2.25rem;
-    font-weight: 600;
     color: #ffffff;
     line-height: 1.25;
     letter-spacing: -0.02em;
@@ -3107,9 +3107,9 @@
 }
 
 .settingsModalTitle {
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-display);
+    font-weight: 700;
     font-size: 1.45rem;
-    font-weight: 500;
     color: #1E2540;
     letter-spacing: -0.02em;
     margin: 0;
@@ -5097,4 +5097,268 @@
     width: 28px;
     height: 1px;
     background: #CBD5E1;
+}
+
+/* Jobs list: the quieter partner to the blue Practice button beside it
+   (same height, radius and type; white with a blue outline). */
+.jobDescBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #FFFFFF;
+    color: #2563EB;
+    border: 1px solid #C9DBFF;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-weight: 400;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    flex-shrink: 0;
+    white-space: nowrap;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.jobDescBtn:hover {
+    background: #EEF4FF;
+    border-color: #4782F6;
+}
+
+@media (max-width: 640px) {
+    /* The row is tight on phones: the icon alone, with its label still read out. */
+    .jobDescBtn { padding: 7px 8px; }
+    .jobDescBtn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+}
+
+/* ── Pass status in the header: opens the pass dialog ── */
+.passPill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 20px;
+    padding: 0.35rem 0.75rem;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #334155;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.passPill:hover {
+    border-color: #BFDBFE;
+    background: #F8FAFC;
+}
+
+.passPillNeeded {
+    background: #4782F6;
+    border-color: #4782F6;
+    color: #FFFFFF;
+}
+
+.passPillNeeded:hover {
+    background: #2563EB;
+    border-color: #2563EB;
+}
+
+/* ── "See all open roles": the last row of the recruiter's list, on phones only ── */
+.jobPickMoreRow {
+    display: none;
+}
+
+/* ── Phone layout: everything runs edge to edge between the header and the tab bar.
+   Kept last so it settles the older mobile rules above. ── */
+@media (max-width: 1024px) {
+    .mainContent {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+        padding: 0 0 calc(64px + env(safe-area-inset-bottom));
+    }
+
+    /* Header: the logo, the Prep Score and the avatar. The rest is in the avatar's menu. */
+    .navRight .passPill,
+    .navRight .settingsNavBtn,
+    .navRight .logoutBtn,
+    .navRight .notificationBtn {
+        display: none;
+    }
+    .xpBadge {
+        display: flex;
+        font-size: 11px;
+        font-weight: 500;
+        padding: 4px 10px 4px 6px;
+        gap: 6px;
+    }
+
+    .bottomNavBtn {
+        font-size: 10.5px;
+        font-weight: 500;
+    }
+    .bottomNavBtnActive {
+        font-weight: 600;
+    }
+    .bottomNavCount {
+        position: absolute;
+        top: -5px;
+        right: -9px;
+        min-width: 15px;
+        height: 15px;
+        padding: 0 3px;
+        border-radius: 999px;
+        background: #EF4444;
+        color: #FFFFFF;
+        font-size: 9px;
+        font-weight: 600;
+        line-height: 15px;
+        text-align: center;
+        box-shadow: 0 0 0 2px #FFFFFF;
+        box-sizing: border-box;
+    }
+
+    /* Recruiter and Tips: the character and their bubble, then a list that fills the screen.
+       Forced, because the older phone rules above are. */
+    .mobileViewContainer .moduleProgressPanel,
+    .mobileViewContainer .scheduledPanel {
+        padding: 14px 16px 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        background: #F4F6FA !important;
+    }
+    .mobileViewContainer .topJobPicksHeader,
+    .mobileViewContainer .scheduledHeader {
+        margin-bottom: 14px !important;
+        align-items: center !important;
+    }
+    .mobileViewContainer .headerCharacterGroup {
+        align-items: center !important;
+        gap: 10px !important;
+    }
+    .mobileViewContainer .imessageRoleBubble {
+        padding: 10px 12px !important;
+        box-shadow: none !important;
+    }
+    .mobileViewContainer .imessageRoleText {
+        font-size: 12.5px !important;
+        line-height: 1.45 !important;
+    }
+
+    .mobileViewContainer .jobPickList,
+    .mobileViewContainer .conversationDmList {
+        width: calc(100% + 32px) !important;
+        margin: 0 -16px !important;
+        max-height: none !important;
+        flex: 1 !important;
+        min-height: 0 !important;
+        overflow-y: auto !important;
+        background: #FFFFFF !important;
+        border-top: 1px solid #E2E8F0 !important;
+    }
+
+    .mobileViewContainer .jobPickRow {
+        padding: 13px 16px !important;
+        gap: 11px !important;
+        align-items: center !important;
+    }
+    .mobileViewContainer .jobPickTitle {
+        font-size: 13px !important;
+        white-space: normal !important;
+        overflow: visible !important;
+        overflow-wrap: anywhere !important;
+    }
+    .mobileViewContainer .jobPickMeta {
+        font-size: 11.5px !important;
+        margin-top: 2px !important;
+    }
+    .mobileViewContainer .jobRowPracticeBtn {
+        height: 32px !important;
+        padding: 0 12px !important;
+        font-size: 12.5px !important;
+    }
+    .mobileViewContainer .jobPickMoreRow {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        padding: 15px 16px !important;
+        border-top: 1px solid #E2E8F0 !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        color: #2563EB !important;
+        text-decoration: none !important;
+    }
+
+    .mobileViewContainer .conversationBox {
+        padding: 12px 16px !important;
+    }
+    .mobileViewContainer .dmTopicBadge {
+        font-size: 11px !important;
+    }
+    .mobileViewContainer .dmSnippetPreview {
+        font-size: 12.5px !important;
+    }
+    .mobileViewContainer .speechBubble {
+        font-size: 12.5px !important;
+        padding: 8px 11px !important;
+    }
+    .mobileViewContainer .indicatorText {
+        font-size: 12px !important;
+    }
+    .mobileViewContainer .conversationBtnPrimary,
+    .mobileViewContainer .conversationBtnSecondary {
+        font-size: 12.5px !important;
+    }
+}
+
+
+/* ── Recruiter list while jobs load: grey rows in the shape of a job ── */
+.jobPickSkeleton {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    border-top: 1px solid #F1F5F9;
+}
+
+.jobPickSkeleton:first-child {
+    border-top: 0;
+}
+
+.jobPickSkeletonLogo {
+    flex: 0 0 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: #EEF2F7;
+}
+
+.jobPickSkeletonText {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.jobPickSkeletonText i {
+    display: block;
+    height: 10px;
+    width: 70%;
+    border-radius: 5px;
+    background: #EEF2F7;
+    animation: jobSkeleton 1.4s ease-in-out infinite;
+}
+
+.jobPickSkeletonText i + i {
+    width: 45%;
+}
+
+@keyframes jobSkeleton {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .jobPickSkeletonText i { animation: none; }
 }

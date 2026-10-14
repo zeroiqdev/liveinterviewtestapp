@@ -4,8 +4,10 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Globe, MagnifyingGlass } from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
+import { FeedbackButton } from "@/components/FeedbackButton";
 import styles from "@/components/dashboard.module.css";
-const PaymentModal = dynamic(() => import("@/components/PaymentModal"));
+import css from "@/components/jobs/jobs.module.css";
+const InterviewSetupModal = dynamic(() => import("@/components/dashboard/InterviewSetupModal").then((mod) => mod.InterviewSetupModal));
 import { detectUserLocation, UserLocation, isJobRoleMatch, normalizeUserRoleFamily, scoreJobForLocation } from "@/utils/locationDetector";
 import type { JobItem } from "@/app/api/jobs/route";
 import { JobRow } from "@/components/jobs/JobRow";
@@ -25,7 +27,9 @@ export default function AllJobsPage() {
     const [freshnessFilter, setFreshnessFilter] = useState("all"); // "all" | "7d" | "14d"
     const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
     const [selectedJobDesc, setSelectedJobDesc] = useState<JobItem | null>(null);
-    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    // The job being practised for. Practice opens the interview set-up for it;
+    // whether a pass is needed is decided when the interview starts.
+    const [practiceJob, setPracticeJob] = useState<JobItem | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -121,42 +125,39 @@ export default function AllJobsPage() {
         });
     }, [jobs, loading, search, roleFilter, locationFilter, statusFilter, freshnessFilter, userRole, userLocation]);
 
-    const handleOpenPayment = useCallback(() => setIsPaymentModalOpen(true), []);
-    const handleClosePayment = useCallback(() => setIsPaymentModalOpen(false), []);
     const handleOpenJobDesc = useCallback((job: JobItem) => setSelectedJobDesc(job), []);
     const handleCloseJobDesc = useCallback(() => setSelectedJobDesc(null), []);
 
     return (
         <div style={{ minHeight: "100vh", background: "#F8FAFC", color: "#0F172A", fontFamily: "'Kumbh Sans', sans-serif" }}>
             {/* Top Navigation */}
-            <header style={{ background: "#FFFFFF", borderBottom: "1px solid #E2E8F0", padding: "0 2rem", height: "64px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                    <button
-                        type="button"
-                        onClick={() => router.push("/dashboard")}
-                        style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#4782F6", background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "13px", fontWeight: 600, fontFamily: "inherit" }}
-                        title="Return to Dashboard"
-                        aria-label="Back to Dashboard"
-                    >
-                        <ArrowLeft size={16} weight="bold" /> Back to Dashboard
+            <header className={css.header}>
+                <div className={css.headerLeft}>
+                    <button type="button" className={css.back} onClick={() => router.push("/dashboard")} title="Return to Dashboard" aria-label="Back to Dashboard">
+                        <ArrowLeft size={16} weight="bold" /> <span className={css.long}>Back to Dashboard</span>
+                        <span className={css.short}>Back</span>
                     </button>
-                    <span style={{ color: "#CBD5E1" }}>|</span>
-                    <span style={{ fontWeight: 700, fontSize: "16px", color: "#0F172A" }}>Explore Open Roles</span>
+                    <span className={css.divider}>|</span>
+                    <span className={css.title}>Explore Open Roles</span>
                 </div>
 
-                {userLocation && (
-                    <div className={styles.locationBadgePill} style={{ cursor: "default" }}>
-                        <Globe size={14} weight="bold" />
-                        <span>Detected Location: {userLocation.country}</span>
-                    </div>
-                )}
+                <div className={css.headerRight}>
+                    {userLocation && (
+                        <div className={styles.locationBadgePill} style={{ cursor: "default" }} title={`Detected location: ${userLocation.country}`}>
+                            <Globe size={14} weight="bold" />
+                            <span className={css.long}>Detected Location: {userLocation.country}</span>
+                            <span className={css.short}>{userLocation.country}</span>
+                        </div>
+                    )}
+                    <FeedbackButton />
+                </div>
             </header>
 
             {/* Main Content Area */}
             <main style={{ maxWidth: "1120px", margin: "0 auto", padding: "2rem 1.5rem 4rem" }}>
                 {/* Page Title & Search Bar */}
                 <div style={{ marginBottom: "1.75rem" }}>
-                    <h1 style={{ fontSize: "1.6rem", fontWeight: 700, color: "#0F172A", margin: "0 0 6px", letterSpacing: "-0.02em" }}>
+                    <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.6rem", fontWeight: 700, color: "#0F172A", margin: "0 0 6px", letterSpacing: "-0.02em" }}>
                         Global & Local Career Opportunities
                     </h1>
                     <p style={{ fontSize: "0.9rem", color: "#64748B", margin: 0 }}>
@@ -184,9 +185,9 @@ export default function AllJobsPage() {
                             onChange={(e) => setStatusFilter(e.target.value)}
                             style={selectStyle}
                         >
-                            <option value="active">🟢 Active Only</option>
-                            <option value="all">📋 All (incl. Closed)</option>
-                            <option value="expired">⏳ Expired Only</option>
+                            <option value="active">Active only</option>
+                            <option value="all">All, including closed</option>
+                            <option value="expired">Expired only</option>
                         </select>
 
                         {/* Freshness Filter */}
@@ -195,9 +196,9 @@ export default function AllJobsPage() {
                             onChange={(e) => setFreshnessFilter(e.target.value)}
                             style={selectStyle}
                         >
-                            <option value="all">⚡ Any Active Date (≤ 2 Weeks)</option>
-                            <option value="7d">📅 Past 7 Days</option>
-                            <option value="14d">📅 Past 14 Days (2 Weeks)</option>
+                            <option value="all">Posted any time (last 2 weeks)</option>
+                            <option value="7d">Past 7 days</option>
+                            <option value="14d">Past 14 days</option>
                         </select>
 
                         {/* Location Filter */}
@@ -219,7 +220,7 @@ export default function AllJobsPage() {
                             onChange={(e) => setRoleFilter(e.target.value)}
                             style={selectStyle}
                         >
-                            <option value="all">💼 All Roles</option>
+                            <option value="all">All roles</option>
                             <option value="frontend_developer">Frontend Developer</option>
                             <option value="backend_engineer">Backend Engineer</option>
                             <option value="devops_sre">DevOps / SRE</option>
@@ -270,7 +271,7 @@ export default function AllJobsPage() {
                                 job={job}
                                 isLast={idx === filteredJobs.length - 1}
                                 onOpenDesc={handleOpenJobDesc}
-                                onPractice={handleOpenPayment}
+                                onPractice={() => setPracticeJob(job)}
                             />
                         ))}
 
@@ -289,8 +290,8 @@ export default function AllJobsPage() {
                     job={selectedJobDesc}
                     onClose={handleCloseJobDesc}
                     onPractice={() => {
+                        setPracticeJob(selectedJobDesc);
                         setSelectedJobDesc(null);
-                        setIsPaymentModalOpen(true);
                     }}
                     calibrationSectionTitle="Interview Preparation"
                     calibrationText={`Practice real-time technical and behavioral interview scenarios calibrated for ${selectedJobDesc.company}'s hiring standards with our Interview Coach and Recruiter.`}
@@ -298,9 +299,16 @@ export default function AllJobsPage() {
                 />
             )}
 
-            <PaymentModal
-                isOpen={isPaymentModalOpen}
-                onClose={handleClosePayment}
+            <InterviewSetupModal
+                isOpen={Boolean(practiceJob)}
+                onClose={() => setPracticeJob(null)}
+                initialRole={userRole || practiceJob?.title || "Software Engineer"}
+                initialCompany={practiceJob?.company || ""}
+                isSpecificJob
+                jobTitle={practiceJob?.title || ""}
+                interviewTypeTitle={practiceJob ? `${practiceJob.company} ${practiceJob.title}` : ""}
+                jobDescription={practiceJob?.description || ""}
+                userRole={userRole || ""}
             />
         </div>
     );

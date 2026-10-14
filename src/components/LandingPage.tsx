@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState, useMemo } from "react";
 import Image from "next/image";
-import { Play } from "@phosphor-icons/react";
 import styles from "./landing.module.css";
 import { InterviewMock, Reveal } from "./LandingExtras";
-import { HowItWorks, Included, Industries, PassCard, Showcase } from "./LandingSections";
+import { Faq, FeedbackSection, HowItWorks, Included, Industries, Showcase, TryJob } from "./LandingSections";
 
 const CALIBRATED_COMPANIES = [
     { id: "google", name: "Google" },
@@ -36,64 +35,6 @@ const CALIBRATED_COMPANIES = [
     { id: "dropbox", name: "Dropbox" },
     { id: "notion", name: "Notion" },
     { id: "x", name: "X" },
-];
-
-const BENCHMARK_JOBS = [
-    {
-        id: "stripe-swe",
-        company: "Stripe",
-        logo: "/companies/stripe.svg",
-        title: "Senior Software Engineer",
-        location: "San Francisco, CA (Remote)",
-        salary: "$190k – $245k",
-        barWidth: "99.0%",
-        score: "99.0%",
-        isTop: true,
-    },
-    {
-        id: "openai-mts",
-        company: "OpenAI",
-        logo: "/companies/openai.svg",
-        title: "Member of Technical Staff",
-        location: "San Francisco, CA",
-        salary: "$240k – $320k",
-        barWidth: "97.7%",
-        score: "97.7%",
-        isTop: false,
-    },
-    {
-        id: "google-swe",
-        company: "Google",
-        logo: "/companies/google.svg",
-        title: "Staff Frontend Engineer",
-        location: "Mountain View, CA (Hybrid)",
-        salary: "$210k – $275k",
-        barWidth: "92.8%",
-        score: "92.8%",
-        isTop: false,
-    },
-    {
-        id: "airbnb-pm",
-        company: "Airbnb",
-        logo: "/companies/airbnb.svg",
-        title: "Senior Product Manager",
-        location: "Remote",
-        salary: "$185k – $230k",
-        barWidth: "84.0%",
-        score: "84.0%",
-        isTop: false,
-    },
-    {
-        id: "meta-em",
-        company: "Meta",
-        logo: "/companies/meta.svg",
-        title: "Engineering Manager",
-        location: "Menlo Park, CA (Hybrid)",
-        salary: "$230k – $310k",
-        barWidth: "70.0%",
-        score: "70.0%",
-        isTop: false,
-    },
 ];
 
 export default function LandingPage() {
@@ -189,6 +130,7 @@ export default function LandingPage() {
                         <a href="#products">Products</a>
                         <a href="/pricing">Pricing</a>
                         <a href="#resources">Resources</a>
+                        <a href="/try">Try with a job</a>
                     </nav>
                     <div className={styles.navActions}>
                         <a href="/onboarding" className={styles.navCta}>Practice</a>
@@ -279,12 +221,14 @@ export default function LandingPage() {
                             Get closer to your dream offer with every practice session.
                         </h3>
                         <p className={styles.whoWeAreParagraph}>
-                            Confidence comes from having done it before. Practice the questions for your role out loud, hear where you stumble, and fix it. Walk into the real interview knowing what you&rsquo;ll say.
+                            Get better at interviews by practising real questions, improving how you communicate your value, and learning to think on your feet. Build the skills to walk into every interview prepared, express yourself clearly, and make a lasting impression.
                         </p>
                     </Reveal>
                 </div>
 
             </section>
+
+            <TryJob />
 
             <HowItWorks />
 
@@ -292,65 +236,11 @@ export default function LandingPage() {
 
             <Showcase />
 
+            <FeedbackSection />
+
             <Included />
 
-            {/* ── Live Job Opportunities Section (matching reference screenshot) ── */}
-            <section id="job-opportunities" className={styles.jobsBenchmarkSection}>
-                <div className={styles.jobsBenchmarkInner}>
-                    <Reveal className={styles.jobsBenchmarkHeader}>
-                        <h2 className={styles.jobsBenchmarkTitle}>Practice for real jobs</h2>
-                        <p className={styles.jobsBenchmarkLead}>
-                            Found a job you want? Practice that interview.
-                        </p>
-                        <p className={styles.jobsBenchmarkSubtitle}>
-                            Upload your resume. We match you to open roles and build the interview from the job post.
-                        </p>
-                    </Reveal>
-
-                    <div className={styles.jobsBenchmarkTable}>
-                        {BENCHMARK_JOBS.map((job) => (
-                            <div key={job.id} className={styles.jobsBenchmarkRow}>
-                                <div className={styles.jobsBenchmarkIdentity}>
-                                    <div className={styles.jobsBenchmarkLogoWrap}>
-                                        <img src={job.logo} alt={job.company} className={styles.jobsBenchmarkLogoImg} />
-                                    </div>
-                                    <div className={styles.jobsBenchmarkRoleInfo}>
-                                        <div className={styles.jobsBenchmarkRoleTitle}>{job.title}</div>
-                                        <div className={styles.jobsBenchmarkMeta}>
-                                            <span className={styles.jobsBenchmarkCompany}>{job.company}</span>
-                                            <span className={styles.jobsBenchmarkLocation}>{job.location}</span>
-                                            <span className={styles.jobsBenchmarkSalary}>{job.salary}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className={styles.jobsBenchmarkBarCol}>
-                                    <div className={styles.jobsBenchmarkBarTrack}>
-                                        <div
-                                            className={`${styles.jobsBenchmarkBarFill} ${job.isTop ? styles.jobsBenchmarkBarFillTop : styles.jobsBenchmarkBarFillRegular}`}
-                                            style={{ width: job.barWidth }}
-                                        />
-                                    </div>
-                                    <span className={styles.jobsBenchmarkScore}>{job.score}</span>
-                                </div>
-
-                                <div className={styles.jobsBenchmarkActionCol}>
-                                    <a
-                                        href="/onboarding"
-                                        className={styles.jobsBenchmarkPracticeBtn}
-                                        title={`Practice for ${job.title} at ${job.company}`}
-                                    >
-                                        <Play size={11} weight="fill" />
-                                        Practice
-                                    </a>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            <PassCard />
+            <Faq />
 
             {/* ── Clean 2-column Footer ── */}
             <footer className={styles.cleanFooter}>

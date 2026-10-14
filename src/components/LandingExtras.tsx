@@ -54,31 +54,31 @@ function WindowBar({ title, right }: { title: string; right?: ReactNode }) {
     );
 }
 
-/** A picture of the interview as a conversation: a question, your answer, and the follow-up it leads to. */
+/** A picture of the interview as a conversation: a question, an answer, and the reply that builds on it. */
 export function InterviewMock() {
     return (
-        <div className={styles.mock} role="img" aria-label="An interview conversation: the recruiter asks a follow-up question based on your answer">
+        <div className={styles.mock} role="img" aria-label="An interview conversation: the recruiter asks a question, the candidate answers, and the recruiter responds to what was said">
             <WindowBar title="Execution & Metrics interview" right={<span className={styles.winTag}>Question 2</span>} />
             <div className={styles.talk}>
                 <div className={styles.talkRow}>
-                    <span className={styles.talkAvatar}>T</span>
+                    <span className={styles.talkAvatar}>A</span>
                     <div className={styles.talkBody}>
-                        <p className={styles.talkWho}>Ava · Recruiter</p>
+                        <p className={styles.talkWho}>Amara · Recruiter</p>
                         <p className={styles.talkText}>Walk me through a product you&rsquo;ve worked on and how you knew whether it was succeeding.</p>
                     </div>
                 </div>
                 <div className={`${styles.talkRow} ${styles.talkRowYou}`}>
-                    <span className={`${styles.talkAvatar} ${styles.talkAvatarYou}`}>You</span>
+                    <span className={`${styles.talkAvatar} ${styles.talkAvatarYou}`}>T</span>
                     <div className={styles.talkBody}>
-                        <p className={styles.talkWho}>You</p>
-                        <p className={styles.talkText}>We cut checkout from five screens to two, and activation went up.</p>
+                        <p className={styles.talkWho}>Tunde · Candidate</p>
+                        <p className={styles.talkText}>I worked on the sign-up for a savings app. We measured success by how many people who started signing up actually finished. That was 42% when I joined, and 61% a month after we simplified it.</p>
                     </div>
                 </div>
                 <div className={`${styles.talkRow} ${styles.talkRowFollow}`}>
-                    <span className={styles.talkAvatar}>T</span>
+                    <span className={styles.talkAvatar}>A</span>
                     <div className={styles.talkBody}>
-                        <p className={styles.talkWho}>Ava · Recruiter <span className={styles.talkTag}>Follow-up</span></p>
-                        <p className={styles.talkText}>You said activation went up. By how much, and how did you know the redesign caused it?</p>
+                        <p className={styles.talkWho}>Amara · Recruiter</p>
+                        <p className={styles.talkText}>Thank you, that&rsquo;s clear. Why did you choose that as your measure of success?</p>
                     </div>
                 </div>
             </div>
@@ -128,11 +128,11 @@ export function FeedbackMock() {
                 <div className={styles.reportNotes}>
                     <div className={styles.reportNote}>
                         <p className={styles.reportNoteTitle}><i className={styles.noteGood} />What worked</p>
-                        <p className={styles.reportNoteText}>You named the exact step where users dropped off and what you changed.</p>
+                        <p className={styles.reportNoteText}>You named how you measured success and gave the before and after.</p>
                     </div>
                     <div className={styles.reportNote}>
                         <p className={styles.reportNoteTitle}><i className={styles.noteFix} />Fix next</p>
-                        <p className={styles.reportNoteText}>Give the number. &ldquo;Activation went up&rdquo; needs a figure and how you measured it.</p>
+                        <p className={styles.reportNoteText}>Say what you did to move it. &ldquo;We simplified it&rdquo; doesn&rsquo;t show your part.</p>
                     </div>
                 </div>
             </div>

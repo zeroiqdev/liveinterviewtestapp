@@ -5,6 +5,9 @@ import { matchResumeToJob } from "@/lib/atsScorer";
 import { requireAuth } from "@/lib/session";
 import { LIMITS, rateLimit } from "@/lib/rateLimit";
 import { serverError } from "@/lib/apiError";
+import { createHash } from "crypto";
+import dbConnect from "@/lib/mongodb";
+import JobMatchCache from "@/models/JobMatchCache";
 
 export interface JobMatchResponsibilityScore {
     responsibility: string;
@@ -68,15 +71,14 @@ Return JSON with exact structure:
   "interviewFocusAreas": ["<1>", "<2>", "<3>"]
 }`;
 
-// In-memory server cache to guarantee 100% deterministic consistency across requests
-const serverMatchCache = new Map<string, { result: JobMatchResult; responsibilities: string[]; extractedText: string }>();
-
-function buildServerMatchKey(parsedText: string, jobTitle: string, jobCompany: string, responsibilities: string[]): string {
-    const textSample = parsedText.slice(0, 2000).replace(/\s+/g, " ").trim();
-    const t = (jobTitle || "").toLowerCase().trim();
-    const c = (jobCompany || "").toLowerCase().trim();
-    const r = (responsibilities || []).map((s) => s.toLowerCase().trim()).join("|");
-    return `${t}:::${c}:::${r}:::${textSample.length}:::${textSample.slice(0, 80)}`;
+/**
+ * One key per (user, resume, job). The whole resume and the job's details go
+ * into it, so editing either gives a fresh match.
+ */
+function matchKey(email: string, parsedText: string, jobTitle: string, jobCompany: string, responsibilities: string[], jobDescription: string): string {
+    return createHash("sha256")
+        .update([email, parsedText.replace(/\s+/g, " ").trim(), jobTitle.toLowerCase().trim(), jobCompany.toLowerCase().trim(), responsibilities.join("|").toLowerCase(), jobDescription.slice(0, 6000)].join("\u0000"))
+        .digest("hex");
 }
 
 export async function POST(req: NextRequest) {
@@ -142,16 +144,17 @@ export async function POST(req: NextRequest) {
         responsibilities = responsibilities.slice(0, 6);
 
         // Check server-side cache first to guarantee identical score on re-open or across modals
-        const cacheKey = buildServerMatchKey(parsedText, jobTitle, jobCompany, responsibilities);
-        if (serverMatchCache.has(cacheKey)) {
-            const cached = serverMatchCache.get(cacheKey)!;
-            return NextResponse.json({
-                success: true,
-                result: cached.result,
-                responsibilities: cached.responsibilities,
-                extractedText: cached.extractedText,
-                cached: true,
-            });
+        // Kept in the database, not in this server's memory or the browser: a
+        // match worked out once is the same on every device and survives restarts.
+        const cacheKey = matchKey(authResult.session.email, parsedText, jobTitle, jobCompany, responsibilities, jobDescription);
+        try {
+            await dbConnect();
+            const cached = await JobMatchCache.findById(cacheKey).lean();
+            if (cached) {
+                return NextResponse.json({ success: true, result: cached.result, responsibilities: cached.responsibilities, extractedText: parsedText, cached: true });
+            }
+        } catch (cacheErr) {
+            console.warn("[api/resume/job-match] saved match not read:", cacheErr);
         }
 
         const userPrompt = `TARGET JOB:
@@ -216,7 +219,13 @@ ${parsedText.slice(0, 10000)}`;
 
         // Cache real analyses so a re-open shows the same score. An estimate
         // isn't cached: the next request should try the real analysis again.
-        if (!estimated) serverMatchCache.set(cacheKey, { result, responsibilities, extractedText: parsedText });
+        if (!estimated) {
+            await JobMatchCache.updateOne(
+                { _id: cacheKey },
+                { $set: { email: authResult.session.email, jobTitle: jobTitle.slice(0, 160), jobCompany: jobCompany.slice(0, 160), overallMatch: result.overallMatch, result, responsibilities, createdAt: new Date() } },
+                { upsert: true }
+            ).catch((cacheErr) => console.warn("[api/resume/job-match] match not saved:", cacheErr));
+        }
 
         return NextResponse.json({ success: true, result, responsibilities, extractedText: parsedText, estimated });
     } catch (err) {

@@ -109,7 +109,11 @@ export async function selectQuestion(opts: {
                   ?.askedQuestionIds ?? [])
             : session.generalAsked.questionIds
     );
-    const candidates = pool.filter((q) => !alreadyAsked.has(q.id));
+    const unasked = pool.filter((q) => !alreadyAsked.has(q.id));
+    // Leave out what they were asked in recent interviews, while anything else is left.
+    const pastIds = new Set(session.history?.questionIds ?? []);
+    const fresh = unasked.filter((q) => !pastIds.has(q.id));
+    const candidates = fresh.length > 0 ? fresh : unasked;
 
     // 1. Parking lot — unresolved topics targeting this competency.
     const parkedIndexes = session.parkingLot
@@ -191,7 +195,14 @@ ${lastCandidateAnswer ? `"${lastCandidateAnswer}"` : "(Opening turn — no prior
 
 Conversation running notes so far:
 ${notes || "- (nothing yet)"}
-${opts.diversityNote ? `\n${opts.diversityNote}` : ""}
+${opts.diversityNote ? `\n${opts.diversityNote}` : ""}${
+        session.history?.questions.length
+            ? `\nAsked in this candidate's recent interviews (cover different ground; don't repeat or reword these):\n${session.history.questions
+                  .slice(0, 12)
+                  .map((q) => `- ${q}`)
+                  .join("\n")}`
+            : ""
+    }
 
 Pool (id — question):
 ${candidates.map((q) => `- ${q.id} — ${q.question}`).join("\n")}`;

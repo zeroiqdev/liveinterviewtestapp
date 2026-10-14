@@ -16,6 +16,7 @@ import {
     ArrowUpRight,
     Trash,
 } from "@phosphor-icons/react";
+import { FeedbackButton } from "../FeedbackButton";
 import styles from "../dashboard.module.css";
 import { COACH_AVATAR, RECRUITER_AVATAR } from "./constants";
 import type { ResumeScanResult } from "@/app/api/resume/scan/route";
@@ -831,9 +832,12 @@ export function SettingsModal({
                     <div>
                         <h2 className={styles.settingsModalTitle}>Update Credentials</h2>
                     </div>
-                    <button className={styles.settingsCloseBtn} onClick={onClose} aria-label="Close settings">
-                        <X size={18} weight="bold" />
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <FeedbackButton className={styles.settingsCloseBtn} section="Update credentials" />
+                        <button className={styles.settingsCloseBtn} onClick={onClose} aria-label="Close settings">
+                            <X size={18} weight="bold" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* ── Timeline Body ── */}
