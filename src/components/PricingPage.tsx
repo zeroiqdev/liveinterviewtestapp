@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { BuyPassButton } from "./BuyPassButton";
 import styles from "./pricing.module.css";
 import footerStyles from "./landing.module.css";
 import Link from "next/link";
@@ -145,9 +146,7 @@ export default function PricingPage() {
                         </div>
 
                         <div className={styles.cardBottom}>
-                            <Link href="/onboarding?plan=day" className={styles.btnDefault}>
-                                Get Day Pass
-                            </Link>
+                            <BuyPassButton product="day" className={styles.btnDefault}>Get Day Pass</BuyPassButton>
                         </div>
                     </div>
 
@@ -221,9 +220,7 @@ export default function PricingPage() {
                         </div>
 
                         <div className={styles.cardBottom}>
-                            <Link href="/onboarding?plan=week" className={styles.btnPrimary}>
-                                Get 1-Week Bundle
-                            </Link>
+                            <BuyPassButton product="week" className={styles.btnPrimary}>Get 1-Week Bundle</BuyPassButton>
                         </div>
                     </div>
 
@@ -324,9 +321,7 @@ export default function PricingPage() {
                         </div>
 
                         <div className={styles.cardBottom}>
-                            <a href={`/onboarding?plan=flexible&passes=${customPasses}`} className={styles.btnPrimary}>
-                                Get Flexible Bundle
-                            </a>
+                            <BuyPassButton product="flexible" passes={customPlan.count} className={styles.btnPrimary}>Get Flexible Bundle</BuyPassButton>
                         </div>
                     </div>
                 </div>

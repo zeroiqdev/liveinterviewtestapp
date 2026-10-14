@@ -1,7 +1,7 @@
 // src/lib/atsScorer.ts
 // Accurate Industry-Standard ATS Scoring Engine & Seniority Depth Evaluator
 
-import { StructuredResume, StructuredJob, parseResumeTextToStructured } from "./resumeParser";
+import { StructuredResume, normalizeStructuredForDisplay, parseResumeTextToStructured, structuredToText } from "./resumeParser";
 import { isJobRoleMatch, normalizeUserRoleFamily } from "@/utils/locationDetector";
 
 export type SeniorityTier = "junior" | "mid" | "senior" | "lead";
@@ -610,105 +610,6 @@ export function calculateTenure(jobs: Array<{ date?: string }>): SeniorityInfo {
 
 // ─── 4. Cross-Experience Substance & Extra Bullet Suggester ──────────────────
 
-export function generateCrossExperienceSuggestions(
-    jobs: StructuredJob[],
-    role: string,
-    seniority: SeniorityInfo
-): ExtraBulletSuggestion[] {
-    const suggestions: ExtraBulletSuggestion[] = [];
-    const isPM = /product/i.test(role);
-
-    // If candidate already has 4 or more achievement bullets across their career,
-    // their experience depth is established. Do not inject simulated boilerplate bullets.
-    const totalAchievementBullets = jobs.reduce((sum, j) => {
-        return sum + (j.bullets?.filter((b) => !b.projectHeader && !/mission to|helps companies|offered freelancers/i.test(b.text)).length || 0);
-    }, 0);
-
-    if (totalAchievementBullets >= 4) {
-        return [];
-    }
-
-    // Look for sparse jobs (jobs with only 1 or 2 bullets)
-    jobs.forEach((job, idx) => {
-        const achievementBullets = job.bullets.filter(
-            (b) => !b.projectHeader && !/mission to|helps companies|offered freelancers/i.test(b.text)
-        );
-
-        const companyName = job.company || `Role #${idx + 1}`;
-
-        if (achievementBullets.length > 0 && achievementBullets.length <= 2) {
-            // Check what core dimensions are missing in this specific job
-            const jobText = achievementBullets.map((b) => b.text).join(" ");
-            const hasJobMetrics = hasMetric(jobText);
-            const hasDiscovery = /discovery|research|interviews|customer|feedback|survey/i.test(jobText);
-            const hasStakeholder = /cross-functional|engineering|design|stakeholders|squads|partnered/i.test(jobText);
-
-            if (isPM) {
-                if (!hasJobMetrics) {
-                    suggestions.push({
-                        id: `extra-bullet-metric-${job.id || idx}`,
-                        targetJobId: job.id,
-                        targetCompany: companyName,
-                        type: "addition",
-                        category: "Impact & Metrics",
-                        feedback: `Your ${job.title || "Product Manager"} role at ${companyName} has only ${achievementBullets.length} bullet${achievementBullets.length === 1 ? "" : "s"} and lacks measurable outcome data.`,
-                        recommendation: `Add a high-impact bullet showcasing user adoption, efficiency, or commercial performance at ${companyName}.`,
-                        targetSnippet: `${job.title || "Role"} at ${companyName}`,
-                        proposedText: `Spearheaded release of high-priority core workflow, accelerating user task completion by 34% and supporting over 120,000 monthly transactions.`,
-                        scoreLift: 4,
-                    });
-                } else if (!hasDiscovery && seniority.totalYears >= 2) {
-                    suggestions.push({
-                        id: `extra-bullet-discovery-${job.id || idx}`,
-                        targetJobId: job.id,
-                        targetCompany: companyName,
-                        type: "addition",
-                        category: "Role Alignment & Keywords",
-                        feedback: `At ${seniority.label} level, recruiters look for customer discovery and roadmap prioritization at ${companyName}.`,
-                        recommendation: `Add an extra bullet showing user research and problem discovery that shaped the product roadmap.`,
-                        targetSnippet: `${job.title || "Role"} at ${companyName}`,
-                        proposedText: `Conducted in-depth user discovery with 25+ key stakeholders, synthesizing qualitative insights into a prioritised quarterly roadmap that reduced churn by 18%.`,
-                        scoreLift: 4,
-                    });
-                } else if (!hasStakeholder) {
-                    suggestions.push({
-                        id: `extra-bullet-stakeholder-${job.id || idx}`,
-                        targetJobId: job.id,
-                        targetCompany: companyName,
-                        type: "addition",
-                        category: "Action Verbs & Brevity",
-                        feedback: `Your ${companyName} experience is missing evidence of cross-functional team coordination across engineering and design.`,
-                        recommendation: `Add a leadership bullet highlighting cross-functional squad alignment.`,
-                        targetSnippet: `${job.title || "Role"} at ${companyName}`,
-                        proposedText: `Partnered with engineering and design leads across 3 sprint cycles to streamline QA release cadence, cutting cycle time from 14 to 8 days.`,
-                        scoreLift: 3,
-                    });
-                }
-            } else {
-                // Software Engineering / General
-                if (!hasJobMetrics) {
-                    suggestions.push({
-                        id: `extra-bullet-tech-metric-${job.id || idx}`,
-                        targetJobId: job.id,
-                        targetCompany: companyName,
-                        type: "addition",
-                        category: "Impact & Metrics",
-                        feedback: `Your role at ${companyName} lacks quantifiable latency, reliability, or scale metrics.`,
-                        recommendation: `Add an achievement bullet highlighting system performance or throughput.`,
-                        targetSnippet: `${job.title || "Role"} at ${companyName}`,
-                        proposedText: `Architected scalable service refactor, improving 99th percentile response latency by 140ms and maintaining 99.98% uptime.`,
-                        scoreLift: 4,
-                    });
-                }
-            }
-        }
-    });
-
-    return suggestions.slice(0, 2); // Return at most 2 high-leverage extra bullets
-}
-
-// ─── 5. Complete ATS & Depth Calculation ─────────────────────────────────────
-
 export function calculateStructuredAtsScore(
     structured: StructuredResume,
     role: string = "Product Manager",
@@ -719,6 +620,8 @@ export function calculateStructuredAtsScore(
 
     // Aggregate all bullets
     const allAchievementBullets: string[] = [];
+    // Lines whose numbers came from a suggested rewrite, not from the person.
+    const exampleNumberLines = new Set<string>();
     (structured.jobs || []).forEach((j) => {
         (j.bullets || []).forEach((b) => {
             const txt = b.text.trim();
@@ -726,6 +629,7 @@ export function calculateStructuredAtsScore(
             // Ignore company descriptions & headers
             if (b.projectHeader || /mission to power|helps companies|offered freelancers/i.test(txt)) return;
             allAchievementBullets.push(txt);
+            if (b.exampleNumbers) exampleNumberLines.add(txt);
         });
     });
 
@@ -734,7 +638,10 @@ export function calculateStructuredAtsScore(
     // 1. Quantified Metrics Evaluation (Max 25 pts)
     let quantifiedCount = 0;
     allAchievementBullets.forEach((b) => {
-        if (hasMetric(b)) quantifiedCount++;
+        // A number a rewrite made up is a placeholder until the person makes it
+        // theirs: it earns nothing, so the score can't be raised by accepting
+        // invented figures.
+        if (hasMetric(b) && !exampleNumberLines.has(b)) quantifiedCount++;
     });
 
     const quantifiedRatio = totalBullets > 0 ? quantifiedCount / totalBullets : 0;
@@ -859,35 +766,45 @@ export function calculateStructuredAtsScore(
 
     // Grade & Verdict
     let grade: "A+" | "A" | "B" | "C" | "D" | "F" = "C";
-    let verdict = "Moderate ATS Match — Bullet Refinements Needed";
+    let verdict = "Getting there";
 
     if (overallScore >= 90) {
         grade = "A+";
-        verdict = "Top-Tier ATS Rating — Ready for Direct Recruiter Review";
+        verdict = "Ready to send";
     } else if (overallScore >= 82) {
         grade = "A";
-        verdict = "Strong ATS Alignment — Competitive for High-Volume Roles";
+        verdict = "Strong resume";
     } else if (overallScore >= 70) {
         grade = "B";
-        verdict = "Good ATS Baseline — Elevate Metrics to Beat Candidate Thresholds";
+        verdict = "Good, with room to improve";
     } else if (overallScore >= 55) {
         grade = "C";
-        verdict = "Moderate ATS Match — Action Verbs & Metrics Need Elevation";
+        verdict = "Getting there";
     } else {
         grade = "D";
-        verdict = "Low ATS Compatibility — Critical Gaps in Keywords & Structure";
+        verdict = "Needs work";
     }
 
     const strengths: string[] = [];
-    if (quantifiedRatio >= 0.5) strengths.push(`${quantifiedCount} of ${totalBullets} achievement bullets (${quantifiedPercentage}%) are backed by quantifiable data.`);
-    if (matchedKeywords.length >= 10) strengths.push(`Strong keyword density: matches ${matchedKeywords.length} core competencies for ${role}.`);
-    if (strongVerbRatio >= 0.6) strengths.push(`High ownership phrasing: ${Math.round(strongVerbRatio * 100)}% of bullets open with active executive verbs.`);
-    if (sectionsFound.length >= 4) strengths.push(`Clean ATS parseability: all 4 essential resume sections properly recognized.`);
+    if (quantifiedRatio >= 0.5) strengths.push(`${quantifiedCount} of your ${totalBullets} lines show a result with a number.`);
+    if (matchedKeywords.length >= 10) strengths.push(`You use ${matchedKeywords.length} of the words employers look for in ${role} resumes.`);
+    if (strongVerbRatio >= 0.6) strengths.push(`Most of your lines start by saying what you did.`);
+    if (sectionsFound.length >= 4) strengths.push(`Your resume is laid out clearly, with every section easy to find.`);
 
     // Cross-experience extra bullet suggestions
-    const extraBulletSuggestions = generateCrossExperienceSuggestions(structured.jobs || [], role, seniority);
+    // Rewrites come only from the scan's reading of this resume. (This used to
+    // add fill-in lines such as "improving 99th percentile response latency
+    // by 140ms" to any resume, whatever the job.)
+    const extraBulletSuggestions: ExtraBulletSuggestion[] = [];
 
-    const summary = `Evaluated against ${seniority.label} (${seniority.totalYears} yrs) criteria for ${role}. Overall ATS index is ${overallScore}/100 with ${quantifiedPercentage}% metric coverage and ${matchedKeywords.length} matched keywords.`;
+    // What a person would want to know first, in the order they'd act on it.
+    const summary = totalBullets === 0
+        ? `We couldn't find any lines describing your work. Add what you did in each job and we'll review it.`
+        : `Your resume scores ${overallScore} out of 100 for ${role}. ${
+              quantifiedCount === 0
+                  ? "None of your lines show a result with a number yet, which is the quickest thing to improve."
+                  : `${quantifiedCount} of your ${totalBullets} lines show a result with a number.`
+          } It uses ${matchedKeywords.length} of the words employers look for in this role.`;
 
     const impactScore = Math.min(100, Math.round((impactPoints / 25) * 100));
     const roleAlignmentScore = Math.min(100, Math.round((roleAlignmentPoints / 30) * 100));
@@ -929,18 +846,29 @@ export function calculateStructuredAtsScore(
     };
 }
 
+/**
+ * The one way a resume is scored, used by the scan and by the editor, so the
+ * number a scan reports is the number the page shows.
+ */
+export function scoreStructuredResume(structured: StructuredResume, role: string): AtsScoreResult {
+    const shown = normalizeStructuredForDisplay(structured);
+    return calculateStructuredAtsScore(shown, role, structuredToText(shown));
+}
+
+/** Whether a rewrite contains figures the original line didn't have. */
+export function introducesNumbers(original: string, rewrite: string): boolean {
+    const numbers = (text: string) => new Set((text.match(/\d+(?:[.,]\d+)?/g) || []).map((n) => n.replace(/,/g, "")));
+    const had = numbers(original);
+    return [...numbers(rewrite)].some((n) => !had.has(n));
+}
+
 export function calculateAtsScore(
     rawText: string,
     role: string = "Product Manager",
     candidateName?: string
 ): AtsScoreResult {
-    const { structured } = parseResumeTextToStructured(
-        rawText,
-        candidateName || "Candidate",
-        role,
-        ""
-    );
-    return calculateStructuredAtsScore(structured, role, rawText);
+    const { structured } = parseResumeTextToStructured(rawText, candidateName || "Candidate", role, "");
+    return scoreStructuredResume(structured, role);
 }
 
 export interface JobMatchResponsibilityScore {

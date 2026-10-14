@@ -15,6 +15,15 @@ import { normalizeUserRoleFamily } from "@/utils/locationDetector";
 import styles from "./onboarding.module.css";
 import PasswordChecklist from "./PasswordChecklist";
 import { isStrongPassword } from "@/lib/passwordPolicy";
+import { readTry, type TryState } from "@/lib/tryClient";
+
+/** The interview they began before signing up, when this page was reached from it. */
+function pendingTry(): TryState | null {
+    if (typeof window === "undefined") return null;
+    if (!new URLSearchParams(window.location.search).get("try")) return null;
+    const tried = readTry();
+    return tried?.done ? tried : null;
+}
 
 /* ── Personas Assets ── */
 const TEAM = {
@@ -92,6 +101,14 @@ export default function OnboardingPage() {
     const [authError, setAuthError] = useState<string | null>(null);
     const [authInfo, setAuthInfo] = useState<string | null>(null);
     const pendingProfileRef = useRef<Record<string, unknown> | null>(null);
+    // Arrived from a try: the role comes from it, so sign-up is the account step alone.
+    const [tryCtx, setTryCtx] = useState<TryState | null>(null);
+    useEffect(() => {
+        const tried = pendingTry();
+        if (!tried) return;
+        setTryCtx(tried);
+        setSelectedRole({ role: tried.role, domain: tried.domain as Domain });
+    }, []);
     const codeFormRef = useRef<HTMLFormElement>(null);
 
     // The code form appears below the step-4 fields; bring it into view.
@@ -207,7 +224,9 @@ export default function OnboardingPage() {
             fullName.trim().length >= 2 &&
             EMAIL_RE.test(email.trim()) &&
             // Email sign-ups need a strong password; Google sign-ups skip this step.
-            isStrongPassword(password.trim())) ||
+            isStrongPassword(password.trim()) &&
+            // From a try, the experience step is asked on this screen.
+            (!tryCtx || !!experience)) ||
         (step === 2 && !!selectedRole) ||
         (step === 3 && !!experience) ||
         step === 4;
@@ -265,7 +284,7 @@ export default function OnboardingPage() {
         }
     }, []);
 
-    const finish = async () => {
+    const finish = async (google?: { name: string; email: string }) => {
         if (submitting) return;
         setSubmitting(true);
         const domainVal = selectedRole?.domain || "Software & Engineering";
@@ -293,8 +312,8 @@ export default function OnboardingPage() {
         const roleFamily = normalizeUserRoleFamily(roleVal);
         const userProfile = {
             id: existing.id || `usr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-            email: email.trim(),
-            name: fullName.trim(),
+            email: google?.email ?? email.trim(),
+            name: google?.name ?? fullName.trim(),
             domain: domainVal,
             role: roleVal,
             roleFamily,
@@ -322,7 +341,7 @@ export default function OnboardingPage() {
                     domain: userProfile.domain,
                     seniority: userProfile.seniority,
                     experienceInRole: userProfile.experienceInRole,
-                    password: googleSignedIn ? undefined : password.trim(),
+                    password: googleSignedIn || google ? undefined : password.trim(),
                     portfolioUrl: userProfile.portfolioUrl,
                     linkedinUrl: userProfile.linkedinUrl,
                     resume: selectedResumeId && cvData && cvName ? {
@@ -360,6 +379,7 @@ export default function OnboardingPage() {
             domain: (selectedRole?.domain || "Software & Engineering"),
             role: (selectedRole?.role || "Software Engineer") as InterviewRole,
         });
+        // From a try, the dashboard offers to carry on with it.
         router.replace("/dashboard");
     };
 
@@ -442,8 +462,15 @@ export default function OnboardingPage() {
                         if (!res.ok || data.error) throw new Error(data.error || "Google sign-in failed");
 
                         localStorage.setItem("useladder_user", JSON.stringify(data.user));
+                        const tried = pendingTry();
                         if (!data.isNewUser) {
                             router.replace("/dashboard");
+                            return;
+                        }
+                        // From a try, the role is already known: finish here.
+                        if (tried) {
+                            setGoogleSignedIn(true);
+                            await finish({ name: data.user.name || "", email: data.user.email || "" });
                             return;
                         }
 
@@ -471,6 +498,47 @@ export default function OnboardingPage() {
     };
 
     if (checkingAuth) return null;
+
+    const codeForm = (
+                            <form ref={codeFormRef} onSubmit={verifyCode} className={styles.inputFormStack} style={{ marginTop: "1.5rem" }}>
+                                {authError ? (
+                                    <div className={styles.authErrorBanner} role="alert">
+                                        <span>{authError}</span>
+                                    </div>
+                                ) : authInfo && (
+                                    <div className={styles.authInfoBanner} role="status">
+                                        <span>{authInfo}</span>
+                                    </div>
+                                )}
+                                <div className={styles.inputGroup}>
+                                    <label className={styles.inputLabel} htmlFor="signup-code">Verification code</label>
+                                    <input
+                                        id="signup-code"
+                                        type="text"
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
+                                        maxLength={6}
+                                        className={`${styles.formInput} ${styles.codeInput}`}
+                                        placeholder="123456"
+                                        value={code}
+                                        onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                        autoComplete="one-time-code"
+                                        autoFocus
+                                        required
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    className={styles.continueSubmitBtn}
+                                    disabled={submitting || code.length !== 6}
+                                >
+                                    {submitting ? "Verifying..." : "Verify & continue"}
+                                </button>
+                                <button type="button" className={styles.textLinkBtn} onClick={resendCode}>
+                                    Resend code
+                                </button>
+                            </form>
+    );
 
     return (
         <div className={styles.splitWrapper}>
@@ -511,7 +579,7 @@ export default function OnboardingPage() {
                 )}
 
                 {/* Progress bar */}
-                <div className={styles.topProgressBar}>
+                <div className={styles.topProgressBar} style={tryCtx ? { display: "none" } : undefined}>
                     {[1, 2, 3, 4].map((s) => (
                         <span
                             key={s}
@@ -527,9 +595,18 @@ export default function OnboardingPage() {
                 )}
 
                 {/* STEP 1: Sign up & Team Cards */}
-                {step === 1 && (
+                {step === 1 && tryCtx && awaitingCode && (
+                    <div>
+                        <div className={styles.formHeader}>
+                            <h2 className={styles.formMainTitle}>Check your email</h2>
+                            <p className={styles.formSubTitle}>Enter the code we sent to {email.trim()} and your interview carries on.</p>
+                        </div>
+                        {codeForm}
+                    </div>
+                )}
+                {step === 1 && !(tryCtx && awaitingCode) && (
                     <>
-                        <div className={styles.teamSection}>
+                        <div className={styles.teamSection} style={tryCtx ? { display: "none" } : undefined}>
                             <h2 className={styles.teamSectionTitle}>First thing first, meet your team</h2>
                             <div className={styles.teamCardsGrid}>
                                 <div className={styles.teamCard}>
@@ -555,14 +632,50 @@ export default function OnboardingPage() {
                         </div>
 
                         <div className={styles.formHeader}>
-                            <h2 className={styles.formMainTitle}>Let’s get you started</h2>
-                            <p className={styles.formSubTitle}>Just a few details to get started</p>
+                            <h2 className={styles.formMainTitle}>{tryCtx ? "Create your account to carry on" : "Let’s get you started"}</h2>
+                            <p className={styles.formSubTitle}>
+                                {tryCtx ? `Your two answers for ${tryCtx.title} are saved. Your interview picks up at question three.` : "Just a few details to get started"}
+                            </p>
                         </div>
+
+                        {tryCtx && (
+                            <div className={styles.inputGroup} style={{ marginBottom: "1.25rem" }}>
+                                <span className={styles.inputLabel} id="try-experience-label">
+                                    Years of experience as a {tryCtx.role}
+                                </span>
+                                <div className={styles.experienceGrid} role="radiogroup" aria-labelledby="try-experience-label">
+                                    {EXPERIENCE_OPTIONS.map((opt) => {
+                                        const selected = experience === opt.value;
+                                        return (
+                                            <button
+                                                key={opt.value}
+                                                type="button"
+                                                role="radio"
+                                                aria-checked={selected}
+                                                className={`${styles.roleTintRow} ${selected ? styles.roleTintRowSelected : ""}`}
+                                                onClick={() => {
+                                                    setExperience(opt.value);
+                                                    setAuthError(null);
+                                                }}
+                                            >
+                                                <span>{opt.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
 
                         <button
                             type="button"
                             className={styles.googleSsoBtn}
-                            onClick={handleGoogleLogin}
+                            onClick={() => {
+                                if (tryCtx && !experience) {
+                                    setAuthError("Choose your years of experience first.");
+                                    return;
+                                }
+                                handleGoogleLogin();
+                            }}
                             disabled={googleAuthLoading}
                         >
                             <svg viewBox="0 0 24 24" width="20" height="20">
@@ -583,7 +696,9 @@ export default function OnboardingPage() {
                         <form
                             onSubmit={(e) => {
                                 e.preventDefault();
-                                handleNext();
+                                if (tryCtx) {
+                                    if (stepValid) void finish();
+                                } else handleNext();
                             }}
                             className={styles.inputFormStack}
                         >
@@ -632,9 +747,9 @@ export default function OnboardingPage() {
                             <button
                                 type="submit"
                                 className={styles.continueSubmitBtn}
-                                disabled={!stepValid}
+                                disabled={!stepValid || (Boolean(tryCtx) && submitting)}
                             >
-                                Continue
+                                {tryCtx ? (submitting ? "Creating your account..." : "Create account and continue") : "Continue"}
                             </button>
                         </form>
 
@@ -848,7 +963,7 @@ export default function OnboardingPage() {
                                 <button
                                     type="button"
                                     className={styles.continueSubmitBtn}
-                                    onClick={finish}
+                                    onClick={() => finish()}
                                     disabled={submitting}
                                 >
                                     {submitting ? "Creating your account..." : "Continue"}
@@ -856,46 +971,7 @@ export default function OnboardingPage() {
                             )}
                         </div>
 
-                        {awaitingCode && (
-                            <form ref={codeFormRef} onSubmit={verifyCode} className={styles.inputFormStack} style={{ marginTop: "1.5rem" }}>
-                                {authError ? (
-                                    <div className={styles.authErrorBanner} role="alert">
-                                        <span>{authError}</span>
-                                    </div>
-                                ) : authInfo && (
-                                    <div className={styles.authInfoBanner} role="status">
-                                        <span>{authInfo}</span>
-                                    </div>
-                                )}
-                                <div className={styles.inputGroup}>
-                                    <label className={styles.inputLabel} htmlFor="signup-code">Verification code</label>
-                                    <input
-                                        id="signup-code"
-                                        type="text"
-                                        inputMode="numeric"
-                                        pattern="[0-9]*"
-                                        maxLength={6}
-                                        className={`${styles.formInput} ${styles.codeInput}`}
-                                        placeholder="123456"
-                                        value={code}
-                                        onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                                        autoComplete="one-time-code"
-                                        autoFocus
-                                        required
-                                    />
-                                </div>
-                                <button
-                                    type="submit"
-                                    className={styles.continueSubmitBtn}
-                                    disabled={submitting || code.length !== 6}
-                                >
-                                    {submitting ? "Verifying..." : "Verify & continue"}
-                                </button>
-                                <button type="button" className={styles.textLinkBtn} onClick={resendCode}>
-                                    Resend code
-                                </button>
-                            </form>
-                        )}
+                        {awaitingCode && codeForm}
                     </div>
                 )}
             </div>

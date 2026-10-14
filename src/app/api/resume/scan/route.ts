@@ -33,8 +33,15 @@ export interface ResumeScanResult {
     bulletReviews?: BulletReview[];
 }
 
-const SCAN_SYSTEM_PROMPT = `You are a top-tier executive talent scout and technical resume reviewer at FAANG / top fintechs.
-Your job is to objectively analyze a candidate's resume/CV text against their targeted job role with BULLET-LEVEL precision.
+const SCAN_SYSTEM_PROMPT = `You are an experienced recruiter reviewing a candidate's resume for the role they are applying to. Many candidates are early in their careers and work outside the tech industry (customer service, sales, banking, administration, oil and gas), mostly in Nigeria and elsewhere in Africa.
+Your job is to review the resume against the TARGET ROLE with BULLET-LEVEL precision, judging it by what a hiring manager for THAT role and level expects.
+
+TONE — applies to "summary", "feedback" and "recommendation":
+- Write to the candidate as "you", in plain, direct English. Be honest and useful, never harsh or grand.
+- Never mention FAANG, big tech, fintech standards, "executive", "elite", "top-tier" or "world-class". Compare the resume only with what the target role needs.
+- No jargon: do not say "X-Y-Z formula", "ATS", "leverage", "synergy" or "stakeholder alignment". Say what to change in ordinary words.
+- Use the vocabulary of the candidate's own field. A customer service line is about customers, calls and complaints, not "product ownership" or "user validation".
+- Never mention AI or that this was generated.
 
 CRITICAL RULES — you MUST follow these exactly:
 
@@ -61,7 +68,7 @@ CRITICAL RULES — you MUST follow these exactly:
 4. RETURN FORMAT — you MUST return valid JSON with this exact structure:
 {
   "score": <number 0-100 overall ATS + role readiness>,
-  "summary": "<2-3 sentence executive critique>",
+  "summary": "<2-3 plain sentences to the candidate: what is working, the main thing holding the resume back for this role, and what to do first>",
   "strengths": ["<cite specific strong bullets or skills>", "...", "..."],
   "suggestions": [
     {
@@ -163,15 +170,6 @@ export async function POST(req: NextRequest) {
                 const ats = calculateAtsScore(extractedText, role);
                 const score = ats.overallScore;
 
-                for (const extra of ats.extraBulletSuggestions) {
-                    suggestions.push({
-                        category: extra.category,
-                        feedback: extra.feedback,
-                        recommendation: extra.recommendation,
-                        targetSnippet: extra.targetSnippet,
-                        proposedText: extra.proposedText,
-                    });
-                }
 
                 const result: ResumeScanResult = {
                     score,
@@ -243,15 +241,6 @@ export async function POST(req: NextRequest) {
         }
         if (ats.strengths.length > 0) {
             result.strengths = Array.from(new Set([...(result.strengths || []), ...ats.strengths]));
-        }
-        for (const extra of ats.extraBulletSuggestions) {
-            result.suggestions.push({
-                category: extra.category,
-                feedback: extra.feedback,
-                recommendation: extra.recommendation,
-                targetSnippet: extra.targetSnippet,
-                proposedText: extra.proposedText,
-            });
         }
 
         // Optionally persist scan to user record if email is provided

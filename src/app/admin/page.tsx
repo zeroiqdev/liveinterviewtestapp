@@ -21,14 +21,23 @@ import {
     LinkSimple,
     Database,
     ShieldCheck,
+    ChatCircleDots,
+    Lightbulb,
+    UsersThree,
+    ChartLineUp,
 } from "@phosphor-icons/react";
+import { UsersPanel } from "@/components/admin/UsersPanel";
+import { FeedbackPanel } from "@/components/admin/FeedbackPanel";
+import { WeeklyTipsPanel } from "@/components/admin/WeeklyTipsPanel";
+import { RoleRequestsPanel } from "@/components/admin/RoleRequestsPanel";
+import { MetricsPanel } from "@/components/admin/MetricsPanel";
 import styles from "@/components/admin.module.css";
 import type { RoleItem } from "@/app/api/roles/route";
 import type { QuestionItem } from "@/app/api/questions/route";
 import type { JobItem } from "@/app/api/jobs/route";
 import type { ScraperSource } from "@/app/api/jobs/sources/route";
 
-type AdminTab = "overview" | "roles" | "questions" | "jobs";
+type AdminTab = "overview" | "metrics" | "roles" | "questions" | "jobs" | "feedback" | "tips" | "users";
 type JobsSubTab = "listings" | "sources";
 
 export default function AdminPage() {
@@ -71,6 +80,7 @@ export default function AdminPage() {
 
     const [activeTab, setActiveTab] = useState<AdminTab>("overview");
     const [toastMessage, setToastMessage] = useState<string | null>(null);
+    const [openFeedback, setOpenFeedback] = useState<number | null>(null);
 
     // Data states
     const [roles, setRoles] = useState<RoleItem[]>([]);
@@ -713,6 +723,13 @@ export default function AdminPage() {
                     </button>
                     <button
                         type="button"
+                        className={`${styles.tabBtn} ${activeTab === "metrics" ? styles.tabBtnActive : ""}`}
+                        onClick={() => setActiveTab("metrics")}
+                    >
+                        <ChartLineUp size={16} /> Metrics
+                    </button>
+                    <button
+                        type="button"
                         className={`${styles.tabBtn} ${activeTab === "roles" ? styles.tabBtnActive : ""}`}
                         onClick={() => setActiveTab("roles")}
                     >
@@ -732,7 +749,33 @@ export default function AdminPage() {
                     >
                         <Briefcase size={16} /> Job Opportunities ({jobs.length})
                     </button>
+                    <button
+                        type="button"
+                        className={`${styles.tabBtn} ${activeTab === "feedback" ? styles.tabBtnActive : ""}`}
+                        onClick={() => setActiveTab("feedback")}
+                    >
+                        <ChatCircleDots size={16} /> Feedback{openFeedback ? ` (${openFeedback})` : ""}
+                    </button>
+                    <button
+                        type="button"
+                        className={`${styles.tabBtn} ${activeTab === "tips" ? styles.tabBtnActive : ""}`}
+                        onClick={() => setActiveTab("tips")}
+                    >
+                        <Lightbulb size={16} /> Weekly Tips
+                    </button>
+                    <button
+                        type="button"
+                        className={`${styles.tabBtn} ${activeTab === "users" ? styles.tabBtnActive : ""}`}
+                        onClick={() => setActiveTab("users")}
+                    >
+                        <UsersThree size={16} /> Users
+                    </button>
                 </div>
+
+                {activeTab === "feedback" && <FeedbackPanel onCount={setOpenFeedback} />}
+                {activeTab === "tips" && <WeeklyTipsPanel onToast={showToast} />}
+                {activeTab === "users" && <UsersPanel />}
+                {activeTab === "metrics" && <MetricsPanel />}
 
                 {/* ════════ TAB 1: OVERVIEW ════════ */}
                 {activeTab === "overview" && (
@@ -800,6 +843,7 @@ export default function AdminPage() {
                 {/* ════════ TAB 2: ROLES ════════ */}
                 {activeTab === "roles" && (
                     <div>
+                        <RoleRequestsPanel onToast={showToast} />
                         <div className={styles.actionRow}>
                             <div className={styles.searchFilterGroup}>
                                 <div className={styles.searchInputWrap}>

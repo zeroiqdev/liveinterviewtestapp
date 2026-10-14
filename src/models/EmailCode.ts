@@ -6,7 +6,7 @@
 
 import mongoose, { Schema, Model } from "mongoose";
 
-export type EmailCodePurpose = "verify" | "reset";
+export type EmailCodePurpose = "verify" | "reset" | "change-email";
 
 export interface IEmailCode {
     email: string;
@@ -19,7 +19,7 @@ export interface IEmailCode {
 
 const EmailCodeSchema = new Schema<IEmailCode>({
     email: { type: String, required: true, lowercase: true, trim: true },
-    purpose: { type: String, required: true, enum: ["verify", "reset"] },
+    purpose: { type: String, required: true, enum: ["verify", "reset", "change-email"] },
     codeHash: { type: String, required: true },
     attempts: { type: Number, default: 0 },
     expiresAt: { type: Date, required: true, index: { expires: 0 } },

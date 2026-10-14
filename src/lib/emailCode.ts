@@ -27,6 +27,10 @@ const EMAILS: Record<EmailCodePurpose, { subject: (code: string) => string; intr
         subject: (code) => `Your get prepped password reset code: ${code}`,
         intro: "Use this code to reset your password:",
     },
+    "change-email": {
+        subject: (code) => `Your get prepped email change code: ${code}`,
+        intro: "Use this code to make this your get prepped email address:",
+    },
 };
 
 function hashCode(email: string, purpose: EmailCodePurpose, code: string): string {

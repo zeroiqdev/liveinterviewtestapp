@@ -27,8 +27,9 @@ import {
 } from "./sessionStore";
 import { draftCovers } from "./utterance";
 import { RESUME_QUESTION_ID, pickResumeQuestion, resumeQuestionDue } from "./resumeQuestion";
+import { heardBefore, type InterviewHistory } from "./history";
 import { questionsForCompany, realCompanyName } from "./company";
-import { openingGreeting, openingIntro, planOpening, resolveOpener } from "./openers";
+import { freshOpener, openingGreeting, openingIntro, planOpening, resolveOpener } from "./openers";
 import {
     executeConversationalTurn,
     fallbackProbe,
@@ -242,6 +243,14 @@ export function advanceCoveredSections(session: SessionDoc, blueprint: Blueprint
 
 /* ── session init ── */
 
+/** An interview begun before sign-up: what was asked and answered, and the job's remaining questions. */
+export interface CarryOver {
+    title: string;
+    turns: Array<{ question: string; answer: string }>;
+    /** Written from the job description; the first is asked next, the rest as the interview goes on. */
+    nextQuestions: string[];
+}
+
 export async function startSession(opts: {
     candidateId: string;
     ownerId?: string | null;
@@ -254,6 +263,10 @@ export async function startSession(opts: {
     roleFamily?: string | null;
     probeDepth?: ProbeDepth | null;
     voiceRegion?: string;
+    /** Questions already answered before sign-up, and what to ask next (lib/tryInterview). */
+    carryOver?: CarryOver | null;
+    /** What they were asked in recent interviews (engine/history). */
+    history?: InterviewHistory | null;
 }): Promise<{ session: SessionDoc; prompt: EnginePrompt }> {
     const blueprint = getBlueprint(opts.blueprintId);
     if (!blueprint) throw new Error(`unknown blueprintId: ${opts.blueprintId}`);
@@ -325,6 +338,7 @@ export async function startSession(opts: {
         auditLog: [],
         pendingQuestion: null,
         complete: false,
+        history: opts.history && (opts.history.questionIds.length || opts.history.openings.length) ? opts.history : null,
     };
 
     // One resume line is always asked about directly (when a resume exists).
@@ -363,11 +377,73 @@ export async function startSession(opts: {
         }
     }
 
+    const carryOver = opts.carryOver && opts.carryOver.turns.length > 0 && opts.carryOver.nextQuestions.length > 0 ? opts.carryOver : null;
+    if (carryOver) {
+        const prompt = await askCarriedOver(session, blueprint, carryOver);
+        return { session, prompt };
+    }
+
     await saveSession(session);
 
     const pacing = computePacing(session, blueprint);
     const prompt = await askNextQuestion(session, blueprint, pacing, profile);
     return { session, prompt };
+}
+
+/**
+ * Picks up an interview begun before sign-up. The earlier questions and
+ * answers go into the transcript (so the report covers them), the next
+ * question written for the job is asked now, and the rest wait their turn
+ * the same way a topic raised mid-interview does.
+ */
+async function askCarriedOver(session: SessionDoc, blueprint: Blueprint, carryOver: CarryOver): Promise<EnginePrompt> {
+    const comp = currentCompetency(session, blueprint);
+    const competencyId = comp?.id ?? GENERAL_ID;
+    const now = new Date().toISOString();
+
+    for (const turn of carryOver.turns) {
+        session.transcript.push({ role: "interviewer", text: turn.question, competencyId, kind: "scripted", timestamp: now });
+        session.transcript.push({ role: "candidate", text: turn.answer, competencyId, kind: "answer", timestamp: now });
+        session.runningNotes.push({ turn: 0, competencyId, summary: `Already asked: "${turn.question}" Their answer: ${turn.answer.slice(0, 240)}` });
+    }
+    for (const question of carryOver.nextQuestions.slice(1)) {
+        session.parkingLot.push({
+            topicSummary: `Planned from the job description — ask: ${question}`,
+            sourceCompetency: null,
+            targetCompetency: competencyId,
+            turnParked: 0,
+            resolved: false,
+        });
+    }
+    // Background was covered before sign-up; don't open with it again.
+    for (const q of generalPool()) {
+        if (/tell me about yourself/i.test(q.question)) session.generalAsked.questionIds.push(q.id);
+    }
+    audit(session, "initializer", "carry_over", `${carryOver.turns.length} answered before sign-up; ${carryOver.nextQuestions.length} planned from the job description`);
+
+    const firstName = session.candidateName?.trim().split(/\s+/)[0];
+    const greeting = firstName ? `Welcome back, ${firstName}.` : "Welcome back.";
+    const company = realCompanyName(session.company);
+    const intro = `Let's carry on with your ${carryOver.title} interview${company ? ` at ${company}` : ""}.`;
+    const question = carryOver.nextQuestions[0];
+    const questionText = `${greeting} ${intro} ${question}`;
+
+    session.turnCount++;
+    session.phase = "awaiting_answer";
+    session.pendingQuestion = { text: questionText, competencyId, kind: "opening", questionId: null };
+    session.probeThread = { rootQuestion: question, competencyId, followUps: 0, lastVerdict: null };
+    session.transcript.push({ role: "interviewer", text: questionText, competencyId, kind: "opening", timestamp: now });
+    await saveSession(session);
+
+    return {
+        type: "question",
+        text: questionText,
+        competencyId,
+        competencyLabel: comp?.label ?? GENERAL_LABEL,
+        kind: "opening",
+        questionId: null,
+        openingParts: [greeting, intro, question],
+    };
 }
 
 /* ── asking ── */
@@ -464,7 +540,15 @@ async function askOpening(session: SessionDoc, blueprint: Blueprint, comp: Compe
         interviewType: session.interviewType,
         company,
     });
-    const opener = await resolveOpener(plan, { role, interviewType: session.interviewType || "" });
+    let opener = await resolveOpener(plan, { role, interviewType: session.interviewType || "" });
+    // Heard this opening in a recent interview: ask a different first question.
+    if (session.history && heardBefore(opener, session.history.openings)) {
+        const fresh = await freshOpener({ role, interviewType: session.interviewType || "" }, [opener, ...session.history.openings]);
+        if (fresh) {
+            audit(session, "selector", "opening_varied", "opener heard in a recent interview; wrote a different one");
+            opener = fresh;
+        }
+    }
     const greeting = openingGreeting(session.candidateName);
     const intro = openingIntro({ role, company, focus: plan.round?.focus });
     const questionText = `${greeting} ${intro} ${opener.replace(/^[A-Z]/, (c) => c.toLowerCase())}`;

@@ -5,17 +5,21 @@ import {
     ArrowRight,
     Bank,
     CalendarCheck,
+    CaretDown,
     ChartBar,
     Check,
     Code,
     Drop,
     Handshake,
     Headset,
+    Lightbulb,
+    Play,
     Plus,
     type Icon,
 } from "@phosphor-icons/react";
 import styles from "./landingSections.module.css";
-import { FeedbackMock, InterviewMock, Reveal } from "./LandingExtras";
+import tryStyles from "./tryInterview.module.css";
+import { FeedbackMock, Reveal } from "./LandingExtras";
 
 /* ══════════════════════════════════════
    How it works — a heading over a grid of
@@ -25,8 +29,8 @@ import { FeedbackMock, InterviewMock, Reveal } from "./LandingExtras";
 
 const STEPS: Array<{ title: string; body: string; visual: ReactNode }> = [
     {
-        title: "Pick your role",
-        body: "Customer service, sales, banking, virtual assistant, engineering and more.",
+        title: "Choose Your Role",
+        body: "Practise for customer service, sales, banking, virtual assistance, engineering, and more.",
         visual: (
             <div className={styles.vChips}>
                 <span className={styles.vChip}>Customer service</span>
@@ -37,28 +41,28 @@ const STEPS: Array<{ title: string; body: string; visual: ReactNode }> = [
         ),
     },
     {
-        title: "Choose a mode",
-        body: "Interactive practice gives you feedback after each answer. Live interview runs start to finish, no hints.",
+        title: "Pick Your Practice Mode",
+        body: "Use Interactive Practice to get feedback after every answer, or choose Real Interview to complete an interview from start to finish without hints.",
         visual: (
             <div className={styles.vModes}>
-                <span className={`${styles.vMode} ${styles.vModeOn}`}>Interactive practice</span>
-                <span className={styles.vMode}>Live interview</span>
+                <span className={`${styles.vMode} ${styles.vModeOn}`}>Interactive Practice</span>
+                <span className={styles.vMode}>Real Interview</span>
             </div>
         ),
     },
     {
-        title: "Talk, don't type",
-        body: "You speak. The recruiter listens and asks follow-ups based on what you said.",
+        title: "Speak in Real Time",
+        body: "Have a natural, uninterrupted conversation with questions tailored to your role and experience, with follow-up questions based on what you say.",
         visual: (
             <div className={styles.vChat}>
-                <span className={`${styles.vBubble} ${styles.vBubbleYou}`}>…and activation went up.</span>
-                <span className={styles.vBubble}>By how much?</span>
+                <span className={`${styles.vBubble} ${styles.vBubbleYou}`}>…it went from 42% to 61%.</span>
+                <span className={styles.vBubble}>Why that measure?</span>
             </div>
         ),
     },
     {
-        title: "Get your feedback",
-        body: "What you did well, what was weak, and how to fix it.",
+        title: "Review Your Feedback",
+        body: "See what you did well, where you can improve, and what you can do differently next time.",
         visual: (
             <div className={styles.vBars}>
                 {[100, 66, 66, 33].map((width, i) => (
@@ -70,18 +74,24 @@ const STEPS: Array<{ title: string; body: string; visual: ReactNode }> = [
         ),
     },
     {
-        title: "Redo the hard ones",
-        body: "Retry any question until the answer lands.",
+        title: "Retry Difficult Questions",
+        body: "Go back to the questions you struggled with and practise until you feel more comfortable answering them.",
         visual: (
             <div className={styles.vRetry}>
-                <span className={styles.vRetryNote}>Give the number.</span>
+                <span className={styles.vRetryNote}>
+                    <span className={styles.vRetryLabel}>
+                        <Lightbulb size={12} weight="fill" />
+                        Coach suggestion
+                    </span>
+                    Add a real example
+                </span>
                 <span className={styles.vRetryBtn}>Try again</span>
             </div>
         ),
     },
     {
-        title: "Track your scores",
-        body: "Watch them go up between sessions.",
+        title: "Track Your Progress",
+        body: "Follow your scores across sessions and see how you improve over time.",
         visual: (
             <div className={styles.vTrend}>
                 {[34, 48, 44, 62, 74, 88].map((height, i) => (
@@ -91,6 +101,54 @@ const STEPS: Array<{ title: string; body: string; visual: ReactNode }> = [
         ),
     },
 ];
+
+/** A sample of what the job-description preview shows, so the picture matches the product. */
+const TRY_SAMPLE = {
+    job: "Product Manager, Payments · Moniepoint",
+    themes: ["Setting a roadmap for merchant payments", "Deciding with data", "Working with engineers and compliance"],
+    question: "Tell me about a time merchants kept reporting failed transfers. What did you do first?",
+};
+
+/**
+ * The job-description preview, as its own invitation: it leads to /try, a
+ * page of its own, and has nothing to do with the "Practice" sign-up buttons.
+ */
+export function TryJob() {
+    return (
+        <section id="try" className={tryStyles.trySection}>
+            <div className={tryStyles.tryPanel}>
+                <Reveal className={tryStyles.tryCopy}>
+                    <p className={tryStyles.tryEyebrow}>No account needed</p>
+                    <h2 className={tryStyles.tryTitle}>Practise for the job you&rsquo;re applying to</h2>
+                    <p className={tryStyles.tryLead}>
+                        Paste the job description. See what the interview will test, then answer two questions written for that exact job and find out how your first answer landed.
+                    </p>
+                    <a href="/try" className={styles.pillLight}>
+                        Try it with a job description <ArrowRight size={15} weight="bold" />
+                    </a>
+                </Reveal>
+                <div className={tryStyles.tryPicture} aria-hidden="true">
+                    <div className={tryStyles.tryCard}>
+                        <span className={tryStyles.tryCardJob}>{TRY_SAMPLE.job}</span>
+                        <span className={tryStyles.tryCardTitle}>What this job will test you on</span>
+                        <ul>
+                            {TRY_SAMPLE.themes.map((theme, i) => (
+                                <li key={theme}>
+                                    <b>{i + 1}</b>
+                                    {theme}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <div className={tryStyles.tryBubble}>
+                        <span>Question 1 of 2</span>
+                        {TRY_SAMPLE.question}
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
+}
 
 export function HowItWorks() {
     return (
@@ -156,35 +214,86 @@ export function Industries() {
 }
 
 /* ══════════════════════════════════════
-   Showcase — a full-height dark panel that
+   Showcase — a full-height blue panel that
    stays in place while the page scrolls
-   through four numbered slides.
+   through its slides.
    ══════════════════════════════════════ */
 
-function CoachTipMock() {
+// The recruiter and coach as they appear on the dashboard (same pictures as
+// dashboard/constants, repeated here so the landing page doesn't load that file).
+const RECRUITER_AVATAR = "https://res.cloudinary.com/dyg7neetr/image/upload/v1785485049/Screenshot_2026-07-31_at_7.49.19_AM_qujtzo.png";
+const COACH_AVATAR = "https://res.cloudinary.com/dyg7neetr/image/upload/v1785485051/Screenshot_2026-07-31_at_7.49.46_AM_u6gpoz.png";
+
+// Real employers and roles from the jobs board, with the logos we store for them.
+const LOGOS = "https://pub-4ad4b59284444b8c87134cecbca2efb2.r2.dev/company-logos";
+const MATCHED_JOBS = [
+    { logo: `${LOGOS}/moniepoint-teamapt-c3e387a1ad.png`, title: "Application Security Engineer", company: "Moniepoint", place: "Remote", posted: "Today" },
+    { logo: `${LOGOS}/chowdeck-f19220c63b.webp`, title: "Telesales Agent", company: "Chowdeck", place: "Lagos", posted: "Yesterday" },
+    { logo: `${LOGOS}/dangote-industries-limited-fcf988e523.png`, title: "Business & Performance Data Analyst", company: "Dangote Industries", place: "Lagos", posted: "2 days ago" },
+    { logo: `${LOGOS}/jumia-group-2ca1e8e1d7.svg`, title: "Inventory Manager", company: "Jumia", place: "Accra", posted: "2 days ago" },
+];
+
+/** The dashboard's Recruiter panel: the recruiter's note, then matched jobs to practise for. */
+function JobsMock() {
     return (
-        <div className={styles.tipMock} role="img" aria-label="Interactive practice: the coach comments on your answer straight away">
-            <p className={styles.tipLabel}>Instant feedback</p>
-            <p className={styles.tipQuestion}>&ldquo;Tell me about a time you had to pivot a strategy when unexpected data surfaced.&rdquo;</p>
-            <div className={styles.tipNote}>
-                <p className={styles.tipWho}>The Coach</p>
-                <p className={styles.tipText}>
-                    Great STAR structure! Emphasize the quantifiable metrics you achieved post-pivot to make your leadership impact clear.
-                </p>
+        <div className={styles.panelMock} role="img" aria-label="The recruiter's panel: jobs that match your experience, each with a button to practise an interview for it">
+            <div className={styles.panelHead}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={RECRUITER_AVATAR} alt="" className={styles.panelAvatar} loading="lazy" />
+                <p className={styles.panelBubble}>These roles match your experience. Pick one and I&rsquo;ll run the interview for it.</p>
             </div>
-            <span className={styles.tipRetry}>Try again</span>
+            <ul className={styles.panelList}>
+                {MATCHED_JOBS.map((job) => (
+                    <li key={job.title} className={styles.panelRow}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={job.logo} alt="" className={styles.jobLogo} loading="lazy" />
+                        <span className={styles.rowText}>
+                            <span className={styles.rowTitle}>{job.title}</span>
+                            <span className={styles.rowMeta}>{job.company} · {job.place} · {job.posted}</span>
+                        </span>
+                        <span className={styles.jobPractice}><Play size={10} weight="fill" /> Practice</span>
+                    </li>
+                ))}
+            </ul>
         </div>
     );
 }
 
-function JoinMock() {
+const WEEKLY_TIPS = [
+    { topic: "Job search", preview: "When they ask about salary, give a range you've researched, not a single number." },
+    { topic: "Interviews", preview: "Open “Tell me about yourself” with where you are now, then how you got there." },
+    { topic: "Career growth", preview: "After a rejection, ask for one thing you could have done better. Most people never ask." },
+    { topic: "Your CV", preview: "Start each bullet with what changed because of your work." },
+];
+
+/** The dashboard's Coach panel: the coach's note, then this week's tips as messages. */
+function TipsMock() {
     return (
-        <div className={styles.joinMock} role="img" aria-label="Live interview: your interviewer joins the call, then the interview runs start to finish">
-            <p className={styles.joinTitle}>Your interviewer is joining the call</p>
-            <ul className={styles.joinSteps}>
-                <li className={styles.joinStep}><Check size={13} weight="bold" /> Connecting your camera and microphone</li>
-                <li className={styles.joinStep}><Check size={13} weight="bold" /> Preparing your interview questions</li>
-                <li className={`${styles.joinStep} ${styles.joinStepNow}`}><span className={styles.joinDot} /> Your interviewer is getting ready</li>
+        <div className={styles.panelMock} role="img" aria-label="The coach's panel: this week's career tips on job search, interviews, career growth and your CV">
+            <div className={styles.panelHead}>
+                <span className={styles.panelAvatarWrap}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={COACH_AVATAR} alt="" className={styles.panelAvatar} loading="lazy" />
+                    <span className={styles.panelBadge}>{WEEKLY_TIPS.length}</span>
+                </span>
+                <p className={styles.panelBubble}>Here are this week&rsquo;s tips for your job search and your next interview.</p>
+            </div>
+            <ul className={styles.panelList}>
+                {WEEKLY_TIPS.map((tip) => (
+                    <li key={tip.topic} className={styles.panelRow}>
+                        <span className={styles.tipAvatarWrap}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={COACH_AVATAR} alt="" className={styles.tipAvatar} loading="lazy" />
+                            <span className={styles.tipOnline} />
+                        </span>
+                        <span className={styles.rowText}>
+                            <span className={styles.tipTopic}>{tip.topic}</span>
+                            <span className={styles.rowPreview}>{tip.preview}</span>
+                        </span>
+                        <span className={styles.tipUnread} />
+                        <CaretDown size={12} weight="bold" className={styles.tipCaret} />
+                    </li>
+                ))}
             </ul>
         </div>
     );
@@ -192,36 +301,20 @@ function JoinMock() {
 
 const SLIDES: Array<{ tab: string; title: string; body: string; question: string; answer: string; visual: ReactNode }> = [
     {
-        tab: "The Recruiter",
-        title: "A recruiter who listens",
-        body: "Say something vague and it asks for specifics. Mention a result and it asks how you got it.",
-        question: "Are the questions the same every time?",
-        answer: "No. Follow-ups depend on what you say.",
-        visual: <InterviewMock />,
+        tab: "Jobs",
+        title: "Practice For Your Next Opportunity",
+        body: "Discover jobs that match your experience and practise for them with tailored interviews.",
+        question: "Where do the jobs come from?",
+        answer: "From company career pages and job boards, refreshed through the day.",
+        visual: <JobsMock />,
     },
     {
-        tab: "The Coach",
-        title: "A coach who tells you what to fix",
-        body: "No generic tips. Feedback on your actual answers, with what to change next time.",
-        question: "What do I get?",
-        answer: "What worked, what was weak, and how to fix it before your next try.",
-        visual: <FeedbackMock />,
-    },
-    {
-        tab: "Interactive practice",
-        title: "Interactive practice",
-        body: "Answer a question. Get feedback on it right away. Try again.",
-        question: "Can I redo an answer?",
-        answer: "Yes. After the feedback, try the same question again.",
-        visual: <CoachTipMock />,
-    },
-    {
-        tab: "Live interview",
-        title: "Live interview",
-        body: "The full interview, start to finish. No hints, no pauses. Feedback at the end.",
-        question: "Is there any coaching during it?",
-        answer: "No. That's the point. It runs like the real thing.",
-        visual: <JoinMock />,
+        tab: "Career tips",
+        title: "Get Better Every Week",
+        body: "Get practical career tips and advice to help you navigate your job search and grow professionally.",
+        question: "How often are there new tips?",
+        answer: "Every week.",
+        visual: <TipsMock />,
     },
 ];
 
@@ -331,12 +424,12 @@ export function Showcase() {
 
 // The Day Pass feature list from the pricing page, with a short gloss each.
 const INCLUDED: Array<[string, string]> = [
-    ["Live interview with the Recruiter", "Real questions for your role, with follow-ups"],
-    ["Instant feedback from your Coach", "After every answer"],
-    ["Interview scorecards and delivery tips", "What went well, what to fix"],
-    ["Resume ATS scan and keyword feedback", "What your resume is missing"],
-    ["Interviews tailored to any job posting", "Practice for the exact job"],
-    ["Flexible pass", "Your 24 hours start when you say so"],
+    ["Live Interviews with Your Recruiter", "Answer role-specific questions in a natural conversation with relevant follow-ups."],
+    ["Instant Feedback from Your Coach", "Get suggestions on how to make each response clearer and more effective."],
+    ["Interview Scorecards and Delivery Tips", "Review your overall performance, from the quality of your responses to how you communicate."],
+    ["Resume ATS Scan and Keyword Feedback", "Identify missing keywords and areas to strengthen your resume."],
+    ["Practice for Any Job Posting", "Prepare for a specific opening using its job description."],
+    ["A Flexible 24-Hour Pass", "Start your 24 hours whenever it suits you."],
 ];
 
 export function Included() {
@@ -368,38 +461,79 @@ export function Included() {
 }
 
 /* ══════════════════════════════════════
-   The pass — a picture on the left, price
-   and checklist on the right.
+   The feedback report — its picture on the
+   left, what it tells you on the right.
    ══════════════════════════════════════ */
 
-export function PassCard() {
+const REPORT_POINTS: Array<[string, string]> = [
+    ["Scored on What Interviewers Look For", "Every answer is rated for how specific it was, how much of the work was yours, how deep you went, and the evidence you gave."],
+    ["What Worked and What Didn't", "See the answers that landed and the ones that need work, in plain words."],
+    ["What to Say Differently", "Leave with clear changes to make before your next attempt."],
+];
+
+export function FeedbackSection() {
     return (
-        <section id="pricing" className={styles.pass}>
+        <section className={styles.pass} aria-labelledby="report-title">
             <div className={styles.passInner}>
                 <Reveal className={styles.passVisual}>
                     <FeedbackMock />
                 </Reveal>
                 <Reveal className={styles.passText} delayMs={100}>
-                    <h2 className={styles.passTitle}>Lock in and show up ready</h2>
-                    <p className={styles.passLead}>Day Pass. 24 hours of full access, starting when you activate it.</p>
-                    <p className={styles.passPrice}>
-                        <span className={styles.passAmount}>₦1,500</span>
-                        <span className={styles.passPeriod}>/pass</span>
-                    </p>
-                    <ul className={styles.passList}>
-                        {INCLUDED.map(([feature]) => (
-                            <li key={feature} className={styles.passItem}>
+                    <h2 id="report-title" className={styles.passTitle}>Know exactly what to fix</h2>
+                    <p className={styles.passLead}>Every interview ends with a report on how you did. No vague advice, and no pass or fail.</p>
+                    <ul className={styles.pointList}>
+                        {REPORT_POINTS.map(([point, detail]) => (
+                            <li key={point} className={styles.pointItem}>
                                 <span className={styles.passCheck}><Check size={11} weight="bold" /></span>
-                                {feature}
+                                <span>
+                                    <span className={styles.pointTitle}>{point}</span>
+                                    <span className={styles.pointDetail}>{detail}</span>
+                                </span>
                             </li>
                         ))}
                     </ul>
-                    <a href="/onboarding" className={`${styles.pillDark} ${styles.pillWide}`}>
-                        Get Your Pass — ₦1,500 <ArrowRight size={15} weight="bold" />
-                    </a>
-                    <p className={styles.passNote}>
-                        Interviewing all week? <a href="/pricing" className={styles.passLink}>Get the 1-week bundle</a>
-                    </p>
+                </Reveal>
+            </div>
+        </section>
+    );
+}
+
+/* ══════════════════════════════════════
+   Questions people ask before they start,
+   then the last call to action.
+   ══════════════════════════════════════ */
+
+const QUESTIONS: Array<[string, string]> = [
+    ["What do I need to get started?", "A phone or computer with a microphone. Answering by voice works best in Google Chrome or Microsoft Edge."],
+    ["How long does an interview take?", "About 20 to 30 minutes. You can end it early and still get feedback on what you answered."],
+    ["What is the difference between Interactive Practice and Real Interview?", "Interactive Practice gives you feedback after every answer and lets you try again. Real Interview runs from start to finish without hints, and you get your report at the end."],
+    ["Can I practise for a specific job?", "Yes. Choose a job from the jobs board and the interview is built around that role and its description."],
+    ["When do my 24 hours start?", "When you activate your pass, not when you buy it. Buy it today and start it on the day you want to practise."],
+    ["I have interviews all week. Is there a longer pass?", "Yes. The 1-week bundle covers seven days. You can compare the passes on the pricing page."],
+];
+
+export function Faq() {
+    return (
+        <section id="pricing" className={styles.questions} aria-labelledby="questions-title">
+            <div className={styles.questionsInner}>
+                <Reveal className={styles.questionsHead}>
+                    <h2 id="questions-title" className={styles.title}>Questions before you start</h2>
+                    <p className={styles.lead}>The things people ask most.</p>
+                    <div className={styles.includedActions}>
+                        <a href="/onboarding" className={styles.pillDark}>Get your pass <ArrowRight size={15} weight="bold" /></a>
+                        <a href="/pricing" className={styles.pillLight}>See all passes</a>
+                    </div>
+                </Reveal>
+                <Reveal className={styles.questionList} delayMs={100}>
+                    {QUESTIONS.map(([question, answer]) => (
+                        <details key={question} className={styles.question}>
+                            <summary className={styles.questionSummary}>
+                                <span>{question}</span>
+                                <Plus size={14} weight="bold" className={styles.questionIcon} />
+                            </summary>
+                            <p className={styles.questionAnswer}>{answer}</p>
+                        </details>
+                    ))}
                 </Reveal>
             </div>
         </section>

@@ -134,6 +134,7 @@
 .mainContainer {
     flex: 1;
     width: 100%;
+    box-sizing: border-box;
     max-width: 1040px;
     margin: 0 auto;
     padding: 0 2rem 4rem;
@@ -166,8 +167,9 @@
 }
 
 .windowTitle {
+    font-family: var(--font-display);
+    font-weight: 700;
     font-size: 1.15rem;
-    font-weight: 500;
     color: #18181B;
     letter-spacing: -0.015em;
     margin: 0;
@@ -246,8 +248,9 @@
 }
 
 .scoreNumber {
+    font-family: var(--font-display);
+    font-weight: 700;
     font-size: 1.45rem;
-    font-weight: 500;
     line-height: 1;
     color: #18181B;
 }
@@ -1836,12 +1839,13 @@
     }
 
     /* Mobile tabs: no horizontal scroll — all 4 tabs fit in one row, still cuts after General Tips (grid width = tabs only) */
+    /* Five tabs don't fit a phone: one row that scrolls sideways. */
     .sectionTabBar {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        display: flex;
+        flex-wrap: nowrap;
         width: 100%;
         max-width: 100%;
-        overflow-x: visible;
+        overflow-x: auto;
         overflow-y: hidden;
         padding: 0;
         gap: 0;
@@ -1853,17 +1857,17 @@
     }
 
     .sectionTab {
-        padding: 0.75rem 0.25rem;
-        font-size: 0.66rem;
+        flex: 0 0 auto;
+        padding: 0.75rem 0.85rem;
+        font-size: 0.68rem;
         justify-content: center;
         text-align: center;
-        white-space: normal;
+        white-space: nowrap;
         line-height: 1.25;
         min-width: 0;
         border-radius: 0 !important;
         border-left: none;
         border-right: 1px solid #EAEAEA;
-        flex: unset;
     }
 
     .sectionTab:first-child {
@@ -1911,8 +1915,8 @@
 
 @media (max-width: 380px) {
     .sectionTab {
-        font-size: 0.62rem;
-        padding: 0.65rem 0.2rem;
+        font-size: 0.64rem;
+        padding: 0.65rem 0.7rem;
     }
 }
 
@@ -1938,3 +1942,11 @@
     }
 }
 
+
+
+/* "Back to Dashboard" shortens to "Back" on phones. */
+.backLabelShort { display: none; }
+@media (max-width: 640px) {
+    .backLabelLong { display: none; }
+    .backLabelShort { display: inline; }
+}

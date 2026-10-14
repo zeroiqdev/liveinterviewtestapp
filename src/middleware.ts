@@ -7,6 +7,8 @@ const PROTECTED_USER_PREFIXES = [
     "/interview",
     "/resume-feedback",
     "/feedback",
+    "/profile",
+    "/payment",
 ];
 
 // Paths that require admin privileges

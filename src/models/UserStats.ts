@@ -9,6 +9,8 @@ export interface IUserStats extends Document {
         name: string;
         value: number;
     }[];
+    /** The most recent interviews, newest last (what the Prep Score is worked out from). */
+    recentSessions: { score: number; minutes: number; at: Date }[];
     updatedAt: Date;
 }
 
@@ -21,6 +23,14 @@ const UserStatsSchema: Schema = new Schema({
         {
             name: { type: String, required: true },
             value: { type: Number, default: 0 },
+        }
+    ],
+    recentSessions: [
+        {
+            _id: false,
+            score: { type: Number, required: true },
+            minutes: { type: Number, required: true },
+            at: { type: Date, required: true },
         }
     ],
     updatedAt: { type: Date, default: Date.now }

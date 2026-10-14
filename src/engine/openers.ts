@@ -342,6 +342,38 @@ export async function resolveOpener(
     return fallback;
 }
 
+/**
+ * A different first question for someone who has heard the usual one in a
+ * recent interview. Written each time (never stored), so it varies; null if
+ * it can't be written in time, and the usual one is asked.
+ */
+export async function freshOpener(context: { role: string; interviewType: string }, avoid: string[]): Promise<string | null> {
+    try {
+        const raw = await callJSON<{ opener?: string }>({
+            system:
+                "You write the first question of a mock job interview: one short, warm, open question (one sentence, under 25 words) " +
+                "that eases the candidate into the round's topic by asking about their own experience. " +
+                "It must ask about something different from every question in the 'already asked' list, not reword one of them. " +
+                "Never mention a specific employer, never ask about the candidate's knowledge of a company, and never combine two questions. " +
+                'Return JSON: {"opener": "..."}',
+            user: `Role: ${context.role || "not specified"}\nInterview round: ${context.interviewType}\nAlready asked in their recent interviews:\n${avoid
+                .slice(0, 8)
+                .map((line) => `- ${line}`)
+                .join("\n")}`,
+            maxTokens: 120,
+            timeoutMs: OPENER_BUDGET_MS,
+            hedgeMs: 1600,
+            temperature: 0.8,
+            mock: { opener: "" },
+        });
+        const line = raw.opener?.trim().replace(/\*\*/g, "");
+        return acceptable(line) && !avoid.some((a) => a.toLowerCase().includes(line.toLowerCase())) ? line : null;
+    } catch (err) {
+        console.warn("[openers] writing a fresh opener failed:", (err as Error).message);
+        return null;
+    }
+}
+
 /* ── the spoken welcome ── */
 
 export function openingGreeting(candidateName?: string | null): string {

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Globe, X } from "@phosphor-icons/react";
+import Link from "next/link";
+import { CaretRight, Check, Globe, X } from "@phosphor-icons/react";
 import type { JobItem } from "@/app/api/jobs/route";
 import type { UserLocation } from "@/utils/locationDetector";
 import styles from "../dashboard.module.css";
@@ -8,7 +9,7 @@ import { JobPickRow } from "./JobPickRow";
 import { RECRUITER_AVATAR } from "./constants";
 
 const RECRUITER_BUBBLE_TEXT =
-    "I match you with open career trajectory roles at top companies and simulate their specific live interview rounds.";
+    "These are open roles that fit you. Pick one and practise the interview for that exact job.";
 
 const LOCATION_PRESETS = [
     { country: "Nigeria", countryCode: "NG", city: "Lagos", continent: "Africa", isAfrica: true, isNigeria: true, label: "Nigeria (Lagos & Remote)" },
@@ -28,6 +29,8 @@ interface TopJobsPanelProps {
     onPractice: (job?: JobItem) => void;
     jobMatches?: Record<string, { bestResumeId: string; bestResumeName: string; bestScore: number; summary: string }>;
     isMatching?: boolean;
+    /** The jobs list hasn't arrived yet: show that it's coming, not "no jobs". */
+    isLoading?: boolean;
 }
 
 export function TopJobsPanel({
@@ -39,6 +42,7 @@ export function TopJobsPanel({
     onPractice,
     jobMatches,
     isMatching,
+    isLoading,
 }: TopJobsPanelProps) {
     const [showDropdown, setShowDropdown] = useState(false);
     const [showBubble, setShowBubble] = useState(true);
@@ -179,10 +183,25 @@ export function TopJobsPanel({
                         />
                     );
                 })}
-                {jobs.length === 0 && !isMatching && (
+                {/* Phone only: the full list lives on its own page. */}
+                <Link href="/jobs" className={styles.jobPickMoreRow}>
+                    <span>See all open roles</span>
+                    <CaretRight size={14} weight="bold" />
+                </Link>
+                {jobs.length === 0 && isLoading &&
+                    [0, 1, 2, 3].map((i) => (
+                        <div key={i} className={styles.jobPickSkeleton} aria-hidden="true">
+                            <span className={styles.jobPickSkeletonLogo} />
+                            <span className={styles.jobPickSkeletonText}>
+                                <i />
+                                <i />
+                            </span>
+                        </div>
+                    ))}
+                {jobs.length === 0 && !isMatching && !isLoading && (
                     <div className={styles.jobEmptyMessage}>
-                        No active {userRole ? `${userRole} ` : ""}opportunities currently found in this region.
-                        {jobMatches && Object.keys(jobMatches).length > 0 ? " No jobs met the 50% resume match threshold." : ""}
+                        No open {userRole ? `${userRole} ` : ""}roles in this region right now. Try another region with the globe button.
+                        {jobMatches && Object.keys(jobMatches).length > 0 ? " None of the open roles matched your resume closely enough." : ""}
                     </div>
                 )}
             </div>

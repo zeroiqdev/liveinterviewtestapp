@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { ArrowSquareOut, Play, X, Warning, SpinnerGap, FileText } from "@phosphor-icons/react";
 import type { JobItem } from "@/app/api/jobs/route";
+import { FeedbackButton } from "../FeedbackButton";
 import styles from "../dashboard.module.css";
 import { CompanyLogo } from "./CompanyLogo";
 import { generateRoleOverview } from "@/services/careerPageScraper";
@@ -268,14 +269,17 @@ function JobDescModalComponent({
                             <div className={styles.jobModalSub}>{job.company} · {job.employmentType || "Full-time"}</div>
                         </div>
                     </div>
-                    <button
-                        type="button"
-                        className={styles.jobModalCloseBtn}
-                        onClick={onClose}
-                        aria-label="Close"
-                    >
-                        <X size={16} weight="regular" />
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <FeedbackButton className={styles.jobModalCloseBtn} iconSize={16} section="Job description" detail={`${job.title} · ${job.company}`.slice(0, 110)} />
+                        <button
+                            type="button"
+                            className={styles.jobModalCloseBtn}
+                            onClick={onClose}
+                            aria-label="Close"
+                        >
+                            <X size={16} weight="regular" />
+                        </button>
+                    </div>
                 </div>
 
                 <div className={styles.jobModalBody}>

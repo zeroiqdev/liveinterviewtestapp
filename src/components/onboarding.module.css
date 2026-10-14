@@ -872,3 +872,15 @@
     white-space: nowrap;
 }
 
+
+/* Years of experience on the one-screen sign-up after a try: the role rows, two by two. */
+.experienceGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.experienceGrid .roleTintRow {
+    justify-content: center;
+    text-align: center;
+}

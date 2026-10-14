@@ -4,6 +4,7 @@ import "./globals.css";
 import { InterviewProvider } from "@/context/InterviewContext";
 import DashboardLayout from "@/components/DashboardLayout";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
+import { FeedbackCapture } from "@/components/FeedbackCapture";
 
 const inter = Inter({ subsets: ["latin"] });
 const ebGaramond = EB_Garamond({ subsets: ["latin"], variable: "--font-eb-garamond" });
@@ -68,6 +69,7 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body className={`${inter.className} ${ebGaramond.variable}`}>
+                <FeedbackCapture />
                 <InterviewProvider>
                     <DashboardLayout>
                         {children}

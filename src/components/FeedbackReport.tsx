@@ -4,9 +4,9 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useInterview } from "../context/InterviewContext";
 import styles from "./feedback.module.css";
+import { FeedbackButton } from "./FeedbackButton";
 import type { FeedbackReportData } from "@/app/api/feedback/generate/route";
 import { sanitizeReportData } from "@/lib/feedbackSanitizer";
-import { db } from "../services/database";
 import {
     CheckCircle,
     Warning,
@@ -85,105 +85,6 @@ function getQaIllustration(question: string, idx: number): { img: string; bg: st
 }
 
 // Rich fallback demo data for immediate preview if no live session exists
-const DEFAULT_DEMO_REPORT: FeedbackReportData = {
-    overallScore: 84,
-    verdict: "Strong Candidate",
-    summary: "You demonstrated strong analytical problem solving and structured thinking. You articulated technical trade-offs with confidence and maintained steady pacing throughout.",
-    metrics: {
-        vocabulary: 88,
-        technicalDepth: 82,
-        pace: 85,
-        fillerWords: 90,
-        clarity: 86,
-        structureStar: 84,
-    },
-    strengths: [
-        {
-            title: "Structured STAR Methodology",
-            detail: "You framed the situation, obstacles, direct interventions, and quantifiable business outcomes in your responses.",
-            quote: "We prioritized user retention by isolating the onboarding churn bottleneck and launched an A/B test driving +14% activation.",
-        },
-        {
-            title: "Domain Terminology & Technical Depth",
-            detail: "You accurately referenced system trade-offs, latency implications, and API contract design during technical questions.",
-            quote: "Decoupled asynchronous webhook processing to safeguard uptime and achieve sub-100ms response targets.",
-        },
-        {
-            title: "Cross-Functional Collaboration",
-            detail: "You clearly articulated how to align engineering, product, and executive stakeholders around shared roadmap milestones.",
-        },
-    ],
-    improvements: [
-        {
-            title: "Quantify Business Impact Earlier",
-            detail: "Your initial narrative spent significant time on context before mentioning the core metric lift or bottom-line value.",
-            recommendation: "Lead with the bottom-line result first (Executive Summary format), then unpack your technical details.",
-        },
-        {
-            title: "Address Edge Cases Proactively",
-            detail: "You focused primarily on the happy path before the interviewer prompted for failure modes and recovery procedures.",
-            recommendation: "Dedicate the final 30 seconds of your system design answers to risk mitigation, fallback strategies, and rate limits.",
-        },
-    ],
-    quickTips: [
-        "Use deliberate 1-2 second pauses instead of filler words when digesting complex questions.",
-        "Synthesize interviewer hints into your revised approach rather than defending the initial design.",
-        "Conclude your answers with a crisp summary sentence to signal you have finished speaking.",
-        "Quantify your achievements with concrete metrics like latency reductions, uptime, or business impact.",
-    ],
-    qaBreakdown: [
-        {
-            question: "How do you prioritize features when engineering bandwidth is cut in half?",
-            candidateAnswer: "I would sit with the engineering manager, identify the top 3 company OKRs, calculate RICE scores for the backlog, and negotiate a cut line.",
-            rating: "Strong",
-            feedback: "You demonstrated a crisp, framework-driven approach. You showed empathy for engineering constraints while defending business objectives.",
-            modelAnswer: "First, align with leadership on non-negotiable compliance and reliability commitments. Next, stack-rank remaining backlog using expected business value over engineering effort (RICE framework). Finally, communicate revised scope proactively with transparent tradeoff rationales to stakeholders.",
-        },
-        {
-            question: "Tell me about a time a major release failed and how you resolved it.",
-            candidateAnswer: "We had a deployment issue with database migrations causing timeouts. I rolled back the release, briefed the customer support team, and patched the index.",
-            rating: "Average",
-            feedback: "You outlined good incident response actions, but you should detail the post-mortem, blameless culture, and automated regression guards introduced.",
-            modelAnswer: "Initiated the incident triage within 5 minutes, executed the zero-downtime rollback runbook, and maintained a live status page. Following resolution, led a blameless post-mortem that identified a missing pre-migration index check and automated shadow-traffic verification in our CI/CD pipeline.",
-        },
-        {
-            question: "How do you handle architectural disagreements between senior and staff engineers?",
-            candidateAnswer: "I bring both engineers into a whiteboard session to list out measurable criteria like throughput, latency, and operational cost, then prototype the ambiguous areas.",
-            rating: "Strong",
-            feedback: "You effectively depersonalized the technical conflict by anchoring the discussion on quantifiable objective criteria.",
-            modelAnswer: "Align on shared architectural principles and define empirical decision criteria (latency, scalability, maintenance overhead). If deadlock persists, time-box a spike proof-of-concept to produce real data rather than debating hypotheses.",
-        },
-        {
-            question: "What trade-offs do you consider when choosing between a monolithic and microservices architecture?",
-            candidateAnswer: "Microservices offer independent scaling and deployability, but introduce distributed system complexity, eventual consistency challenges, and network latency.",
-            rating: "Strong",
-            feedback: "You articulated clear awareness of operational overhead and distributed systems complexity rather than defaulting to microservices reflexively.",
-            modelAnswer: "Evaluate team topology, domain boundary maturity, and deployment velocity requirements. Favor a modular monolith initially to keep operational complexity low until independent scaling and organizational decoupling strictly justify service boundaries.",
-        },
-    ],
-    responsibilityAlignment: {
-        targetCompany: "Stripe",
-        keyResponsibilitiesEvaluated: [
-            "Technical architecture trade-offs & API scale",
-            "Cross-functional roadmap prioritization under constraints",
-            "Incident management, post-mortems & zero-downtime operations",
-        ],
-        alignmentScore: 88,
-        summary: "Your responses demonstrated exceptional alignment with Stripe's core expectations around developer empathy, empirical trade-off evaluations, and rigorous operational reliability.",
-        demonstratedCompetencies: [
-            "Systematic trade-off analysis between monolithic and distributed topologies",
-            "Objective prioritization using RICE and business impact frameworks",
-            "Incident mitigation and proactive post-mortem hygiene",
-        ],
-        underrepresentedAreas: [
-            "Deep dive into cost vs. latency trade-offs on AWS/GCP cloud budgets",
-        ],
-        recommendationsForRole: [
-            "Quantify p99 latency guarantees and operational cost figures directly when discussing architecture",
-        ],
-    },
-};
-
 export interface FeedbackReportProps {
     isModal?: boolean;
     onClose?: () => void;
@@ -198,47 +99,16 @@ export default function FeedbackReport({
     const router = useRouter();
     const { settings, interviewBlob } = useInterview();
 
-    const [isLoading, setIsLoading] = useState<boolean>(() => {
-        if (initialReportData) return false;
-        if (typeof window === "undefined") return false;
-        try {
-            const params = new URLSearchParams(window.location.search);
-            const sessionId = params.get("sessionId") || localStorage.getItem("useladder_last_session_id");
-            if (sessionId) {
-                const cached = localStorage.getItem(`useladder_feedback_${sessionId}`);
-                if (cached) return false;
-                return true;
-            }
-        } catch {}
-        return false;
-    });
+    // Nothing is read from the browser's saved data while the page is first
+    // drawn: the server can't see that data, so reading it here made the page
+    // draw twice and flash placeholder values. It starts as "loading" and the
+    // effect below fills it in.
+    const [isLoading, setIsLoading] = useState<boolean>(!initialReportData);
     const [hasError, setHasError] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
-    const [reportData, setReportData] = useState<FeedbackReportData | null>(() => {
-        if (initialReportData) return sanitizeReportData(initialReportData);
-        if (typeof window === "undefined") return null;
-        try {
-            const params = new URLSearchParams(window.location.search);
-            const sessionId = params.get("sessionId") || localStorage.getItem("useladder_last_session_id");
-            if (sessionId) {
-                const cached = localStorage.getItem(`useladder_feedback_${sessionId}`);
-                if (cached) {
-                    const parsed = JSON.parse(cached);
-                    if (parsed && typeof parsed.overallScore === "number") {
-                        return sanitizeReportData(parsed);
-                    }
-                }
-            }
-            const lastStored = localStorage.getItem("useladder_last_feedback");
-            if (lastStored) {
-                const parsed = JSON.parse(lastStored);
-                if (parsed && typeof parsed.overallScore === "number") {
-                    return sanitizeReportData(parsed);
-                }
-            }
-        } catch {}
-        return sanitizeReportData(DEFAULT_DEMO_REPORT);
-    });
+    // True when this person has no interview to report on yet.
+    const [noReport, setNoReport] = useState(false);
+    const [reportData, setReportData] = useState<FeedbackReportData | null>(() => (initialReportData ? sanitizeReportData(initialReportData) : null));
     const [activeTab, setActiveTab] = useState<SectionTabKey>("strengths");
     const [selectedCard, setSelectedCard] = useState<UnifiedFeedbackCard | null>(null);
     const [sessionMeta, setSessionMeta] = useState<{
@@ -247,29 +117,7 @@ export default function FeedbackReport({
         domain?: string;
         companyName?: string;
         responsibilities?: string[];
-    }>(() => {
-        if (typeof window === "undefined") return {};
-        try {
-            const rawMeta = localStorage.getItem("useladder_last_session_meta");
-            if (rawMeta) {
-                const meta = JSON.parse(rawMeta);
-                return {
-                    role: meta.role || "Software Engineer",
-                    experience: meta.experience || "Mid-Level",
-                    domain: meta.domain || "General Tech",
-                    companyName: meta.companyName || "Target Company",
-                    responsibilities: Array.isArray(meta.responsibilities) ? meta.responsibilities : [],
-                };
-            }
-        } catch {}
-        return {
-            role: "Software Engineer",
-            experience: "Mid-Level",
-            domain: "General Tech",
-            companyName: "Target Company",
-            responsibilities: [],
-        };
-    });
+    }>({});
 
     const handleDownload = () => {
         if (!interviewBlob) return;
@@ -294,210 +142,128 @@ export default function FeedbackReport({
         router.push("/");
     };
 
+    /**
+     * Finds this person's report, in order: the copy this browser kept (so it
+     * shows at once), the one stored on the server (so it is there on any
+     * device), and only then a newly written one for an interview that has
+     * just finished. With none of those there is no report, and the page says
+     * so. It never shows a sample in place of a real one.
+     */
     const performFeedbackFetch = useCallback(async () => {
         if (initialReportData) return;
 
-        setIsLoading(true);
-        setHasError(false);
-        setErrorMessage("");
+        const readJson = <T,>(key: string): T | null => {
+            try {
+                const raw = localStorage.getItem(key);
+                return raw ? (JSON.parse(raw) as T) : null;
+            } catch {
+                return null;
+            }
+        };
+        const show = (data: FeedbackReportData, transcript?: Array<{ role?: string; sender?: string; text?: string }>, forSession?: string | null) => {
+            const clean = sanitizeReportData(data, transcript);
+            setReportData(clean);
+            try {
+                if (forSession) localStorage.setItem(`useladder_feedback_${forSession}`, JSON.stringify(clean));
+                localStorage.setItem("useladder_last_feedback", JSON.stringify(clean));
+            } catch {
+                // Saved data is full or blocked: the report still shows.
+            }
+            setIsLoading(false);
+        };
+
         try {
-            let sessionId: string | null = null;
-            let meta: Record<string, unknown> = {};
-            let directTranscript: Array<{ role?: string; sender?: string; text?: string }> = [];
-            let userProfileRole = "";
+            const sessionId = new URLSearchParams(window.location.search).get("sessionId") || localStorage.getItem("useladder_last_session_id");
+            const meta = readJson<Record<string, unknown>>("useladder_last_session_meta") ?? {};
+            const transcript = readJson<Array<{ role?: string; sender?: string; text?: string }>>("useladder_last_session_transcript") ?? [];
+            const profile = readJson<{ role?: string; seniority?: string; domain?: string }>("useladder_user");
+            const profileRole = profile?.role || "";
+            const text = (value: unknown) => (typeof value === "string" ? value : "");
+            // The interview's own details first, then the person's profile. The
+            // app-wide defaults come last: they describe no one in particular.
+            const details = {
+                role: text(meta.role) || profileRole || settings.role || "",
+                experience: text(meta.experience) || profile?.seniority || "",
+                domain: text(meta.domain) || profile?.domain || settings.domain || "",
+                companyName: text(meta.companyName) || undefined,
+                responsibilities: Array.isArray(meta.responsibilities) ? (meta.responsibilities as string[]) : [],
+            };
+            setSessionMeta(details);
 
-            if (typeof window !== "undefined") {
-                const userRaw = localStorage.getItem("useladder_user");
-                if (userRaw) {
-                    try {
-                        const parsedUser = JSON.parse(userRaw);
-                        userProfileRole = parsedUser.role || "";
-                    } catch {}
-                }
-                const params = new URLSearchParams(window.location.search);
-                sessionId = params.get("sessionId") || localStorage.getItem("useladder_last_session_id");
-                const rawMeta = localStorage.getItem("useladder_last_session_meta");
-                if (rawMeta) {
-                    try {
-                        meta = JSON.parse(rawMeta);
-                    } catch {}
-                }
-                const rawTranscript = localStorage.getItem("useladder_last_session_transcript");
-                if (rawTranscript) {
-                    try {
-                        directTranscript = JSON.parse(rawTranscript);
-                    } catch {}
-                }
+            // 1. This browser's copy.
+            const cached = sessionId ? readJson<FeedbackReportData>(`useladder_feedback_${sessionId}`) : null;
+            if (cached && typeof cached.overallScore === "number") return show(cached, transcript, sessionId);
 
-                if (sessionId) {
-                    const cached = localStorage.getItem(`useladder_feedback_${sessionId}`);
-                    if (cached) {
-                        try {
-                            const parsed = JSON.parse(cached);
-                            if (parsed && typeof parsed.overallScore === "number") {
-                                const clean = sanitizeReportData(parsed, directTranscript);
-                                setReportData(clean);
-                                localStorage.setItem("useladder_last_feedback", JSON.stringify(clean));
-                                setSessionMeta({
-                                    role: (typeof meta.role === "string" ? meta.role : "") || settings.role || userProfileRole || "Software Engineer",
-                                    experience: (typeof meta.experience === "string" ? meta.experience : "") || settings.experience || "Mid-Level",
-                                    domain: (typeof meta.domain === "string" ? meta.domain : "") || settings.domain || "General Tech",
-                                });
-                                setIsLoading(false);
-                                return;
-                            }
-                        } catch {}
-                    }
+            // 2. The server's copy: for this interview, or their latest if none is named.
+            const storedRes = await fetch(`/api/feedback/report${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ""}`, { cache: "no-store" });
+            if (storedRes.ok) {
+                const stored = await storedRes.json();
+                if (stored?.report && typeof stored.report.overallScore === "number") {
+                    // The role the report was written for is the one to show.
+                    if (stored.role) setSessionMeta((current) => ({ ...current, role: stored.role }));
+                    return show(stored.report, transcript, stored.sessionId ?? sessionId);
                 }
             }
 
-            const effectiveRole = (typeof meta.role === "string" ? meta.role : "") || settings.role || userProfileRole || "Software Engineer";
-            setSessionMeta({
-                role: effectiveRole,
-                experience: (typeof meta.experience === "string" ? meta.experience : "") || settings.experience || "Mid-Level",
-                domain: (typeof meta.domain === "string" ? meta.domain : "") || settings.domain || "General Tech",
-            });
-
+            // 3. An interview that has just ended: have its report written (and stored).
             if (sessionId) {
                 const res = await fetch("/api/feedback/generate", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         sessionId,
-                        role: effectiveRole,
-                        experience: (typeof meta.experience === "string" ? meta.experience : "") || settings.experience || "Mid-Level",
-                        domain: (typeof meta.domain === "string" ? meta.domain : "") || settings.domain || "General Tech",
-                        companyName: typeof meta.companyName === "string" ? meta.companyName : undefined,
-                        responsibilities: Array.isArray(meta.responsibilities) ? meta.responsibilities : undefined,
-                        transcript: directTranscript.length > 0 ? directTranscript : undefined,
+                        role: details.role || "Software Engineer",
+                        experience: details.experience || "Mid-Level",
+                        domain: details.domain || "General Tech",
+                        companyName: details.companyName,
+                        responsibilities: details.responsibilities.length ? details.responsibilities : undefined,
+                        transcript: transcript.length > 0 ? transcript : undefined,
+                        durationMinutes: typeof meta.durationMinutes === "number" ? meta.durationMinutes : undefined,
+                        interviewType: text(meta.preparationTitle) || undefined,
+                        mode: text(meta.interviewMode) || undefined,
                     }),
                 });
-
                 if (res.ok) {
                     const data: FeedbackReportData = await res.json();
-                    if (data && typeof data.overallScore === "number") {
-                        const clean = sanitizeReportData(data, directTranscript);
-                        setReportData(clean);
-                        localStorage.setItem(`useladder_feedback_${sessionId}`, JSON.stringify(clean));
-                        localStorage.setItem("useladder_last_feedback", JSON.stringify(clean));
-                        // Record dashboard stats with the real score, once per session.
-                        const statsKey = `useladder_stats_recorded_${sessionId}`;
-                        if (!localStorage.getItem(statsKey)) {
-                            localStorage.setItem(statsKey, "1");
-                            const minutes = typeof meta.durationMinutes === "number" ? meta.durationMinutes : 1;
-                            void db.recordInterviewSession(clean.overallScore, minutes);
-                        }
-                        setIsLoading(false);
-                        return;
-                    }
+                    if (data && typeof data.overallScore === "number") return show(data, transcript, sessionId);
+                }
+                // A 404 means there were no answers to report on.
+                if (res.status !== 404) {
+                    setHasError(true);
+                    setErrorMessage("We couldn't put your report together just now. Your interview is saved, so you can try again.");
+                    setIsLoading(false);
+                    return;
                 }
             }
 
-            const lastStored = localStorage.getItem("useladder_last_feedback");
-            if (lastStored) {
-                try {
-                    const parsed = JSON.parse(lastStored);
-                    if (parsed && typeof parsed.overallScore === "number") {
-                        const clean = sanitizeReportData(parsed, directTranscript);
-                        setReportData(clean);
-                        setIsLoading(false);
-                        return;
-                    }
-                } catch {}
-            }
+            // 4. An older report this browser still has.
+            const last = readJson<FeedbackReportData>("useladder_last_feedback");
+            if (last && typeof last.overallScore === "number") return show(last, transcript);
 
-            setReportData(sanitizeReportData(DEFAULT_DEMO_REPORT, directTranscript));
+            setNoReport(true);
             setIsLoading(false);
         } catch (err: unknown) {
-            console.warn("[FeedbackReport] Failed to fetch live report, using default demo:", err);
-            setReportData(sanitizeReportData(DEFAULT_DEMO_REPORT));
+            console.warn("[FeedbackReport] Couldn't load the report:", err);
+            setHasError(true);
+            setErrorMessage("We couldn't load your report. Check your connection and try again.");
             setIsLoading(false);
         }
     }, [initialReportData, settings.domain, settings.experience, settings.role]);
 
+    // Started just after the page has drawn, so loading never interrupts a render.
     useEffect(() => {
-        if (initialReportData) return;
-        if (typeof window === "undefined") return;
+        const start = window.setTimeout(() => void performFeedbackFetch(), 0);
+        return () => window.clearTimeout(start);
+    }, [performFeedbackFetch]);
 
-        const params = new URLSearchParams(window.location.search);
-        const sessionId = params.get("sessionId") || localStorage.getItem("useladder_last_session_id");
-        if (!sessionId) return;
-
-        const cached = localStorage.getItem(`useladder_feedback_${sessionId}`);
-        if (cached) return;
-
-        let isCancelled = false;
-
-        const generateFeedback = async () => {
-            try {
-                let meta: Record<string, unknown> = {};
-                let directTranscript: Array<{ role?: string; sender?: string; text?: string }> = [];
-                let userProfileRole = "";
-
-                const userRaw = localStorage.getItem("useladder_user");
-                if (userRaw) {
-                    try {
-                        const parsedUser = JSON.parse(userRaw);
-                        userProfileRole = parsedUser.role || "";
-                    } catch {}
-                }
-                const rawMeta = localStorage.getItem("useladder_last_session_meta");
-                if (rawMeta) {
-                    try {
-                        meta = JSON.parse(rawMeta);
-                    } catch {}
-                }
-                const rawTranscript = localStorage.getItem("useladder_last_session_transcript");
-                if (rawTranscript) {
-                    try {
-                        directTranscript = JSON.parse(rawTranscript);
-                    } catch {}
-                }
-
-                const effectiveRole = (typeof meta.role === "string" ? meta.role : "") || settings.role || userProfileRole || "Software Engineer";
-
-                const res = await fetch("/api/feedback/generate", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        sessionId,
-                        role: effectiveRole,
-                        experience: (typeof meta.experience === "string" ? meta.experience : "") || settings.experience || "Mid-Level",
-                        domain: (typeof meta.domain === "string" ? meta.domain : "") || settings.domain || "General Tech",
-                        companyName: typeof meta.companyName === "string" ? meta.companyName : undefined,
-                        responsibilities: Array.isArray(meta.responsibilities) ? meta.responsibilities : undefined,
-                        transcript: directTranscript.length > 0 ? directTranscript : undefined,
-                    }),
-                });
-
-                if (res.ok) {
-                    const data: FeedbackReportData = await res.json();
-                    if (data && typeof data.overallScore === "number" && !isCancelled) {
-                        const clean = sanitizeReportData(data, directTranscript);
-                        setReportData(clean);
-                        localStorage.setItem(`useladder_feedback_${sessionId}`, JSON.stringify(clean));
-                        localStorage.setItem("useladder_last_feedback", JSON.stringify(clean));
-                        setIsLoading(false);
-                    }
-                } else if (!isCancelled) {
-                    setIsLoading(false);
-                    setHasError(true);
-                    setErrorMessage("Failed to generate interview feedback report.");
-                }
-            } catch (err: unknown) {
-                console.warn("[FeedbackReport] Failed to generate live report:", err);
-                if (!isCancelled) {
-                    setIsLoading(false);
-                }
-            }
-        };
-
-        void generateFeedback();
-
-        return () => {
-            isCancelled = true;
-        };
-    }, [initialReportData, settings.domain, settings.experience, settings.role]);
+    // Trying again starts from a clean loading state; the first load already is one.
+    const retryFeedbackFetch = useCallback(() => {
+        setIsLoading(true);
+        setHasError(false);
+        setErrorMessage("");
+        setNoReport(false);
+        void performFeedbackFetch();
+    }, [performFeedbackFetch]);
 
     // Transform reportData into unified cards with minimal aesthetics
     const strengthsCards: UnifiedFeedbackCard[] = (reportData?.strengths || []).map((s, idx) => {
@@ -765,14 +531,15 @@ export default function FeedbackReport({
     };
 
     // ── Main Window Content (Used in both full page and modal modes) ──
-    const windowContent = (
+    // Built only once there is a report to show.
+    const windowContent = !reportData ? null : (
         <div className={isModal ? styles.feedbackWindowModal : styles.feedbackWindow}>
             {/* ── Window Header ── */}
             <div className={styles.windowHeader}>
                 <div className={styles.windowTitleGroup}>
                     <h1 className={styles.windowTitle}>Interview Performance Feedback</h1>
                     <p className={styles.windowSubtitle}>
-                        Role: {sessionMeta.role || "Product Manager"} · Level: {sessionMeta.experience || "Mid-Level"}
+                        {[sessionMeta.role && `Role: ${sessionMeta.role}`, sessionMeta.experience && `Level: ${sessionMeta.experience}`].filter(Boolean).join(" · ")}
                     </p>
                 </div>
                 {isModal && (
@@ -1009,19 +776,23 @@ export default function FeedbackReport({
                     {isLoading ? (
                         <div className={styles.loadingContainer}>
                             <div className={styles.loadingSpinner} />
-                            <h2 className={styles.loadingTitle}>Evaluating your session…</h2>
+                            <h2 className={styles.loadingTitle}>Getting your report ready…</h2>
                         </div>
                     ) : hasError && !reportData ? (
                         <div className={styles.errorContainer}>
                             <Warning size={48} weight="regular" className={styles.errorIcon} />
-                            <h2 className={styles.loadingTitle}>Evaluation Encountered an Issue</h2>
-                            <p className={styles.loadingSubtitle}>
-                                {errorMessage || "We were unable to complete the analysis for this session."}
-                            </p>
-                            <button type="button" className={styles.retryBtn} onClick={performFeedbackFetch}>
+                            <h2 className={styles.loadingTitle}>We couldn&rsquo;t load your report</h2>
+                            <p className={styles.loadingSubtitle}>{errorMessage || "Please try again."}</p>
+                            <button type="button" className={styles.retryBtn} onClick={retryFeedbackFetch}>
                                 <Lightning size={16} weight="regular" />
-                                Retry Analysis
+                                Try again
                             </button>
+                        </div>
+                    ) : noReport || !reportData ? (
+                        <div className={styles.errorContainer}>
+                            <h2 className={styles.loadingTitle}>No interview report yet</h2>
+                            <p className={styles.loadingSubtitle}>Finish a practice interview and your report will appear here.</p>
+                            <button type="button" className={styles.retryBtn} onClick={handleCloseAction}>Back to dashboard</button>
                         </div>
                     ) : (
                         windowContent
@@ -1058,6 +829,14 @@ export default function FeedbackReport({
                 </div>
 
                 <div className={styles.navActions}>
+                    <FeedbackButton
+                        ratingQuestion="How was this interview?"
+                        interviewSessionId={
+                            typeof window === "undefined"
+                                ? null
+                                : new URLSearchParams(window.location.search).get("sessionId") || localStorage.getItem("useladder_last_session_id")
+                        }
+                    />
 
                     {interviewBlob && (
                         <button
@@ -1084,19 +863,23 @@ export default function FeedbackReport({
             {isLoading ? (
                 <div className={styles.loadingContainer}>
                     <div className={styles.loadingSpinner} />
-                    <h2 className={styles.loadingTitle}>Evaluating your session…</h2>
+                    <h2 className={styles.loadingTitle}>Getting your report ready…</h2>
                 </div>
             ) : hasError && !reportData ? (
                 <div className={styles.errorContainer}>
                     <Warning size={48} weight="regular" className={styles.errorIcon} />
-                    <h2 className={styles.loadingTitle}>Evaluation Encountered an Issue</h2>
-                    <p className={styles.loadingSubtitle}>
-                        {errorMessage || "We were unable to complete the analysis for this session."}
-                    </p>
-                    <button type="button" className={styles.retryBtn} onClick={performFeedbackFetch}>
+                    <h2 className={styles.loadingTitle}>We couldn&rsquo;t load your report</h2>
+                    <p className={styles.loadingSubtitle}>{errorMessage || "Please try again."}</p>
+                    <button type="button" className={styles.retryBtn} onClick={retryFeedbackFetch}>
                         <Lightning size={16} weight="regular" />
-                        Retry Analysis
+                        Try again
                     </button>
+                </div>
+            ) : noReport || !reportData ? (
+                <div className={styles.errorContainer}>
+                    <h2 className={styles.loadingTitle}>No interview report yet</h2>
+                    <p className={styles.loadingSubtitle}>Finish a practice interview and your report will appear here.</p>
+                    <button type="button" className={styles.retryBtn} onClick={() => router.replace("/dashboard")}>Start from the dashboard</button>
                 </div>
             ) : (
                 <main className={styles.mainContainer}>

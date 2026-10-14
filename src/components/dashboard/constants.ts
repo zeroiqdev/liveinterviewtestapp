@@ -1,4 +1,5 @@
-import { ArrowDown, ArrowRight, ArrowUpRight } from "@phosphor-icons/react";
+import { ArrowRight } from "@phosphor-icons/react";
+import { actionForTopic, tipForWeek, type TipAction } from "@/lib/weeklyTips";
 import type { FeedbackReportData } from "@/app/api/feedback/generate/route";
 import type { JobItem } from "@/app/api/jobs/route";
 import { isJobRoleMatch, normalizeUserRoleFamily } from "@/utils/locationDetector";
@@ -584,6 +585,10 @@ export interface BuildCharactersOptions {
     lastResumeFeedback?: ResumeScanFeedbackItem | null;
     allResumeFeedbacks?: ResumeScanFeedbackItem[] | null;
     hasAdminTips?: boolean;
+    /** This week's and last week's approved tips for this user's role (from /api/weekly-tips). */
+    weeklyTips?: Array<{ week: number; topic: string; title: string; body: string; tryThis: string; action?: TipAction }> | null;
+    /** Opens the jobs board. */
+    onOpenJobs?: () => void;
     onPractice?: () => void;
     onOpenJob?: (job: JobItem) => void;
     onOpenFeedback?: () => void;
@@ -598,8 +603,10 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
         lastFeedback,
         lastResumeFeedback,
         allResumeFeedbacks,
+        weeklyTips,
         onPractice,
         onOpenJob,
+        onOpenJobs,
         onOpenFeedback,
         onOpenResumeFeedback,
     } = opts;
@@ -622,25 +629,19 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
     );
 
     // ─────────────────────────────────────────────────────────────
-    // 1. INTERVIEW COACH: Accurate STAR Assessment + Role Domain
+    // 1. INTERVIEW COACH
+    //
+    // A new account gets three short messages: a welcome, a nudge to add a
+    // resume, and this week's tip. Advice about their answers and their role
+    // only appears once they have done an interview, when it means something.
+    // A new tip arrives every Monday (lib/weeklyTips) with its own id, so it
+    // shows as unread without anything being published by hand.
     // ─────────────────────────────────────────────────────────────
-    const coachExplanation =
-        family === "ui_designer"
-            ? "I analyze your responses, coach you on visual craft & design systems, and drill you on typography, micro-interactions & dev handoff."
-            : family === "product_manager"
-            ? "I analyze your responses, coach you on behavioral STAR stories, and drill you on product sense, metric definition & execution trade-offs."
-            : family === "product_designer"
-            ? "I analyze your responses, coach you on behavioral STAR stories, and drill you on user journey mapping, design systems & design critiques."
-            : family === "data_analyst"
-            ? "I analyze your responses, coach you on behavioral STAR stories, and drill you on product analytics, SQL metrics & A/B testing hypotheses."
-            : family === "frontend_developer"
-            ? "I analyze your responses, coach you on behavioral STAR stories, and drill you on UI performance, state boundaries & accessibility."
-            : "I analyze your responses, coach you on behavioral STAR stories, and drill you on system design, technical architecture & problem solving.";
+    const coachExplanation = "I listen to your answers, tell you what to fix, and send you a new tip every week.";
 
     const hasInterview = !!lastFeedback;
-    const hasAdminTips = !!(opts as any).hasAdminTips || (typeof window !== "undefined" && (localStorage.getItem("useladder_admin_tips_provided") === "true" || localStorage.getItem("adminTipsEnabled") === "true"));
 
-    // Welcome item for new accounts (no interview yet)
+    // Welcome, until the first interview is done.
     let welcomeItem: ChatDmItem | null = null;
     if (!hasInterview) {
         welcomeItem = {
@@ -649,253 +650,86 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
             avatar: COACH_AVATAR,
             time: "Just now",
             isOnline: true,
-            badgeLabel: "Welcome to Get Prepped",
+            badgeLabel: "Welcome",
             messages: [
-                `Welcome to Get Prepped, ${displayRole} — I'm your Interview Coach, here to help you ace your next interview.`,
-                `Upload your resume to get an ATS audit, or start a mock interview to get personalized STAR and domain coaching. When you're ready for targeted product sense tips, your coach will share them here.`,
+                `Welcome to get prepped. I'm your coach, and I'll help you get ready for ${displayRole} interviews.`,
+                "The quickest way to start is to do one practice interview. It takes about 20 minutes, and afterwards I'll show you what went well and what to work on.",
             ],
-            insight: `Structure each behavioral response by separating the problem context from your direct actions, then anchor with a measurable outcome.`,
-            actions: [
-                { label: hasInterview ? "Practice Next Round" : "Start Mock Interview", primary: true, onClick: onPractice },
-                { label: "View STAR Guide", icon: ArrowDown, onClick: onPractice },
-            ],
+            actions: [{ label: "Start my first interview", primary: true, onClick: onPractice }],
         };
     }
 
-    // Item 1: STAR Structure
+    // How they structured their answers, once there is an interview to judge.
     let starItem: ChatDmItem | null = null;
     if (hasInterview && lastFeedback) {
         const starScore = typeof lastFeedback.metrics?.structureStar === "number" ? lastFeedback.metrics.structureStar : 60;
         const starImprovement = lastFeedback.improvements?.find(imp =>
             /star|structure|situation|action|result|metric|quantif/i.test(imp.title + " " + imp.detail)
         );
-        const starLlmInsight = starImprovement?.recommendation
-            || lastFeedback.improvements?.find(i => /action|result|metric/i.test(i.title + " " + i.detail))?.recommendation
-            || (lastFeedback.quickTips && lastFeedback.quickTips.length > 0 ? lastFeedback.quickTips[0] : null)
+        const nextStep = starImprovement?.recommendation
             || (starScore < 65
-                ? "Delineate your specific personal actions from high-level team context, and conclude with the measurable business result."
+                ? "Spend most of each answer on what you did, and finish with what happened because of it."
                 : starScore < 78
-                ? "Conclude your behavioral stories with concrete business metrics rather than high-level operational descriptions."
-                : "Maintain concise delivery under 2.5 minutes while linking specific personal decisions directly to team and product success.");
-
-        if (starScore < 65) {
-            starItem = {
-                id: "coach-star",
-                sender: "Interview Coach",
-                avatar: COACH_AVATAR,
-                time: "Just now",
-                isOnline: true,
-                badgeLabel: "STAR Structure: Needs Work",
-                messages: [
-                    `Your behavioral STAR structure in your last mock session needs improvement (scored ${starScore}/100).`,
-                    starImprovement ? `${starImprovement.detail} Next time: ${starImprovement.recommendation}` : `Your answers lacked clearly separated Actions and quantifiable Results. Structure each story: Situation (15%), Task (15%), specific personal Actions (50%), and measurable business impact (20%).`,
-                ],
-                insight: starLlmInsight,
-                actions: [
-                    { label: "Practice STAR Drill", primary: true, disabled: true },
-                ]
-            };
-        } else if (starScore < 78) {
-            starItem = {
-                id: "coach-star",
-                sender: "Interview Coach",
-                avatar: COACH_AVATAR,
-                time: "Just now",
-                isOnline: true,
-                badgeLabel: "STAR Structure: Average",
-                messages: [
-                    `Your behavioral STAR structure in your last mock session was average (${starScore}/100).`,
-                    starImprovement ? `${starImprovement.detail} ${starImprovement.recommendation}` : `Your context setup was clear, but make sure each behavioral story concludes with concrete business metrics (e.g. 'improved retention by 14%' or 'reduced delivery cycle by 3 weeks').`,
-                ],
-                insight: starLlmInsight,
-                actions: [
-                    { label: "Practice STAR Drill", primary: true, disabled: true },
-                ]
-            };
-        } else {
-            starItem = {
-                id: "coach-star",
-                sender: "Interview Coach",
-                avatar: COACH_AVATAR,
-                time: "Just now",
-                isOnline: true,
-                badgeLabel: "STAR Structure: Solid",
-                messages: [
-                    `Your behavioral STAR structure in your last mock session was strong (${starScore}/100), with articulate Situation, Task, Action, and measurable outcomes.`,
-                    `Keep your storytelling cadence crisp and aim to wrap up complete answers under 2.5 minutes.`,
-                ],
-                insight: starLlmInsight,
-                actions: [
-                    { label: "Practice STAR Drill", primary: true, disabled: true },
-                ]
-            };
-        }
-    } else {
+                ? "Finish each story with the result, with a number if you have one."
+                : "Keep each answer under two and a half minutes.");
         starItem = {
             id: "coach-star",
             sender: "Interview Coach",
             avatar: COACH_AVATAR,
-            time: "1h ago",
+            time: "After your last interview",
             isOnline: true,
-            badgeLabel: "STAR Behavioral Coaching",
+            badgeLabel: starScore < 65 ? "Your answers need clearer structure" : starScore < 78 ? "Your answers are nearly there" : "Your answers are well structured",
             messages: [
-                `In behavioral interview rounds for ${displayRole}, structure your responses using the STAR method: Situation (15%), Task (15%), Action (50%), and measurable Result (20%).`,
-                "Focus on your individual contributions, personal ownership, and quantify your outcomes with metrics (e.g. % improvement or delivery speed).",
+                starScore < 65
+                    ? `In your last interview it was hard to follow what you did and what came of it (${starScore}/100 for structure).`
+                    : starScore < 78
+                    ? `In your last interview you set the scene well, but some answers stopped before the result (${starScore}/100 for structure).`
+                    : `In your last interview your answers were easy to follow from start to finish (${starScore}/100 for structure).`,
+                starImprovement ? starImprovement.detail : "A good answer has four parts: the situation, what you had to do, what you did, and what happened.",
             ],
-            insight: `Allocate 50% of your response time to the specific actions YOU took, and conclude with concrete metric outcomes.`,
-            actions: [
-                { label: "Practice STAR Drill", primary: true, disabled: true },
-            ],
+            insight: nextStep,
+            actions: [{ label: "Practise again", primary: true, onClick: onPractice }],
         };
     }
 
-    // Item 2: Domain-Specific Assessment
+    // One thing interviewers look for in this kind of role, after the first interview.
+    const ROLE_TIPS: Record<string, { label: string; tip: string; tryThis: string }> = {
+        product_manager: { label: "Product interviews", tip: "Interviewers want to hear how you decided what to build and how you knew it worked. Name the problem, the options you weighed, and the number you watched.", tryThis: "For your best project, write down the one number that told you it was working." },
+        product_designer: { label: "Design interviews", tip: "Walk through one project from the problem to the result. Say what you learned from users and what you changed because of it, not only what the screens looked like.", tryThis: "Pick one project and prepare the story of a decision you changed after testing." },
+        ui_designer: { label: "Design interviews", tip: "Be ready to explain why a screen looks the way it does: the spacing, the type, the states. Interviewers are listening for decisions, not taste.", tryThis: "Choose one screen you designed and practise explaining three decisions in it." },
+        data_analyst: { label: "Data interviews", tip: "Say what question you were answering before you describe the analysis, and end with what the business did because of it.", tryThis: "For one analysis, practise explaining the finding to someone who doesn't work with data." },
+        frontend_developer: { label: "Engineering interviews", tip: "Explain the trade-off behind a technical choice: what you gained, what you gave up, and how you would know if it was the wrong call.", tryThis: "Prepare one story about a performance problem you found and fixed." },
+        backend_engineer: { label: "Engineering interviews", tip: "Explain the trade-off behind a technical choice: what you gained, what you gave up, and how you would know if it was the wrong call.", tryThis: "Prepare one story about a system that broke and what you changed afterwards." },
+        devops_sre: { label: "Engineering interviews", tip: "Tell incident stories in order: what broke, how you found it, how you fixed it, and what you changed so it would not happen again.", tryThis: "Write down your best incident story in those four steps." },
+        customer_service: { label: "Customer service interviews", tip: "Interviewers want to hear how you stay calm with an upset customer. Describe what the customer said, what you said back, and how it ended.", tryThis: "Prepare one story about a customer you turned around." },
+        sales: { label: "Sales interviews", tip: "Talk in numbers: your target, what you hit, and how. Then describe one deal from first contact to close, including the objection you had to get past.", tryThis: "Write down your last three targets and what you achieved against each." },
+        banking_finance: { label: "Banking and finance interviews", tip: "Accuracy and judgement matter most. Describe a time you caught a mistake or a risk, what you did, and who you told.", tryThis: "Prepare one story about an error you caught before it caused a problem." },
+        virtual_assistant: { label: "Assistant interviews", tip: "Show that you can be trusted to run things without being chased. Describe how you keep track of tasks and what you do when two things are urgent at once.", tryThis: "Prepare one story about a week when everything was due at once." },
+        oil_gas: { label: "Oil and gas interviews", tip: "Safety comes first in every answer. When you describe a job, say what the risk was and what you did to control it before you talk about the result.", tryThis: "Prepare one story about a time you stopped a job or raised a safety concern." },
+        business_analyst: { label: "Business analysis interviews", tip: "Describe how you found out what people actually needed, which is often different from what they first asked for, and how you got agreement.", tryThis: "Prepare one story about a requirement that changed once you asked more questions." },
+    };
     let domainItem: ChatDmItem | null = null;
-        if (family === "product_manager") {
-            domainItem = {
-                id: "coach-domain",
-                sender: "Interview Coach",
-                avatar: COACH_AVATAR,
-                time: "1h ago",
-                isOnline: true,
-                badgeLabel: "Product Sense & Metrics",
-                messages: [
-                    "For Product Management rounds, focus on product sense, user segmentation, and ruthless prioritization. Use frameworks like CIRCLES or RICE to evaluate trade-offs.",
-                    "Always define your North Star Metric alongside secondary counter-metrics before proposing feature solutions.",
-                ],
-                insight: "Articulate the root customer problem and validation criteria before proposing feature architecture.",
-                actions: [
-                    { label: "Practice Product Sense Drill", primary: true, onClick: onPractice },
-                ]
-            };
-        } else if (family === "product_designer") {
-            domainItem = {
-                id: "coach-domain",
-                sender: "Interview Coach",
-                avatar: COACH_AVATAR,
-                time: "1h ago",
-                isOnline: true,
-                badgeLabel: "Design Systems & UX",
-                messages: [
-                    "For Product Design interviews, walk the interviewer through your end-to-end user journeys, usability trade-offs, and design system component reusability.",
-                    "Be ready to defend your wireframing iterations, typography hierarchy, and accessibility (WCAG) standards.",
-                ],
-                insight: "Walk through user pain points and edge cases before presenting final high-fidelity screens.",
-                actions: [
-                    { label: "Practice Design System Drill", primary: true, onClick: onPractice },
-                ]
-            };
-        } else if (family === "ui_designer") {
-            domainItem = {
-                id: "coach-domain",
-                sender: "Interview Coach",
-                avatar: COACH_AVATAR,
-                time: "1h ago",
-                isOnline: true,
-                badgeLabel: "UI Craft & Design Systems",
-                messages: [
-                    "For UI Designer interviews, emphasize component reusability, tokenized color and spacing systems, and micro-interaction states.",
-                    "Review responsive breakpoint mechanics, accessible contrast ratios, and design-to-code handoff documentation before your next session.",
-                ],
-                insight: "Demonstrate component hierarchy, accessible color contrast, and fluid transition states across screen sizes.",
-                actions: [
-                    { label: "Practice UI Design Drill", primary: true, onClick: onPractice },
-                ]
-            };
-        } else if (family === "data_analyst") {
-            domainItem = {
-                id: "coach-domain",
-                sender: "Interview Coach",
-                avatar: COACH_AVATAR,
-                time: "1h ago",
-                isOnline: true,
-                badgeLabel: "Analytics & Experimentation",
-                messages: [
-                    "For Data & Analytics interviews, sharpen your root cause analysis on metric anomalies, A/B testing hypothesis formulation, and cohort retention models.",
-                    "Practice explaining statistical significance, sample sizes, and p-values in plain, impactful business terms.",
-                ],
-                insight: "Formulate clear hypotheses and statistical significance thresholds before diving into data exploration.",
-                actions: [
-                    { label: "Practice Analytics Metric Drill", primary: true, onClick: onPractice },
-                ]
-            };
-        } else if (family === "frontend_developer") {
-            domainItem = {
-                id: "coach-domain",
-                sender: "Interview Coach",
-                avatar: COACH_AVATAR,
-                time: "1h ago",
-                isOnline: true,
-                badgeLabel: "Frontend Architecture",
-                messages: [
-                    "For Frontend engineering interviews, focus on state management boundaries, component rendering performance, and Core Web Vitals optimization.",
-                    "Review React concurrent patterns, memory leak prevention, and client-side caching strategies before your next session.",
-                ],
-                insight: "Address DOM performance, client-side caching boundaries, and Core Web Vitals optimization.",
-                actions: [
-                    { label: "Practice Frontend Drill", primary: true, onClick: onPractice },
-                ]
-            };
-        } else if (family === "devops_sre") {
-            domainItem = {
-                id: "coach-domain",
-                sender: "Interview Coach",
-                avatar: COACH_AVATAR,
-                time: "1h ago",
-                isOnline: true,
-                badgeLabel: "Infrastructure & Reliability",
-                messages: [
-                    "For DevOps and SRE interviews, focus on multi-region failover, Kubernetes ingress architecture, and CI/CD canary deployment strategies.",
-                    "Review Prometheus metrics, error budget tracking, and Terraform infrastructure-as-code patterns before your next session.",
-                ],
-                insight: "Articulate MTTR reduction targets, canary rollback mechanisms, and SLO error budget policies.",
-                actions: [
-                    { label: "Practice SRE & DevOps Drill", primary: true, onClick: onPractice },
-                ]
-            };
-        } else if (family === "backend_engineer") {
-            domainItem = {
-                id: "coach-domain",
-                sender: "Interview Coach",
-                avatar: COACH_AVATAR,
-                time: "1h ago",
-                isOnline: true,
-                badgeLabel: "System Architecture",
-                messages: [
-                    "To reach top scoring in system architecture, sharpen your cache invalidation strategies, database sharding, and back-of-the-envelope throughput math.",
-                    "Review distributed queue guarantees and database indexing before your next live mock.",
-                ],
-                insight: "Address cache invalidation guarantees, data partitioning strategies, and latency percentiles.",
-                actions: [
-                    { label: "Practice System Design Drill", primary: true, onClick: onPractice },
-                ]
-            };
-        } else {
-            domainItem = {
-                id: "coach-domain",
-                sender: "Interview Coach",
-                avatar: COACH_AVATAR,
-                time: "1h ago",
-                isOnline: true,
-                badgeLabel: "Domain Strategy",
-                messages: [
-                    "Structure your domain answers with clear problem definition, structured trade-offs, and measurable business outcomes.",
-                    "Lead with your high-level thesis before elaborating on supporting details.",
-                ],
-                insight: "Lead with a structured thesis and quantify outcomes with measurable impact metrics.",
-                actions: [
-                    { label: "Practice Interview Drill", primary: true, onClick: onPractice },
-                ]
-            };
-        }
+    if (hasInterview) {
+        const roleTip = ROLE_TIPS[family] ?? { label: "Interviews for your role", tip: "Give your answer first, then the detail. Interviewers follow you more easily when they know where you are going.", tryThis: "Practise starting each answer with a one-sentence summary." };
+        domainItem = {
+            id: "coach-domain",
+            sender: "Interview Coach",
+            avatar: COACH_AVATAR,
+            time: "For your role",
+            isOnline: true,
+            badgeLabel: roleTip.label,
+            messages: [roleTip.tip],
+            insight: roleTip.tryThis,
+            actions: [{ label: "Practise this", primary: true, onClick: onPractice }],
+        };
+    }
 
-    // Item 3: Session Feedback Message — only after an interview
+    // The latest interview's result.
     let feedbackItem: ChatDmItem | null = null;
     if (hasInterview && lastFeedback) {
-        const sessionLlmInsight = (lastFeedback.quickTips && lastFeedback.quickTips.length > 0 ? lastFeedback.quickTips[0] : null)
+        const sessionInsight = (lastFeedback.quickTips && lastFeedback.quickTips.length > 0 ? lastFeedback.quickTips[0] : null)
             || (lastFeedback.improvements && lastFeedback.improvements.length > 0 ? `${lastFeedback.improvements[0].title}: ${lastFeedback.improvements[0].recommendation}` : null)
-            || lastFeedback.summary
-            || "Review your feedback report to study recognized strengths, areas for improvement, and model responses.";
+            || undefined;
 
         feedbackItem = {
             id: "coach-interview-feedback",
@@ -903,23 +737,15 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
             avatar: COACH_AVATAR,
             time: "Just now",
             isOnline: true,
-            badgeLabel: `Evaluation Complete · ${lastFeedback.overallScore}/100`,
+            badgeLabel: `Your interview · ${lastFeedback.overallScore}/100`,
             messages: [
-                `I've finished evaluating your latest interview session (${lastFeedback.verdict || "Strong Candidate"} · ${lastFeedback.overallScore}/100). ${lastFeedback.summary}`,
-                "Your complete performance evaluation is ready with a detailed breakdown of your recognized strengths, areas to improve, your spoken quotes, and model answers.",
+                `I've gone through your last interview. You scored ${lastFeedback.overallScore} out of 100. ${lastFeedback.summary || ""}`.trim(),
+                "Your report shows what you did well, what to work on, and better ways to answer the questions you found hard.",
             ],
-            insight: sessionLlmInsight,
+            insight: sessionInsight,
             actions: [
-                {
-                    label: "View Feedback Report",
-                    primary: true,
-                    icon: ArrowUpRight,
-                    onClick: onOpenFeedback,
-                },
-                {
-                    label: "Practice Next Round",
-                    onClick: onPractice,
-                },
+                { label: "Open my report", primary: true, onClick: onOpenFeedback },
+                { label: "Practise again", onClick: onPractice },
             ],
         };
     }
@@ -932,7 +758,7 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
         const score = typeof fb.score === "number" ? fb.score : 80;
         const name = fb.resumeName || (fb as any).fileName || "Uploaded Resume";
         const role = fb.role || displayRole;
-        const summaryText = fb.summary || (fb as any).executiveSummary || `Your resume scored ${score}/100. We evaluated your impact metrics, role keywords, action verbs, and ATS formatting.`;
+        const summaryText = fb.summary || (fb as any).executiveSummary || `Your resume scored ${score} out of 100. I looked at how clearly it shows your results, whether it uses the words employers search for, and how easy it is to read.`;
         const isLatest = idx === 0;
         // Use updatedAt for relative time if available
         let timeLabel = "Just now";
@@ -954,9 +780,9 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
                 ? (typeof fb.improvements[0] === "string" ? fb.improvements[0] : (fb.improvements[0] as any)?.recommendation || (fb.improvements[0] as any)?.detail)
                 : null)
             || (fb.missingKeywords && fb.missingKeywords.length > 0
-                ? `Incorporate high-signal keywords for ${role}: ${fb.missingKeywords.slice(0, 4).join(", ")}.`
+                ? `Add these words where they are true for you: ${fb.missingKeywords.slice(0, 4).join(", ")}.`
                 : null)
-            || "Elevate bullet points with the formula: Accomplished [X], as measured by [Y], by doing [Z].";
+            || "Start each line with the result, then say how you got it.";
 
         resumeFeedbackItems.push({
             id: `coach-resume-feedback-${fid}`,
@@ -964,81 +790,80 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
             avatar: COACH_AVATAR,
             time: timeLabel,
             isOnline: true,
-            badgeLabel: `CV Audit Complete · ${score}/100`,
+            badgeLabel: `Resume review · ${score}/100`,
             messages: [
-                `I finished auditing your resume (${name}) targeted for ${role}.`,
+                `I've gone through your resume (${name}) for ${role} roles.`,
                 summaryText,
-                `Your full feedback report is ready with actionable suggestions and an in-line improver using the Google X-Y-Z formula.`,
+                `The full review shows what to change, line by line, and you can edit it there.`,
             ],
             insight: resumeLlmInsight,
             actions: [
                 {
-                    label: "Review Full CV Feedback & Improve In-Line",
+                    label: "Open my resume review",
                     primary: true,
-                    icon: ArrowUpRight,
                     onClick: () => onOpenResumeFeedback?.(fid),
                 },
             ],
         });
     });
 
-    // Fallback CV audit prompt if no resume uploaded yet
+    // A nudge to add a resume, until one has been reviewed.
     const resumePromptItem: ChatDmItem = {
         id: "coach-resume-audit-prompt",
         sender: "Interview Coach",
         avatar: COACH_AVATAR,
         time: "Just now",
         isOnline: true,
-        badgeLabel: "CV Optimization Audit",
+        badgeLabel: "Add your resume",
         messages: [
-            `Upload your resume in Settings to receive an instant ATS audit and role alignment score for ${displayRole}.`,
-            `We evaluate your impact metrics, keywords, and action verbs against hiring standards and provide in-line improvements.`,
+            "If you add your resume, I'll tell you how it reads to an employer and what to change. Your interviews will also ask about your own experience.",
+            "It's optional, and you can add it whenever you like.",
         ],
-        insight: `Upload your resume in Settings to receive an automated ATS audit and targeted keyword analysis for ${displayRole}.`,
-        actions: [
-            {
-                label: "Upload Resume in Settings",
-                primary: true,
-                icon: ArrowUpRight,
-                onClick: () => onOpenResumeFeedback?.(),
-            },
-        ],
+        actions: [{ label: "Add my resume", primary: true, onClick: () => onOpenResumeFeedback?.() }],
     };
 
-    // Item 5: Role Simulation Readiness Drill
-    const simulationItem: ChatDmItem = {
-        id: "coach-simulation-drill",
-        sender: "Interview Coach",
-        avatar: COACH_AVATAR,
-        time: "2h ago",
-        isOnline: true,
-        badgeLabel: `${displayRole} Readiness Drill`,
-        messages: [
-            `Ready to benchmark your ${displayRole} readiness? Practice simulated interview rounds calibrated to real tech and enterprise hiring bars.`,
-            `Each round includes voice recruiter feedback, STAR rubric analysis, and personalized improvement coaching.`,
-        ],
-        insight: `Benchmark your readiness with live interview rounds calibrated to top tech hiring rubrics for ${displayRole}.`,
-        actions: [
-            { label: `Practice ${displayRole} Round`, primary: true, onClick: onPractice },
-        ],
+    // This week's tip, with last week's kept underneath it.
+    // The approved tips for their role arrive a moment after the page loads;
+    // until then (or if that fails) the fixed tip for the week stands in.
+    const tipActions: Record<TipAction, ChatDmItem["actions"]> = {
+        jobs: [{ label: "Find jobs to apply for", primary: true, onClick: onOpenJobs }],
+        practice: [{ label: "Practise this now", primary: true, onClick: onPractice }],
+        resume: [{ label: "Work on my resume", primary: true, onClick: () => onOpenResumeFeedback?.() }],
+        none: undefined,
     };
+    const weeklyTipItems: ChatDmItem[] = [0, 1].map((weeksAgo) => {
+        const tip = weeklyTips?.[weeksAgo] ?? tipForWeek(new Date(), weeksAgo);
+        return {
+            id: `coach-tip-week-${tip.week}`,
+            sender: "Interview Coach",
+            avatar: COACH_AVATAR,
+            time: weeksAgo === 0 ? "This week" : "Last week",
+            isOnline: true,
+            badgeLabel: `Weekly tip · ${tip.topic}`,
+            messages: [tip.title, tip.body],
+            insight: tip.tryThis,
+            // What the tip asks them to do, one tap away.
+            actions: tipActions[tip.action ?? actionForTopic(tip.topic)],
+        };
+    });
 
+    // Newest and most personal first. A new account sees the welcome, the
+    // resume nudge and this week's tip; nothing else until there is an interview.
     const coachItems: ChatDmItem[] = [];
     if (feedbackItem) coachItems.push(feedbackItem);
     if (welcomeItem) coachItems.push(welcomeItem);
-    if (resumeFeedbackItems.length > 0) {
-        coachItems.push(...resumeFeedbackItems);
-    } else {
-        coachItems.push(resumePromptItem);
-    }
+    if (resumeFeedbackItems.length > 0) coachItems.push(...resumeFeedbackItems);
+    else coachItems.push(resumePromptItem);
+    coachItems.push(weeklyTipItems[0]);
     if (starItem) coachItems.push(starItem);
     if (domainItem) coachItems.push(domainItem);
-    coachItems.push(simulationItem);
+    // Last week's tip only once they've been around long enough to have had it.
+    if (hasInterview) coachItems.push(weeklyTipItems[1]);
 
     const coachProfile: CharacterProfile = {
         id: "coach",
         name: "Interview Coach",
-        role: "Technical & Behavioral Assessment",
+        role: "Feedback and weekly tips",
         roleExplanation: coachExplanation,
         avatar: COACH_AVATAR,
         unreadCount: coachItems.length,

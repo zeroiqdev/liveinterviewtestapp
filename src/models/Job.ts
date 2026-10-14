@@ -5,6 +5,10 @@ export interface IJob extends Document {
     title: string;
     company: string;
     companyLogo?: string;
+    /** When the description was read to decide the kind of role (lib/jobRoleClassifier). */
+    roleCheckedAt?: Date;
+    /** "description" when the model filed it from its description; unset when the title decided. */
+    roleFiledBy?: string;
     location: string;
     roleFamily: string;
     url: string;
@@ -31,6 +35,8 @@ const JobSchema = new Schema<IJob>(
         title: { type: String, required: true },
         company: { type: String, required: true, index: true },
         companyLogo: { type: String },
+        roleCheckedAt: { type: Date },
+        roleFiledBy: { type: String },
         location: { type: String, required: true },
         roleFamily: { type: String, required: true, index: true },
         url: { type: String, required: true, index: true },

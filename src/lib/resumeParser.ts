@@ -9,6 +9,8 @@ export interface StructuredBullet {
     text: string;
     suggestionId?: string;
     projectHeader?: string;
+    /** The line's numbers came from a suggested rewrite: placeholders until the person changes them. */
+    exampleNumbers?: boolean;
 }
 
 export interface StructuredJob {
@@ -190,6 +192,86 @@ export function isSectionHeader(line: string): { isHeader: boolean; type: Sectio
     return { isHeader: false, type: "none", title: "" };
 }
 
+/** Whether there is real resume text to work with (not empty, not an unread binary file). */
+export function hasReadableResumeText(text: string | null | undefined): boolean {
+    const t = (text || "").trim();
+    return t.length >= 35 && !t.includes("raw binary DOCX") && !t.startsWith("PK\x03\x04") && !t.startsWith("%PDF") && !t.startsWith("data:application/");
+}
+
+export function emptyStructuredResume(name = "", contact = ""): StructuredResume {
+    return { name, headline: "", contact, summary: "", jobs: [], skills: [], education: [] };
+}
+
+/** Whether a resume has anything in it. */
+export function isEmptyResume(resume: StructuredResume): boolean {
+    return resume.jobs.length === 0 && resume.skills.length === 0 && !(resume.education || []).length && !resume.summary && !(resume.projects || []).length;
+}
+
+const AUTO_HEADLINE = / · Professional Profile$/;
+
+/**
+ * The resume as plain text that parseResumeTextToStructured reads back into
+ * the same structure. Edited resumes are saved in this form: saving them as a
+ * flat list of lines lost which line was a job, a company or a date, so a
+ * reloaded resume came back with its second job and its dates as bullets.
+ */
+export function structuredToText(resume: StructuredResume): string {
+    const out: string[] = [];
+    const heading = (title: string | undefined, type: SectionType, fallback: string) => {
+        const known = title && isSectionHeader(title).type === type ? title : fallback;
+        out.push("", known.toUpperCase());
+    };
+    const roleLines = (role: StructuredJob) => {
+        const title = role.title || "Role";
+        const header = [title, role.company].filter(Boolean).join(" | ") + (role.date ? ` — ${role.date}` : "");
+        // A title alone needs a marker to be read back as a role, not a bullet.
+        out.push(role.company || role.date ? header : `### ${title}`);
+        if (role.companyDescription) out.push(role.companyDescription);
+        let section = "";
+        for (const bullet of role.bullets) {
+            if (bullet.projectHeader && bullet.projectHeader !== section) {
+                section = bullet.projectHeader;
+                out.push(section);
+            }
+            out.push(`- ${bullet.text}`);
+        }
+        out.push("");
+    };
+
+    out.push(resume.name || "");
+    if (resume.headline && !AUTO_HEADLINE.test(resume.headline) && resume.headline.length < 75) out.push(resume.headline);
+    if (resume.contact) out.push(resume.contact);
+
+    if (resume.summary) {
+        heading(resume.summaryTitle, "summary", "Professional Summary");
+        out.push(resume.summary);
+    }
+    if (resume.jobs.length > 0) {
+        heading(resume.experienceTitle, "experience", "Work Experience");
+        resume.jobs.forEach(roleLines);
+    }
+    if (resume.projects?.length) {
+        heading(resume.projectsTitle, "projects", "Projects");
+        resume.projects.forEach(roleLines);
+    }
+    if (resume.education?.length) {
+        heading(resume.educationTitle, "education", "Education");
+        for (const school of resume.education) {
+            out.push(school.date ? `${school.institution} — ${school.date}` : school.institution);
+            if (school.degree) out.push(school.degree);
+            if (school.degree && school.details) out.push(school.details);
+        }
+    }
+    if (resume.skills.length > 0) {
+        heading(resume.skillsTitle, "skills", "Skills");
+        for (const skill of resume.skills) out.push(`${skill.category}: ${skill.items}`);
+    }
+    for (const section of resume.customSections || []) {
+        out.push("", section.title.toUpperCase(), ...section.items);
+    }
+    return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export function parseResumeTextToStructured(
     rawText: string,
     fallbackName: string,
@@ -210,35 +292,9 @@ export function parseResumeTextToStructured(
     const displayRole = fallbackRole || "Software Engineer";
     const displayEmail = fallbackEmail || (displayName ? `${displayName.toLowerCase().replace(/\s+/g, ".")}@example.com` : "");
 
-    if (!text || text.length < 35 || text.includes("raw binary DOCX") || text.startsWith("PK\x03\x04") || text.startsWith("%PDF")) {
-        const tailoredResume: StructuredResume = {
-            name: displayName,
-            headline: `${displayRole} · Professional Profile`,
-            contact: `${displayEmail}`,
-            summary: `Results-driven ${displayRole} with proven experience executing strategic milestones and collaborating cross-functionally.`,
-            experienceTitle: resolveExperienceTitle(undefined, displayRole, ""),
-            summaryTitle: "Professional Summary",
-            skillsTitle: "Technical Competencies & Skills",
-            educationTitle: "Education and Certifications",
-            jobs: [
-                {
-                    id: "job-1",
-                    title: `Senior ${displayRole}`,
-                    company: "TechScale Innovations",
-                    date: "2022 – Present",
-                    bullets: [
-                        { id: "b-1", text: `Responsible for maintaining core ${displayRole.toLowerCase()} deliverables and workflows.` },
-                        { id: "b-2", text: "Built reusable components and standardized frameworks for team operations." },
-                    ],
-                },
-            ],
-            skills: [
-                { category: "Core Competencies", items: "Strategic Execution, Cross-Functional Leadership, Quality Assurance" },
-                { category: "Tools & Platforms", items: "Modern Cloud Platforms, Git, Analytics" },
-            ],
-            education: [],
-        };
-        return { structured: tailoredResume, suggestions: [] };
+    // Nothing readable: an empty resume, never an invented one.
+    if (!hasReadableResumeText(text)) {
+        return { structured: emptyStructuredResume(displayName, fallbackEmail), suggestions: [] };
     }
 
     // Split multi-bullets on bullet symbols
@@ -310,6 +366,9 @@ export function parseResumeTextToStructured(
     // Look for contact line and headline in first 5 lines
     for (let i = 1; i < Math.min(lines.length, 6); i++) {
         const line = lines[i];
+        // The headline and contact sit above the first section. Looking further
+        // took a short job line under "Work Experience" for the headline.
+        if (isSectionHeader(line).isHeader) break;
         if (
             line.includes("@") ||
             line.includes("http") ||
@@ -324,7 +383,8 @@ export function parseResumeTextToStructured(
         }
     }
     if (!extractedContact) extractedContact = displayEmail;
-    if (!extractedHeadline) extractedHeadline = `${displayRole} · Professional Profile`;
+    // No headline on the resume: leave it out. (Inventing one put a line on the
+    // page the person never wrote, and it was read back as a job.)
 
     const flushSkills = () => {
         if (activeSkillItems.length > 0) {
@@ -439,10 +499,13 @@ export function parseResumeTextToStructured(
         const nextLine = lines[i + 1] ? cleanLine(lines[i + 1]) : "";
         const nextLineIsDate = DATE_AT_END_RE.test(nextLine) && nextLine.split(/\s+/).length <= 6;
 
+        const startsAsBullet = /^[•·\-\*—–●\u25CF]/.test(line.trim());
         const isLikelyJobHeader =
             !isOnlyDate &&
+            !startsAsBullet &&
             !isProjectHeader(cleanedLine) &&
-            cleanedLine.length <= 85 &&
+            // A title, company and date together can be long; a line with none of them that long is prose.
+            cleanedLine.length <= (hasDateAtEnd || line.includes("|") ? 170 : 85) &&
             !/[.!?]$/.test(cleanedLine) &&
             !/^(Collaborated|Spearheaded|Built|Led|Managed|Developed|Implemented|Initiated|Orchestrated|Owned|Established|Architected|Engineered|Delivered|Reduced|Increased|Generated|Accelerated|Formulated|Standardized|Directed|Supervised|Partnered|Resolved|Maintained|Optimized|Authored|Executed|Scaled|Conducted|Facilitated|Automated|Mentored|Produced|Launched)\b/i.test(cleanedLine) &&
             (line.startsWith("###") ||
@@ -488,7 +551,11 @@ export function parseResumeTextToStructured(
 
             let title = headerWithoutDate || displayRole;
             let company = "";
-            if (headerWithoutDate.toLowerCase().includes(" at ")) {
+            if (headerWithoutDate.includes(" | ")) {
+                const parts = headerWithoutDate.split(" | ");
+                title = parts[0].trim();
+                company = parts.slice(1).join(" | ").trim();
+            } else if (headerWithoutDate.toLowerCase().includes(" at ")) {
                 const parts = headerWithoutDate.split(/\s+at\s+/i);
                 title = parts[0].trim();
                 company = parts.slice(1).join(" at ").trim();
@@ -595,44 +662,6 @@ export function parseResumeTextToStructured(
         });
     });
 
-    const createGoogleXYZ = (original: string, role: string): string => {
-        const cleaned = original.replace(/^(responsible for|helped to|worked on|assisted with|tasked with|participated in)\s*/i, "").trim();
-        const base = cleaned ? cleaned.charAt(0).toUpperCase() + cleaned.slice(1) : original;
-
-        const hasMetric = /(%|\$|naira|million|billion|users|customers|kpi|sla|latency|ms|roi|growth)/i.test(base);
-        if (hasMetric) {
-            const verb = /product/i.test(role) ? "Spearheaded" : /engineer|developer/i.test(role) ? "Architected" : "Orchestrated";
-            if (/^(spearheaded|architected|engineered|orchestrated|designed|developed|led|owned)/i.test(base)) {
-                return base;
-            }
-            return `${verb} ${base.charAt(0).toLowerCase() + base.slice(1)}`;
-        }
-
-        const verb = /product/i.test(role)
-            ? "Spearheaded end-to-end execution of"
-            : /design/i.test(role)
-            ? "Designed and standardized user-centric frameworks for"
-            : /lead|manager/i.test(role)
-            ? "Orchestrated cross-functional delivery of"
-            : "Architected and delivered scalable solutions for";
-
-        return `${verb} ${base.charAt(0).toLowerCase() + base.slice(1)}, improving operational efficiency, execution velocity, and core stakeholder alignment.`;
-    };
-
-    const localBulletScore = (txt: string): number => {
-        if (isCompanyDescriptionLine(txt)) return 10;
-        const t = txt.toLowerCase();
-        if (
-            /(250\s*billion|99\.99|100\s*million|80%|30%|92\.\d+%|25%|40%|10 applications|100% increase)/i.test(txt) &&
-            /^(led|established|architected|spearheaded|implemented|developed|owned|orchestrated|designed)/i.test(txt.trim())
-        ) {
-            return 8;
-        }
-        if (/^responsible for|helped to|worked on|assisted with|participated in|tasked with/i.test(txt.trim())) return 4;
-        if (!/%|\$|naira|billion|million|users|transactions|revenue|growth|increase|reduced|acquisition/i.test(t)) return 5;
-        return 6;
-    };
-
     const generatedSuggestions: SuggestionItem[] = [];
 
     if (rawSuggestions && rawSuggestions.length > 0) {
@@ -643,13 +672,15 @@ export function parseResumeTextToStructured(
             if (target) {
                 bullet = allBullets.find((b) => b.text === target || b.text.includes(target.slice(0, 40)) || target.includes(b.text.slice(0, 40)));
             }
-            if (!bullet) bullet = allBullets[idx % allBullets.length];
+            // A rewrite belongs to the line it was written for. If that line can't be
+            // found, it is dropped: attaching it to some other line replaced the wrong text.
             if (!bullet) return;
 
             if (jobs[bullet.jobIndex].bullets[bullet.bulletIndex].suggestionId) return;
 
             const category = (rawSug.category as SuggestionItem["category"]) || (idx === 0 ? "Impact & Metrics" : idx === 1 ? "Action Verbs & Brevity" : "Role Alignment");
-            const proposed = (rawSug.proposedText || rawSug.rewritten || rawSug.improvedText || "").trim() || createGoogleXYZ(bullet.text, displayRole);
+            const proposed = (rawSug.proposedText || rawSug.rewritten || rawSug.improvedText || "").trim();
+            if (!proposed) return;
             const targetText = target || bullet.text;
             if (proposed && norm(proposed) === norm(targetText)) return;
             if (proposed && norm(proposed) === norm(bullet.text)) return;
@@ -664,61 +695,30 @@ export function parseResumeTextToStructured(
                     .replace(/^\s*This (bullet|description)\s+starts with\b.*?[.,]\s*/i, "")
                     .trim();
             };
-            const cleanFb = deDupFeedback(rawSug.feedback) || rawSug.feedback || "Bullet lacks specific metric proof points and strong action verbs.";
-            const titleFromRec = rawSug.recommendation ? rawSug.recommendation.split(".")[0].slice(0, 62) : "";
-            const title = titleFromRec && titleFromRec.length > 12 ? titleFromRec : cleanFb.slice(0, 62) || "Elevate bullet point with quantifiable metrics";
+            const cleanFb = deDupFeedback(rawSug.feedback) || rawSug.feedback || "This line says what the job was, not what you achieved.";
+            // The advice's first sentence, shortened at a word and never mid-word.
+            const shorten = (text: string) => {
+                const first = text.split(/(?<=[.!?])\s/)[0].replace(/[.!?]+$/, "").trim();
+                if (first.length <= 90) return first;
+                return `${first.slice(0, 90).replace(/\s+\S*$/, "")}…`;
+            };
+            const titleFromRec = rawSug.recommendation ? shorten(rawSug.recommendation) : "";
+            const title = titleFromRec && titleFromRec.length > 12 ? titleFromRec : shorten(cleanFb) || "Show the result of this work";
             generatedSuggestions.push({
                 id: sugId,
                 category,
                 title,
                 feedback: cleanFb,
-                recommendation: rawSug.recommendation || "Adopt the Google X-Y-Z formula: 'Accomplished [X], as measured by [Y], by doing [Z]'.",
+                recommendation: rawSug.recommendation || "Say what you did and what came of it.",
                 targetSnippet: target || bullet.text,
                 proposedText: proposed,
                 scoreLift: 4,
                 applied: false,
             });
         });
-    } else {
-        const weakBullets = allBullets.filter((b) => localBulletScore(b.text) < 7);
-        if (weakBullets.length > 0) {
-            const categories: Array<SuggestionItem["category"]> = [
-                "Impact & Metrics",
-                "Action Verbs & Brevity",
-                "Role Alignment",
-                "Technical Depth",
-            ];
-            weakBullets.slice(0, 3).forEach((bullet, idx) => {
-                const category = categories[idx % categories.length];
-                const proposed = createGoogleXYZ(bullet.text, displayRole);
-                const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-                if (norm(proposed) === norm(bullet.text)) return;
-                const sugId = `sug-${idx + 1}`;
-                jobs[bullet.jobIndex].bullets[bullet.bulletIndex].suggestionId = sugId;
-                generatedSuggestions.push({
-                    id: sugId,
-                    category,
-                    title:
-                        idx === 0
-                            ? "Add scale and measurable outcome"
-                            : idx === 1
-                            ? "Use a stronger ownership verb"
-                            : "Show ownership and result",
-                    feedback:
-                        idx === 0
-                            ? "Missing scale or business metric — add users, revenue, or performance delta."
-                            : idx === 1
-                            ? "Passive phrasing — lead with a strong verb and ownership."
-                            : "Needs a clear result — quantify the impact of the action.",
-                    recommendation: "Reframe with Google X-Y-Z: 'Accomplished [X], as measured by [Y], by doing [Z]' — keep original metrics if present.",
-                    targetSnippet: bullet.text,
-                    proposedText: proposed,
-                    scoreLift: 4,
-                    applied: false,
-                });
-            });
-        }
     }
+    // With no suggestions from the scan there are none to show: rewrites are
+    // only ever the model's reading of this resume, never a fill-in template.
 
     const structured: StructuredResume = {
         name: extractedName,

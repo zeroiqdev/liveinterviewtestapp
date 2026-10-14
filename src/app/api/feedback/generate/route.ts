@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { MODE_LABEL, type InterviewMode } from "@/lib/interviewModes";
 import { getSession } from "@/engine/sessionStore";
 import type { ProbeFinding } from "@/engine/types";
 import { callJSON } from "@/engine/llm";
@@ -58,6 +59,9 @@ import { sanitizeReportData } from "@/lib/feedbackSanitizer";
 import { EVALUATION_SCOPE_RULES } from "@/engine/evaluationScope";
 import { LIMITS, rateLimit } from "@/lib/rateLimit";
 import { serverError } from "@/lib/apiError";
+import dbConnect from "@/lib/mongodb";
+import InterviewReport from "@/models/InterviewReport";
+import { recordInterview } from "@/lib/userStats";
 
 
 const SYSTEM_PROMPT_BASE = `You are an elite, objective technical interview evaluator and executive hiring coach.
@@ -172,8 +176,18 @@ export async function POST(req: NextRequest) {
             responsibilities,
         } = body;
 
+        // An interview has one report. If it has been written, that is the report:
+        // asking again returns it, and never counts the interview twice.
+        const ownerEmail = authResult.session.email;
+        if (typeof sessionId === "string" && sessionId) {
+            await dbConnect();
+            const stored = await InterviewReport.findOne({ email: ownerEmail, sessionId }).lean();
+            if (stored) return NextResponse.json(stored.report);
+        }
+
         // 1. In-memory session doc
         let sessionBlueprintId: string | null = null;
+        let sessionMinutes: number | null = null;
         let sessionTranscript: Array<{ role: string; text: string }> = [];
         let probeFindings: ProbeFinding[] = [];
         if (sessionId) {
@@ -182,6 +196,9 @@ export async function POST(req: NextRequest) {
             // Only use the server transcript when it belongs to this user.
             if (session && (!session.ownerId || session.ownerId === owner || (await isAdminSession(authResult.session)))) {
                 sessionBlueprintId = session.blueprintId;
+                // How long the interview ran, by the server's own clock.
+                if (session.startedAt) sessionMinutes = Math.max(1, Math.round((Date.now() - session.startedAt) / 60000));
+                if (session.elapsedSeconds) sessionMinutes = Math.max(1, Math.round(session.elapsedSeconds / 60));
                 probeFindings = session.probeFindings ?? [];
                 if (Array.isArray(session.transcript) && session.transcript.length > 0) {
                     sessionTranscript = session.transcript.map((t) => ({
@@ -211,6 +228,11 @@ export async function POST(req: NextRequest) {
             transcriptTurns = clientTranscript;
         } else {
             transcriptTurns = sessionTranscript;
+        }
+
+        // No answers, no report: there is nothing to evaluate, and inventing one would mislead.
+        if (!transcriptTurns.some((turn) => turn.role === "candidate" && turn.text.trim())) {
+            return NextResponse.json({ error: "There is no interview to report on yet.", code: "no_interview" }, { status: 404 });
         }
 
         // Extract every distinct interviewer question and its corresponding answer
@@ -331,6 +353,39 @@ Carefully evaluate how directly the candidate's answers demonstrated readiness t
 
         // 2. Run full sanitizeReportData pass to ensure second-person tone & tab completeness
         const finalReport = sanitizeReportData(report, transcriptTurns);
+
+        // Keep the report on the server and count the interview towards the
+        // user's Prep Score, once. The score counted is the one just worked
+        // out here, not one sent by the browser.
+        if (typeof sessionId === "string" && sessionId && typeof finalReport.overallScore === "number") {
+            try {
+                const clientMinutes = typeof body.durationMinutes === "number" ? body.durationMinutes : null;
+                const minutes = Math.min(180, Math.max(1, sessionMinutes ?? clientMinutes ?? 1));
+                const created = await InterviewReport.updateOne(
+                    { email: ownerEmail, sessionId },
+                    {
+                        $setOnInsert: {
+                            email: ownerEmail,
+                            sessionId,
+                            report: finalReport,
+                            overallScore: finalReport.overallScore,
+                            minutes,
+                            role: typeof role === "string" ? role : undefined,
+                            company: typeof companyName === "string" && !/^general/i.test(companyName) ? companyName.slice(0, 120) : undefined,
+                            interviewType: typeof body.interviewType === "string" ? body.interviewType.slice(0, 120) : undefined,
+                            mode: body.mode === "live_coaching" || body.mode === "post_interview" ? MODE_LABEL[body.mode as InterviewMode] : undefined,
+                            // The conversation itself, kept with the report.
+                            transcript: transcriptTurns.slice(0, 300).map((turn) => ({ role: turn.role, text: turn.text.slice(0, 6000) })),
+                            createdAt: new Date(),
+                        },
+                    },
+                    { upsert: true }
+                );
+                if (created.upsertedCount > 0) await recordInterview(ownerEmail, finalReport.overallScore, minutes);
+            } catch (storeErr) {
+                console.error("[api/feedback/generate] report not stored:", storeErr);
+            }
+        }
 
         return NextResponse.json(finalReport);
     } catch (err) {

@@ -8,10 +8,13 @@ import {
     ArrowRight,
     House,
     FileText,
+    UserCircle,
+    Ticket,
 } from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
+import { FeedbackButton } from "./FeedbackButton";
 import styles from "./dashboard.module.css";
-const PaymentModal = dynamic(() => import("./PaymentModal"));
+const PassDialog = dynamic(() => import("./PassDialog"));
 import { db, type UserStats } from "../services/database";
 import { detectUserLocation, UserLocation, scoreJobForLocation, isJobRoleMatch, normalizeUserRoleFamily } from "@/utils/locationDetector";
 import type { JobItem } from "@/app/api/jobs/route";
@@ -20,7 +23,10 @@ import { ModuleCardItem } from "./dashboard/ModuleCardItem";
 import { ChatsPanel } from "./dashboard/ChatsPanel";
 import { TopJobsPanel } from "./dashboard/TopJobsPanel";
 import { JobDescModal } from "./dashboard/JobDescModal";
-import { TinderCardDeck } from "./dashboard/TinderCardDeck";
+import { MobileHome } from "./dashboard/MobileHome";
+import { FinishTryBanner } from "./dashboard/FinishTryBanner";
+import mobileStyles from "./dashboard/mobileHome.module.css";
+import { tipForWeek } from "@/lib/weeklyTips";
 import { SettingsModal } from "./dashboard/SettingsModal";
 import { InterviewSetupModal } from "./dashboard/InterviewSetupModal";
 import { useInterview } from "../context/InterviewContext";
@@ -174,9 +180,17 @@ export default function Dashboard() {
         return null;
     });
     const [jobs, setJobs] = useState<JobItem[]>([]);
+    // Until the jobs list arrives, the recruiter shows it's looking rather than "no jobs".
+    const [jobsLoaded, setJobsLoaded] = useState(false);
+    // An interview begun before sign-up, waiting to be carried on (from /api/try).
+    const [pendingTry, setPendingTry] = useState<{ role: string; company: string; title: string } | null>(null);
     const [selectedJobDesc, setSelectedJobDesc] = useState<JobItem | null>(null);
     const [activeMobileTab, setActiveMobileTab] = useState<"home" | "recruiter" | "coach">("home");
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    // Phone only: the menu behind the avatar, and what the coach's tab has to show on Home and the tab bar.
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isMenuFeedbackOpen, setIsMenuFeedbackOpen] = useState(false);
+    const [coachSummary, setCoachSummary] = useState<{ unread: number; tip: { topic: string; title: string } | null } | null>(null);
     const { updateSettings } = useInterview();
 
     // All resumes – run match against every available resume whenever job finder runs
@@ -263,6 +277,9 @@ export default function Dashboard() {
                 setUser(parsed);
                 const realStats = await db.getUserStats();
                 setStats(realStats);
+                // Show the dashboard now. The jobs list is thousands of rows and
+                // takes several seconds; waiting for it left the whole screen blank.
+                setLoading(false);
 
                 // Detect user location
                 const loc = await detectUserLocation();
@@ -277,6 +294,8 @@ export default function Dashboard() {
                     }
                 } catch {
                     // Ignore jobs fetch error
+                } finally {
+                    setJobsLoaded(true);
                 }
             } catch {
                 router.push("/onboarding");
@@ -494,6 +513,41 @@ export default function Dashboard() {
     }>({});
 
     const handleOpenPayment = useCallback(() => setIsPaymentModalOpen(true), []);
+
+    useEffect(() => {
+        let cancelled = false;
+        fetch("/api/try", { cache: "no-store" })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (!cancelled && data?.pending) setPendingTry({ role: data.role, company: data.company || "", title: data.title });
+            })
+            .catch(() => undefined);
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    // What they have to practise with: a running pass, unused passes or the free interview.
+    const [passInfo, setPassInfo] = useState<{ active: boolean; expiresAt: string | null; unused: number; freeInterviewsLeft: number } | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        fetch("/api/payments/pass", { cache: "no-store" })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (!cancelled && data && typeof data.unused === "number") setPassInfo(data);
+            })
+            .catch(() => undefined);
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    // The profile page sends people here to change their role or resume.
+    useEffect(() => {
+        if (new URLSearchParams(window.location.search).get("open") !== "credentials") return;
+        setIsSettingsOpen(true);
+        window.history.replaceState(null, "", "/dashboard");
+    }, []);
     const handleClosePayment = useCallback(() => setIsPaymentModalOpen(false), []);
     const handleOpenJobDesc = useCallback((job: JobItem) => setSelectedJobDesc(job), []);
     const handleCloseJobDesc = useCallback(() => setSelectedJobDesc(null), []);
@@ -671,6 +725,21 @@ export default function Dashboard() {
         ? (nameParts[0].charAt(0) + nameParts[1].charAt(0)).toUpperCase()
         : userName.slice(0, 2).toUpperCase();
 
+    // Admins are never asked for a pass, so they aren't shown one.
+    const isAdminUser = Boolean(user?.isAdmin || user?.systemRole === "admin");
+    const passLabel = (() => {
+        if (!passInfo || isAdminUser) return null;
+        if (passInfo.active && passInfo.expiresAt) {
+            const until = new Date(passInfo.expiresAt);
+            const time = until.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+            const sameDay = until.toDateString() === new Date().toDateString();
+            return { text: `Pass active until ${sameDay ? "" : "tomorrow, "}${time}`, needed: false };
+        }
+        if (passInfo.unused > 0) return { text: `${passInfo.unused} ${passInfo.unused === 1 ? "pass" : "passes"} ready`, needed: false };
+        if (passInfo.freeInterviewsLeft > 0) return { text: `${passInfo.freeInterviewsLeft} free interview left`, needed: false };
+        return { text: "Get a pass", needed: true };
+    })();
+
     const handleLogout = async () => {
         try {
             await fetch("/api/auth/logout", { method: "POST" });
@@ -733,12 +802,19 @@ export default function Dashboard() {
 
                 <div className={styles.navRight}>
                     {(() => {
-                        const readinessVal = stats && stats.interviewsCompleted > 0 ? Math.min(100, Math.max(0, Math.round(stats.averageScore))) : 0;
+                        // Recent answer quality, held back until enough practice is done (lib/prepScore).
+                        const prep = stats?.prep;
+                        const readinessVal = prep?.score ?? 0;
+                        const prepHint = !prep || prep.practiceDone === 0
+                            ? "Prep Score: finish an interview to get your first score."
+                            : prep.sessionsToFull > 0
+                                ? `Prep Score ${prep.score} of 100. Your recent answers average ${prep.answerQuality}. Complete ${prep.sessionsToFull} more full ${prep.sessionsToFull === 1 ? "interview" : "interviews"} for it to count in full.`
+                                : `Prep Score ${prep.score} of 100, from your last 5 interviews. The most recent count most.`;
                         const ringRadius = 7;
                         const ringCircumference = 2 * Math.PI * ringRadius;
                         const ringOffset = ringCircumference - (readinessVal / 100) * ringCircumference;
                         return (
-                            <div className={`${styles.xpBadge} ${styles.tabularNums}`} title={`Interview Readiness: ${readinessVal}%`}>
+                            <div className={`${styles.xpBadge} ${styles.tabularNums}`} title={prepHint} aria-label={prepHint}>
                                 <svg
                                     width="18"
                                     height="18"
@@ -766,10 +842,22 @@ export default function Dashboard() {
                                         strokeLinecap="round"
                                     />
                                 </svg>
-                                <span>Readiness <span className={styles.tabularNums}>{readinessVal}%</span></span>
+                                <span>Prep Score <span className={styles.tabularNums}>{readinessVal}</span></span>
                             </div>
                         );
                     })()}
+                    {passLabel && (
+                        <button
+                            type="button"
+                            className={`${styles.passPill} ${passLabel.needed ? styles.passPillNeeded : ""}`}
+                            onClick={handleOpenPayment}
+                            title="See passes"
+                        >
+                            <Ticket size={15} weight="bold" />
+                            <span>{passLabel.text}</span>
+                        </button>
+                    )}
+                    <FeedbackButton className={styles.settingsNavBtn} />
                     <button
                         className={styles.settingsNavBtn}
                         onClick={() => setIsSettingsOpen(true)}
@@ -788,13 +876,26 @@ export default function Dashboard() {
                     <button className={styles.notificationBtn} aria-label="Notifications">
                         <Bell size={18} weight="bold" />
                     </button>
-                    <div className={styles.avatar}>{initials}</div>
+                    <button
+                        type="button"
+                        className={styles.avatar}
+                        style={{ border: 0, fontFamily: "inherit" }}
+                        onClick={() => {
+                            // On a phone the header has room for one button, so it opens a menu.
+                            if (window.matchMedia("(max-width: 1024px)").matches) setIsMobileMenuOpen(true);
+                            else router.push("/profile");
+                        }}
+                        aria-label="Your profile"
+                        title="Your profile"
+                    >
+                        {initials}
+                    </button>
                 </div>
             </nav>
 
             {/* ── Main Dashboard Content ── */}
             <main className={styles.mainContent}>
-                <PaymentModal
+                <PassDialog
                     isOpen={isPaymentModalOpen}
                     onClose={handleClosePayment}
                 />
@@ -825,6 +926,8 @@ export default function Dashboard() {
                         </div>
                     </section>
 
+                    {pendingTry && <FinishTryBanner tried={pendingTry} />}
+
                     <div className={styles.dashboardGrid}>
                         <TopJobsPanel
                             userLocation={userLocation}
@@ -836,9 +939,11 @@ export default function Dashboard() {
                             onPractice={handleOpenInterviewSetup}
                             jobMatches={jobMatches}
                             isMatching={isMatchingResumes && allResumes.length > 0}
+                            isLoading={!jobsLoaded}
                         />
 
                         <ChatsPanel
+                            onSummary={setCoachSummary}
                             userRole={user?.role}
                             userRoleFamily={user?.roleFamily}
                             displayedJobs={displayedJobs}
@@ -850,20 +955,20 @@ export default function Dashboard() {
 
                 {/* ── Mobile View (PWA-style Tabbed Pages without upper dashboard clutter) ── */}
                 <div className={styles.mobileViewContainer}>
-                    {/* Home: Upper section converted into Tinder-style cards */}
+                    {/* Home: the interview types to swipe through, then a line each from the coach and the recruiter */}
                     {activeMobileTab === "home" && (
-                        <div className={styles.mobileHomeWrap}>
-                            <div className={styles.mobileHomeHeader}>
-                                <span className={styles.mobileHomeGreeting}>Welcome back, {userName}</span>
-                                <h1 className={styles.mobileHomeHeading}>Ready to ace your next interview?</h1>
-                            </div>
-                            <TinderCardDeck
-                                key={user?.role || "default-role-mobile"}
-                                onPractice={(round) => handleOpenInterviewSetup(round)}
-                                userRole={user?.role}
-                                userRoleFamily={user?.roleFamily}
-                            />
-                        </div>
+                        <MobileHome
+                            key={user?.role || "default-role-mobile"}
+                            userName={userName}
+                            userRole={user?.role}
+                            userRoleFamily={user?.roleFamily}
+                            onPractice={(round) => handleOpenInterviewSetup(round)}
+                            tip={coachSummary?.tip ?? tipForWeek()}
+                            jobs={displayedJobs}
+                            onOpenTips={() => setActiveMobileTab("coach")}
+                            onOpenRecruiter={() => setActiveMobileTab("recruiter")}
+                            pendingTry={pendingTry}
+                        />
                     )}
 
                     {/* Recruiter / Jobs: Matched job opportunities without messages/jobs distinction */}
@@ -878,12 +983,14 @@ export default function Dashboard() {
                             onPractice={handleOpenInterviewSetup}
                             jobMatches={jobMatches}
                             isMatching={isMatchingResumes && allResumes.length > 0}
+                            isLoading={!jobsLoaded}
                         />
                     )}
 
                     {/* Coach: Separate standalone page for Interview Coach Messages & Drills */}
                     {activeMobileTab === "coach" && (
                         <ChatsPanel
+                            onSummary={setCoachSummary}
                             userRole={user?.role}
                             userRoleFamily={user?.roleFamily}
                             displayedJobs={displayedJobs}
@@ -930,7 +1037,7 @@ export default function Dashboard() {
                     className={`${styles.bottomNavBtn} ${activeMobileTab === "coach" ? styles.bottomNavBtnActive : ""}`}
                     onClick={() => setActiveMobileTab("coach")}
                     type="button"
-                    aria-label="Interview Coach"
+                    aria-label={coachSummary?.unread ? `Tips, ${coachSummary.unread} unread` : "Tips"}
                 >
                     <div className={styles.bottomNavAvatarWrap}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -940,11 +1047,70 @@ export default function Dashboard() {
                             className={`${styles.bottomNavAvatar} ${activeMobileTab === "coach" ? styles.bottomNavAvatarActive : ""}`}
                             draggable={false}
                         />
-                        <span className={styles.bottomNavDot} style={{ background: "#10B981" }} />
+                        {!!coachSummary?.unread && <span className={styles.bottomNavCount}>{coachSummary.unread}</span>}
                     </div>
-                    <span>Coach</span>
+                    <span>Tips</span>
                 </button>
             </nav>
+
+            {/* ── Phone: the menu behind the avatar ── */}
+            {isMobileMenuOpen && (
+                <div
+                    className={`${mobileStyles.sheetBack} ${isMenuFeedbackOpen ? mobileStyles.sheetBackHidden : ""}`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                >
+                    <div className={mobileStyles.sheet} role="dialog" aria-label="Your account" onClick={(e) => e.stopPropagation()}>
+                        <div className={mobileStyles.sheetMe}>
+                            <div className={mobileStyles.sheetAvatar}>{initials}</div>
+                            <div>
+                                <b>{userName}</b>
+                                {user?.role && <span>{user.role}</span>}
+                            </div>
+                        </div>
+                        <button type="button" className={mobileStyles.sheetItem} onClick={() => router.push("/profile")}>
+                            <UserCircle size={18} weight="bold" />
+                            Profile
+                        </button>
+                        <button
+                            type="button"
+                            className={mobileStyles.sheetItem}
+                            onClick={() => {
+                                setIsMobileMenuOpen(false);
+                                setIsSettingsOpen(true);
+                            }}
+                        >
+                            <FileText size={18} weight="bold" />
+                            My role and resume
+                        </button>
+                        {passLabel && (
+                            <button
+                                type="button"
+                                className={mobileStyles.sheetItem}
+                                onClick={() => {
+                                    setIsMobileMenuOpen(false);
+                                    handleOpenPayment();
+                                }}
+                            >
+                                <Ticket size={18} weight="bold" />
+                                <span className={mobileStyles.sheetItemGrow}>Passes</span>
+                                <span className={`${mobileStyles.sheetItemNote} ${passLabel.needed ? mobileStyles.sheetItemNoteNeeded : ""}`}>{passLabel.text}</span>
+                            </button>
+                        )}
+                        <FeedbackButton
+                            className={mobileStyles.sheetItem}
+                            label="Send feedback"
+                            onOpenChange={(open) => {
+                                setIsMenuFeedbackOpen(open);
+                                if (!open) setIsMobileMenuOpen(false);
+                            }}
+                        />
+                        <button type="button" className={`${mobileStyles.sheetItem} ${mobileStyles.sheetItemOut}`} onClick={handleLogout}>
+                            <SignOut size={18} weight="bold" />
+                            Sign out
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* ── Job Description Modal ── */}
             {selectedJobDesc && (

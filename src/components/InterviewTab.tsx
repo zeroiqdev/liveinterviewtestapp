@@ -4,7 +4,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation";
 import { useInterview } from "../context/InterviewContext";
 import { useMediaRecorder } from "../hooks/useMediaRecorder";
+import PassDialog from "./PassDialog";
+import { FeedbackButton } from "./FeedbackButton";
+import { setFeedbackContext } from "@/lib/feedbackContext";
 import styles from "./interview.module.css";
+import { initialsOf, interviewerNameFromVoice } from "@/lib/interviewer";
+import { clearTry } from "@/lib/tryClient";
+import { MODE_LABEL, modeLabel } from "@/lib/interviewModes";
 import { blueprintForRole } from "../engine/roleMapping";
 import { normalizeUserRoleFamily } from "../utils/locationDetector";
 import { displayQuestion, revealPoint } from "../lib/questionDisplay";
@@ -35,7 +41,6 @@ import { detectVoiceCommand } from "../engine/voiceCommands";
 import {
     PhoneDisconnect,
     VideoCamera,
-    Star,
     X,
     Microphone,
     MicrophoneSlash,
@@ -46,10 +51,7 @@ import {
     CheckCircle,
     Briefcase,
     User as UserIcon,
-    Lightbulb,
     ShieldWarning,
-    Sparkle,
-    ArrowRight,
     CaretUpDown,
     Minus,
     Check,
@@ -124,20 +126,6 @@ function isPlaceholderCompanyName(company: string | null | undefined): boolean {
     return !normalized || normalized === "target role" || normalized === "general";
 }
 
-/** "Nigerian recruiter (Azure - Abeo)" → "Abeo"; falls back to "Interviewer". */
-function interviewerNameFromVoice(voiceLabel: string | null | undefined): string {
-    const name = voiceLabel?.match(/-\s*([A-Za-z][A-Za-z' ]*?)\)?\s*$/)?.[1]?.trim();
-    return name || "Interviewer";
-}
-
-function initialsOf(name: string): string {
-    return name
-        .split(/\s+/)
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((word) => word.charAt(0).toUpperCase())
-        .join("");
-}
 
 /** A reply drafted while the candidate was still talking. */
 interface TurnDraft {
@@ -204,12 +192,13 @@ export default function InterviewTab() {
     const [user, setUser] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
 
-    // ── Interview Mode (Mock Interview vs Live Coaching) State ──
+    // ── Interview Mode (Real Interview vs Interactive Practice) State ──
     const [interviewMode, setInterviewMode] = useState<"live_coaching" | "post_interview">("post_interview");
     const [instantFeedback, setInstantFeedback] = useState<InstantQuestionFeedback | null>(null);
     const [isGeneratingInstantFeedback, setIsGeneratingInstantFeedback] = useState(false);
     const lastCandidateAnswerRef = useRef<string>("");
     const [interviewType, setInterviewType] = useState<string>("");
+    const [passRequired, setPassRequired] = useState(false);
 
     // ── Engine state ──
     const [blueprints, setBlueprints] = useState<BlueprintOption[]>([]);
@@ -1013,8 +1002,15 @@ export default function InterviewTab() {
                         : user?.roleFamily || normalizeUserRoleFamily(configuredRole),
                 // Fixes the interviewer's voice for the whole session.
                 jobRegion: getStoredJobRegion(),
+                // An interview begun before sign-up picks up where it stopped.
+                continueTry: searchParams.get("try") === "1" || undefined,
             }),
         });
+        if (res.status === 402) {
+            // The free interview is used and there is no pass: offer one.
+            setPassRequired(true);
+            return null;
+        }
         if (!res.ok) return null;
         return res.json();
     };
@@ -1043,6 +1039,9 @@ export default function InterviewTab() {
             setJoinStep(null);
             return;
         }
+
+        // A try carried on here is finished with; the dashboard stops offering it.
+        if ((started as { carriedOver?: boolean }).carriedOver) clearTry();
 
         // One voice for the whole interview, matching what the server uses.
         lockVoiceRegion(started.voiceRegion ?? null);
@@ -1535,7 +1534,7 @@ export default function InterviewTab() {
     };
 
     // Hands-free Voice Activity & Silence Detection (VAD)
-    const { isCountingDown } = useTurnDetection({
+    useTurnDetection({
         enabled: sessionStarted && !showEndModal && agentActivity.isListening && !isMuted,
         isAiSpeaking: agentActivity.isSpeaking,
         isEngineBusy: agentActivity.isThinking || isEngineBusy,
@@ -1607,6 +1606,24 @@ export default function InterviewTab() {
             handleNext(transcript);
         },
     });
+
+    // Sending feedback mid-interview: the mic is muted and the clock stopped
+    // while the form is open, so typing isn't a silence that ends the turn,
+    // then both go back to how the candidate had them.
+    const feedbackPauseRef = useRef<{ muted: boolean; pausedTimer: boolean } | null>(null);
+    const handleFeedbackOpenChange = (open: boolean) => {
+        if (open) {
+            feedbackPauseRef.current = { muted: !isMutedRef.current, pausedTimer: !isTimerPaused };
+            if (!isMutedRef.current) toggleMute();
+            setIsTimerPaused(true);
+            return;
+        }
+        const paused = feedbackPauseRef.current;
+        feedbackPauseRef.current = null;
+        if (!paused) return;
+        if (paused.muted && isMutedRef.current) toggleMute();
+        if (paused.pausedTimer) setIsTimerPaused(false);
+    };
 
     // Candidate reviewed coaching feedback and clicked "Next Question →"
     const handleContinueAfterCoaching = async () => {
@@ -1685,6 +1702,19 @@ export default function InterviewTab() {
         if (sessionStarted && currentPrompt?.text) return 1;
         return 0;
     }, [localTranscript, sessionStarted, currentPrompt]);
+
+    // What feedback sent during or after this interview should carry with it.
+    useEffect(() => {
+        if (!sessionId) return;
+        setFeedbackContext("interview", {
+            sessionId,
+            mode: modeLabel(interviewMode),
+            interviewType,
+            questionNumber,
+            minutes: Math.round(elapsedTick / 60),
+            transcriptionProblem: recognitionError,
+        });
+    }, [sessionId, interviewMode, interviewType, questionNumber, elapsedTick, recognitionError]);
 
     // The card shows what the interviewer says except the opening
     // acknowledgement ("Okay."), and stays on the previous question until
@@ -1803,6 +1833,14 @@ export default function InterviewTab() {
                     </div>
                 </div>
                 <div className={styles.navRight}>
+                    {/* Before the interview starts there is nothing to pause. */}
+                    <FeedbackButton
+                        section={sessionStarted ? "Interview" : "Interview set-up"}
+                        detail={sessionStarted && questionNumber > 0 ? `Question ${questionNumber}` : undefined}
+                        interviewSessionId={sessionId}
+                        notice={sessionStarted ? "Your interview is paused while this is open. Nothing you type here is heard as an answer." : undefined}
+                        onOpenChange={sessionStarted ? handleFeedbackOpenChange : undefined}
+                    />
                     <button
                         className={styles.logoutBtn}
                         onClick={handleLogout}
@@ -2233,7 +2271,11 @@ export default function InterviewTab() {
                                         <span className={styles.speakerInitials}>{initialsOf(interviewerName)}</span>
                                     </div>
                                     <div className={styles.speakerName}>
-                                        {interviewerName} · Interviewer
+                                        <span className={`${styles.speakingBars} ${isAiSpeaking ? styles.speakingBarsOn : ""}`} aria-hidden="true">
+                                            <i /><i /><i />
+                                        </span>
+                                        <span className={styles.speakerNameText}>{interviewerName}</span>
+                                        {interviewerName !== "Interviewer" && <span className={styles.speakerRole}>Interviewer</span>}
                                     </div>
                                 </div>
 
@@ -2300,7 +2342,7 @@ export default function InterviewTab() {
                                             </span>
                                             {interviewMode === "live_coaching" && (
                                                 <span className={styles.liveCoachTag}>
-                                                    <Star size={11} weight="fill" /> Coach Active
+                                                    {MODE_LABEL.live_coaching}
                                                 </span>
                                             )}
                                         </div>
@@ -2318,10 +2360,13 @@ export default function InterviewTab() {
                                 {/* Floating in-video controls */}
                                 <div className={styles.videoControls}>
                                     <button
+                                        type="button"
                                         className={`${styles.controlBtn} ${
                                             isMuted ? styles.controlBtnActive : ""
                                         }`}
                                         onClick={toggleMute}
+                                        aria-label={isMuted ? "Unmute" : "Mute"}
+                                        title={isMuted ? "Unmute" : "Mute"}
                                     >
                                         {isMuted ? (
                                             <MicrophoneSlash size={18} />
@@ -2330,8 +2375,11 @@ export default function InterviewTab() {
                                         )}
                                     </button>
                                     <button
+                                        type="button"
                                         className={`${styles.controlBtn} ${styles.controlBtnEnd}`}
                                         onClick={handleEndClick}
+                                        aria-label="End interview"
+                                        title="End interview"
                                     >
                                         <PhoneDisconnect size={22} />
                                     </button>
@@ -2342,6 +2390,8 @@ export default function InterviewTab() {
                                                 : ""
                                         }`}
                                         onClick={toggleVideo}
+                                        aria-label={isVideoOff ? "Turn camera on" : "Turn camera off"}
+                                        title={isVideoOff ? "Turn camera on" : "Turn camera off"}
                                     >
                                         {isVideoOff ? (
                                             <VideoCameraSlash size={18} />
@@ -2462,20 +2512,6 @@ export default function InterviewTab() {
                                     </div>
                                 )}
 
-                                <div className={styles.cardFooter}>
-                                    {/* Keeps "Done speaking" right-aligned. */}
-                                    <span />
-                                    {!isAiSpeaking && !isEngineBusy && (isListening || isCountingDown) && (
-                                        <button
-                                            type="button"
-                                            className={styles.quickSendBtn}
-                                            onClick={() => handleNext()}
-                                            title="Finish answer immediately"
-                                        >
-                                            Done speaking
-                                        </button>
-                                    )}
-                                </div>
                             </div>
 
                             {interviewMode === "live_coaching" && (isStarScoring || latestStarScore) && (
@@ -2483,7 +2519,7 @@ export default function InterviewTab() {
                                     <div className={styles.starScoreHeader}>
                                         <div>
                                             <span className={styles.starScoreEyebrow}>Answer structure</span>
-                                            <h3>STAR signal</h3>
+                                            <h3>Situation, task, action, result</h3>
                                         </div>
                                         {isStarScoring ? (
                                             <div className={styles.starPending}><span className={styles.miniSpinner} /> Scoring</div>
@@ -2513,136 +2549,89 @@ export default function InterviewTab() {
                                 </section>
                             )}
 
-                            {/* Live Coaching Panel – Runs in-page beside video below question */}
+                            {/* Live coaching: the coach's note on the answer just given, laid out like the
+                                resume editor's suggestion cards. */}
                             {interviewMode === "live_coaching" && (isGeneratingInstantFeedback || instantFeedback) && (
-                                <div className={styles.inlineFeedbackCard}>
+                                <section className={styles.coachCard} aria-live="polite">
+                                    <div className={styles.coachCardTop}>
+                                        <span className={styles.coachCardCategory}>
+                                            Coach suggestion{questionNumber > 0 ? ` · Question ${questionNumber}` : ""}
+                                        </span>
+                                        {instantFeedback && !isGeneratingInstantFeedback && (
+                                            <span
+                                                className={`${styles.coachCardScore} ${
+                                                    instantFeedback.rating === "Strong"
+                                                        ? styles.coachRatingStrong
+                                                        : instantFeedback.rating === "Average"
+                                                          ? styles.coachRatingAverage
+                                                          : styles.coachRatingWork
+                                                }`}
+                                            >
+                                                {instantFeedback.rating} · {instantFeedback.score}/100
+                                            </span>
+                                        )}
+                                    </div>
+
                                     {isGeneratingInstantFeedback ? (
-                                        <div className={styles.inlineAnalyzingCard}>
-                                            <div className={styles.inlineAnalyzingHeader}>
-                                                <div className={styles.inlineCoachBadge}>
-                                                    <Sparkle size={14} weight="fill" />
-                                                    <span>Coach Evaluating</span>
-                                                </div>
-                                                {targetCompany && (
-                                                    <span className={styles.inlineTargetCompany}>
-                                                        Target: {targetCompany}
-                                                    </span>
-                                                )}
+                                        <>
+                                            <h4 className={styles.coachCardTitle}>Reading your answer…</h4>
+                                            <div className={styles.coachCardLoading} aria-hidden="true">
+                                                <span />
                                             </div>
-                                            <div className={styles.inlineAnalyzingBody}>
-                                                <div className={styles.inlineAnalyzingSpinnerWrap}>
-                                                    <div className={styles.inlineAnalyzingSpinner} />
-                                                </div>
-                                                <div className={styles.inlineAnalyzingContent}>
-                                                    <h4 className={styles.inlineAnalyzingTitle}>Analyzing your response…</h4>
-                                                    <p className={styles.inlineAnalyzingText}>
-                                                        Evaluating structure, delivery, and alignment with {targetCompany || "role"} standards.
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div className={styles.inlineAnalyzingProgressTrack}>
-                                                <div className={styles.inlineAnalyzingProgressBar} />
-                                            </div>
-                                        </div>
+                                        </>
                                     ) : instantFeedback ? (
-                                        <div className={styles.inlineFeedbackContent}>
-                                            <div className={styles.inlineFeedbackHeader}>
-                                                <div className={styles.inlineCoachProfile}>
-                                                    <div className={styles.inlineCoachAvatar}>
-                                                        <Sparkle size={16} weight="fill" />
-                                                    </div>
-                                                    <div>
-                                                        <h3 className={styles.inlineCoachTitle}>Live Coach Feedback</h3>
-                                                        <p className={styles.inlineCoachSubtitle}>Instant Per-Question Critique</p>
-                                                    </div>
-                                                </div>
-                                                <div className={styles.inlineScoreBadgeRow}>
-                                                    <span
-                                                        className={`${styles.inlineRatingPill} ${
-                                                            instantFeedback.rating === "Strong"
-                                                                ? styles.ratingStrong
-                                                                : instantFeedback.rating === "Average"
-                                                                ? styles.ratingAverage
-                                                                : styles.ratingNeedsWork
-                                                        }`}
-                                                    >
-                                                        {instantFeedback.rating}
-                                                    </span>
-                                                    <span className={styles.inlineScorePill}>
-                                                        {instantFeedback.score}/100
-                                                    </span>
-                                                </div>
-                                            </div>
+                                        <>
+                                            <h4 className={styles.coachCardTitle}>{instantFeedback.headline}</h4>
 
-                                            <div className={styles.inlineFeedbackBody}>
-                                                <div className={styles.inlineHeadlineCard}>
-                                                    &ldquo;{instantFeedback.headline}&rdquo;
-                                                </div>
-
-                                                {instantFeedback.strengths && instantFeedback.strengths.length > 0 && (
-                                                    <div>
-                                                        <div className={styles.inlineSectionTitle}>
-                                                            <CheckCircle size={15} weight="fill" color="#10b981" />
-                                                            <span>What Worked Well</span>
-                                                        </div>
-                                                        <ul className={styles.inlineStrengthsList}>
+                                            {instantFeedback.strengths && instantFeedback.strengths.length > 0 && (
+                                                <div className={styles.coachCardSnippet}>
+                                                    <span className={styles.coachCardLabel}>What worked</span>
+                                                    {instantFeedback.strengths.length === 1 ? (
+                                                        instantFeedback.strengths[0]
+                                                    ) : (
+                                                        <ul>
                                                             {instantFeedback.strengths.map((str, idx) => (
-                                                                <li key={idx} className={styles.inlineStrengthsItem}>
-                                                                    <CheckCircle size={14} weight="fill" />
-                                                                    <span>{str}</span>
-                                                                </li>
+                                                                <li key={idx}>{str}</li>
                                                             ))}
                                                         </ul>
-                                                    </div>
-                                                )}
+                                                    )}
+                                                </div>
+                                            )}
 
-                                                {instantFeedback.coachingTip && (
-                                                    <div className={styles.inlineCoachingTipCard}>
-                                                        <div className={styles.inlineSectionTitle} style={{ color: "#b45309" }}>
-                                                            <Lightbulb size={15} weight="fill" color="#d97706" />
-                                                            <span>Coach Polish Tip</span>
-                                                        </div>
-                                                        <p>{instantFeedback.coachingTip}</p>
-                                                    </div>
-                                                )}
+                                            {instantFeedback.coachingTip && (
+                                                <div className={styles.coachCardProposed}>
+                                                    <strong>Try this:</strong> {instantFeedback.coachingTip}
+                                                </div>
+                                            )}
 
-                                                {instantFeedback.modelAnswer && (
-                                                    <div className={styles.inlineModelAnswerCard}>
-                                                        <div className={styles.inlineSectionTitle} style={{ color: "#475569" }}>
-                                                            <Star size={14} weight="fill" color="#f59e0b" />
-                                                            <span>Top 1% Model Answer Benchmark</span>
-                                                        </div>
-                                                        <p>&ldquo;{instantFeedback.modelAnswer}&rdquo;</p>
-                                                    </div>
-                                                )}
+                                            {instantFeedback.modelAnswer && (
+                                                <div className={styles.coachCardSnippet}>
+                                                    <span className={styles.coachCardLabel}>A stronger answer</span>
+                                                    &ldquo;{instantFeedback.modelAnswer}&rdquo;
+                                                </div>
+                                            )}
+
+                                            <div className={styles.coachCardActions}>
+                                                <span className={styles.coachCardHint}>Answer again with the tip, or move on</span>
+                                                <div className={styles.coachCardButtons}>
+                                                    <button type="button" className={styles.coachCardSecondary} onClick={handleRetryAnswer}>
+                                                        Try again
+                                                    </button>
+                                                    <button type="button" className={styles.coachCardPrimary} onClick={handleContinueAfterCoaching}>
+                                                        Next question
+                                                    </button>
+                                                </div>
                                             </div>
-
-                                            <div className={styles.inlineFeedbackFooter}>
-                                                <button
-                                                    type="button"
-                                                    className={styles.inlineRetryBtn}
-                                                    onClick={handleRetryAnswer}
-                                                    title="Re-speak your answer using the coach's tips"
-                                                >
-                                                    <span>Try Answer Again</span>
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className={styles.inlineContinueBtn}
-                                                    onClick={handleContinueAfterCoaching}
-                                                >
-                                                    <span>Next Question</span>
-                                                    <ArrowRight size={15} weight="bold" />
-                                                </button>
-                                            </div>
-                                        </div>
+                                        </>
                                     ) : null}
-                                </div>
+                                </section>
                             )}
                         </div>
                     </div>
                 )}
             </main>
+
+            <PassDialog isOpen={passRequired} onClose={() => setPassRequired(false)} reason="used-free" />
 
             {/* End Interview Warning Modal — modern design */}
             {showEndModal && (
