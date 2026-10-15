@@ -5362,3 +5362,84 @@
 @media (prefers-reduced-motion: reduce) {
     .jobPickSkeletonText i { animation: none; }
 }
+
+
+/* ── Interview set-up, step 3: the pass this interview uses, or passes to buy ── */
+.setupPassStep {
+    margin-top: 0.85rem;
+    padding: 1rem 1.1rem;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.setupPassTitle {
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 500;
+    color: #1E2540;
+}
+
+.setupPassText {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: #475569;
+}
+
+.setupPassNote {
+    margin: 0.25rem 0 0;
+    font-size: 0.82rem;
+    color: #2563EB;
+    font-weight: 500;
+}
+
+/* Modal headers on phones: the title side shrinks so the close and feedback
+   buttons stay inside the modal (they used to push it wider than the screen,
+   leaving space to slide into). The set-up steps share the width evenly. */
+.settingsModalHeader > div:first-child {
+    flex: 1;
+    min-width: 0;
+}
+
+.settingsModalHeader > div:last-child {
+    flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+    .settingsModalContent {
+        overflow-x: hidden;
+    }
+
+    .settingsModalHeader {
+        padding: 1.1rem 1rem 1rem;
+        gap: 0.5rem;
+        align-items: flex-start;
+    }
+
+    .settingsModalTitle {
+        font-size: 1.15rem !important;
+        overflow-wrap: anywhere;
+    }
+
+    .setupSteps {
+        gap: 0.35rem;
+    }
+
+    .setupStep {
+        font-size: 0.72rem;
+        gap: 0.3rem;
+        min-width: 0;
+        line-height: 1.2;
+    }
+
+    .setupStepLine {
+        flex: 1 1 8px;
+        min-width: 6px;
+        width: auto;
+    }
+}

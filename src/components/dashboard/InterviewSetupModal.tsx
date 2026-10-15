@@ -13,6 +13,7 @@ import {
 import { CheckCircleFilled } from "@mingcute/react/core-filled";
 import { Warning, SpinnerGap, Trash, FileText } from "@phosphor-icons/react";
 import { FeedbackButton } from "../FeedbackButton";
+import PassOptions from "../PassOptions";
 import styles from "../dashboard.module.css";
 import { MODE_LABEL } from "@/lib/interviewModes";
 import { COACH_AVATAR, RECRUITER_AVATAR } from "./constants";
@@ -93,9 +94,13 @@ export function InterviewSetupModal({
     const router = useRouter();
 
     // ── 1. Interview Mode (Real Interview vs Interactive Practice) ──
+    // Step 3, before the mic check: what this interview will use (a running pass,
+    // a new one, the free interview) or, with none of those, passes to buy.
+    const [passState, setPassState] = useState<{ active: boolean; expiresAt: string | null; unused: number; freeInterviewsLeft: number; canStart: boolean; isAdmin?: boolean } | null>(null);
+    const passNeeded = passState?.canStart === false;
     const [interviewMode, setInterviewMode] = useState<"live_coaching" | "post_interview">("post_interview");
     // Step 1: resume (optional). Step 2: interview mode.
-    const [step, setStep] = useState<1 | 2>(1);
+    const [step, setStep] = useState<1 | 2 | 3>(1);
 
     // ── 2. Resume Selection & Upload State ──
     const [savedResumes, setSavedResumes] = useState<StoredResumeItem[]>([]);
@@ -220,6 +225,13 @@ export function InterviewSetupModal({
     useEffect(() => {
         if (!isOpen) return;
         setStep(1);
+        let cancelled = false;
+        fetch("/api/payments/pass", { cache: "no-store" })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((pass) => {
+                if (!cancelled && pass && typeof pass.canStart === "boolean") setPassState(pass);
+            })
+            .catch(() => undefined);
 
         const raw = typeof window !== "undefined" ? localStorage.getItem("useladder_user") : null;
         if (raw) {
@@ -268,6 +280,9 @@ export function InterviewSetupModal({
         } else {
             setIsUploadingNew(true);
         }
+        return () => {
+            cancelled = true;
+        };
     }, [isOpen]);
 
     // Auto-parse binary dataUrl to plain text if needed
@@ -487,8 +502,18 @@ export function InterviewSetupModal({
         }
     };
 
-    // Start Session with configured settings
-    const handleStartSession = () => {
+    // Start Session with configured settings. The pass check comes first, so
+    // nobody sets up their mic only to be asked to pay.
+    const handleStartSession = async () => {
+        // Checked again: a pass may have run out since the modal opened.
+        const pass = await fetch("/api/payments/pass", { cache: "no-store" })
+            .then((res) => (res.ok ? res.json() : null))
+            .catch(() => null);
+        if (pass && typeof pass.canStart === "boolean") setPassState(pass);
+        if (pass && pass.canStart === false) {
+            setStep(3);
+            return;
+        }
         const sessionMeta = {
             role: effectiveRole,
             companyName: initialCompany || "General Industry Benchmark",
@@ -528,6 +553,53 @@ export function InterviewSetupModal({
         router.push(`/interview?${queryParams.toString()}`);
     };
 
+    /** Step 3: what this interview will use, or the passes to buy. */
+    const passStepBody = () => {
+        const until = passState?.expiresAt
+            ? new Date(passState.expiresAt).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })
+            : "";
+        const left = passState?.unused ?? 0;
+        const passWord = (n: number) => `${n} ${n === 1 ? "pass" : "passes"}`;
+        if (!passState) return <p className={styles.setupPassText}>Checking your passes…</p>;
+        if (passState.isAdmin && !passState.active && left === 0) {
+            return <p className={styles.setupPassText}>You&rsquo;re an admin, so no pass is needed.</p>;
+        }
+        if (passState.active) {
+            return (
+                <>
+                    <p className={styles.setupPassTitle}>Using your pass</p>
+                    <p className={styles.setupPassText}>Your pass is active until {until}. This interview won&rsquo;t use another one.</p>
+                    {left > 0 && <p className={styles.setupPassNote}>{passWord(left)} left after this one runs out.</p>}
+                </>
+            );
+        }
+        if (left > 0) {
+            return (
+                <>
+                    <p className={styles.setupPassTitle}>Using one of your passes</p>
+                    <p className={styles.setupPassText}>Starting this interview begins a pass: 24 hours of interviews from now.</p>
+                    <p className={styles.setupPassNote}>
+                        {left === 1 ? "This is your last pass." : `You have ${passWord(left)}; ${passWord(left - 1)} will be left.`}
+                    </p>
+                </>
+            );
+        }
+        if (passState.freeInterviewsLeft > 0) {
+            return (
+                <>
+                    <p className={styles.setupPassTitle}>This interview is free</p>
+                    <p className={styles.setupPassText}>Your first interview is on us. After it, a pass gives you 24 hours of interviews.</p>
+                </>
+            );
+        }
+        return (
+            <>
+                <p className={styles.setupPassText}>You&rsquo;ve used your free interview. A pass gives you as many interviews as you like for 24 hours.</p>
+                <PassOptions padding="0.75rem 0 0" grantedLabel="Start Interview" onGranted={() => void handleStartSession()} />
+            </>
+        );
+    };
+
     return (
         <div className={styles.settingsModalOverlay} onClick={onClose}>
             <div className={`${styles.settingsModalContent} ${styles.unboldedModal}`} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
@@ -535,20 +607,25 @@ export function InterviewSetupModal({
                 <div className={styles.settingsModalHeader}>
                     <div>
                         <h2 className={styles.settingsModalTitle}>Configure Interview Session</h2>
-                        <div className={styles.setupSteps} aria-label={`Step ${step} of 2`}>
+                        <div className={styles.setupSteps} aria-label={`Step ${step} of 3`}>
                             <span className={`${styles.setupStep} ${styles.setupStepActive}`}>
-                                <span className={styles.setupStepNumber}>{step === 2 ? <CheckCircleFilled size={16} color="#2563EB" /> : "1"}</span>
+                                <span className={styles.setupStepNumber}>{step > 1 ? <CheckCircleFilled size={16} color="#2563EB" /> : "1"}</span>
                                 Your resume
                             </span>
                             <span className={styles.setupStepLine} />
-                            <span className={`${styles.setupStep} ${step === 2 ? styles.setupStepActive : ""}`}>
-                                <span className={styles.setupStepNumber}>2</span>
+                            <span className={`${styles.setupStep} ${step >= 2 ? styles.setupStepActive : ""}`}>
+                                <span className={styles.setupStepNumber}>{step > 2 ? <CheckCircleFilled size={16} color="#2563EB" /> : "2"}</span>
                                 Interview mode
+                            </span>
+                            <span className={styles.setupStepLine} />
+                            <span className={`${styles.setupStep} ${step === 3 ? styles.setupStepActive : ""}`}>
+                                <span className={styles.setupStepNumber}>3</span>
+                                Pass
                             </span>
                         </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", alignSelf: "flex-start" }}>
-                        <FeedbackButton className={styles.settingsCloseBtn} section="Starting an interview" detail={step === 1 ? "Step 1: resume" : "Step 2: mode"} />
+                        <FeedbackButton className={styles.settingsCloseBtn} section="Starting an interview" detail={step === 1 ? "Step 1: resume" : step === 2 ? "Step 2: mode" : "Step 3: pass"} />
                         <button className={styles.settingsCloseBtn} onClick={onClose} aria-label="Close configuration">
                             <CloseRegular size={18} />
                         </button>
@@ -568,6 +645,24 @@ export function InterviewSetupModal({
                     <div className={styles.timelineSectionWrap}>
                         <div className={styles.timelineItemsList}>
                             <div className={styles.timelineConnectorLine} />
+
+                            {/* ── STEP 3: PASS ── */}
+                            {step === 3 && (
+                            <div className={styles.timelineItem}>
+                                <div className={styles.timelineAvatarCircle} title="Recruiter">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={RECRUITER_AVATAR} alt="Recruiter" className={styles.timelineAvatarImg} draggable={false} />
+                                </div>
+                                <div className={styles.timelineItemTopRow}>
+                                    <div className={styles.greetingChipRow}>
+                                        <div className={styles.greetingBadge}>
+                                            {passNeeded ? "One last thing: choose a pass" : "You're all set"}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className={styles.setupPassStep}>{passStepBody()}</div>
+                            </div>
+                            )}
 
                             {/* ── STEP 2: INTERVIEW MODE ── */}
                             {step === 2 && (
@@ -960,18 +1055,21 @@ export function InterviewSetupModal({
                     <button
                         type="button"
                         className={styles.settingsCancelFooterBtn}
-                        onClick={step === 1 ? onClose : () => setStep(1)}
+                        onClick={step === 1 ? onClose : () => setStep(step === 3 ? 2 : 1)}
                     >
                         {step === 1 ? "Cancel" : "Back"}
                     </button>
-                    <button
-                        type="button"
-                        className={styles.settingsSaveFooterBtn}
-                        onClick={step === 1 ? () => setStep(2) : handleStartSession}
-                    >
-                        <span>{step === 1 ? (selectedResumeId ? "Continue" : "Continue without a resume") : "Start Interview"}</span>
-                        <ArrowRightRegular size={16} />
-                    </button>
+                    {/* With a pass to buy, the pass options carry their own button. */}
+                    {!(step === 3 && passNeeded) && (
+                        <button
+                            type="button"
+                            className={styles.settingsSaveFooterBtn}
+                            onClick={step === 1 ? () => setStep(2) : step === 2 ? () => setStep(3) : () => void handleStartSession()}
+                        >
+                            <span>{step === 1 ? (selectedResumeId ? "Continue" : "Continue without a resume") : step === 2 ? "Continue" : "Start Interview"}</span>
+                            <ArrowRightRegular size={16} />
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -982,6 +1080,7 @@ export function InterviewSetupModal({
                 onCancel={handleCancelDelete}
                 onConfirm={handleConfirmDelete}
             />
+
         </div>
     );
 }

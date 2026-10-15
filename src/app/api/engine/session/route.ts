@@ -60,11 +60,15 @@ async function prepareOpeningAudio(parts: string[], region: string) {
 }
 
 export async function POST(req: NextRequest) {
+    // Which step was running if it fails: returned with the error (no details),
+    // so a broken deployment setting shows up without digging through logs.
+    let stage = "sign-in";
     try {
         const authResult = await requireAuth(req);
         if ("errorResponse" in authResult) {
             return authResult.errorResponse;
         }
+        stage = "rate-limit";
         const limited = await rateLimit(LIMITS.interview, `user:${authResult.session.email}`);
         if (limited) return limited;
 
@@ -94,6 +98,7 @@ export async function POST(req: NextRequest) {
         const tryId = body?.continueTry ? req.cookies.get(TRY_COOKIE)?.value || "" : "";
         let tried: InstanceType<typeof TrySession> | null = null;
         if (tryId) {
+            stage = "trial";
             await dbConnect();
             tried = await TrySession.findOne({ tryId, claimedBy: null });
             if (tried && tried.answers.length < TRY_QUESTIONS) tried = null;
@@ -102,6 +107,7 @@ export async function POST(req: NextRequest) {
         // The first interview is free; after that an interview needs a pass.
         // Checked last, after the request is known to be valid, so a bad
         // request never uses up a pass or the free interview.
+        stage = "pass";
         const entry = await claimInterviewStart(authResult.session.email, await isAdminSession(authResult.session));
         if (!entry.allowed) {
             return NextResponse.json(
@@ -112,11 +118,13 @@ export async function POST(req: NextRequest) {
 
         // Profile is enrichment, not dependency — null is a first-class case.
         // History: what their recent interviews asked, so this one covers new ground.
+        stage = "profile-and-history";
         const [profile, history] = await Promise.all([
             getProfile(candidateId),
             loadInterviewHistory([candidateId, authResult.session.email]),
         ]);
 
+        stage = "interview";
         const { session, prompt } = await startSession({
             candidateId,
             ownerId: candidateId,
@@ -146,6 +154,7 @@ export async function POST(req: NextRequest) {
         // Ready the first question's audio now so it plays the moment the
         // interview starts, in the same voice as every later question.
         const openingParts = prompt.openingParts ?? (prompt.text ? [prompt.text] : []);
+        stage = "opening-audio";
         const opening = openingParts.length ? await prepareOpeningAudio(openingParts, voiceRegion) : null;
         // The resume-line question is fixed from the start; record it too.
         const resumeText = session.resumeQuestion?.text;
@@ -165,6 +174,8 @@ export async function POST(req: NextRequest) {
             lateDraftWaitMs: liveAudioTiming("recruiter", voiceRegion).lateDraftWaitMs,
         });
     } catch (err) {
-        return serverError("api/engine/session", err, "session start failed");
+        console.error(`[api/engine/session] failed at: ${stage}`);
+        const res = serverError("api/engine/session", err, "session start failed");
+        return NextResponse.json({ error: "session start failed", stage }, { status: res.status });
     }
 }

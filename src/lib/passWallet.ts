@@ -9,6 +9,10 @@ import User from "@/models/User";
 import { sendEmail } from "@/lib/email";
 import { receiptEmail } from "@/lib/receipts";
 import { SITE_URL } from "@/lib/site";
+import { randomBytes } from "crypto";
+import DiscountCode from "@/models/DiscountCode";
+import { PASS_CURRENCY } from "@/lib/passes";
+import { describeDiscount, discountProblem, type DiscountRule } from "@/lib/discounts";
 
 export interface PassSummary {
     active: boolean;
@@ -70,6 +74,7 @@ export async function settleCheckout(checkoutId: string): Promise<"paid" | "not-
     const flipped = await PassPurchase.updateOne({ _id: purchase._id, status: "pending" }, { $set: { status: "paid", paidAt: new Date() } });
     if (flipped.modifiedCount > 0) {
         await PassWallet.updateOne({ email: purchase.email }, { $inc: { unused: purchase.passes }, $setOnInsert: { email: purchase.email, activeUntil: null, freeInterviewsUsed: 0 } }, { upsert: true });
+        if (purchase.discountCode) await markCodeUsed(purchase.discountCode, purchase.email);
         await emailReceipt(purchase.reference);
     }
     return "paid";
@@ -103,3 +108,85 @@ async function emailReceipt(reference: string): Promise<void> {
         console.warn("[passWallet] Receipt email not sent:", (err as Error).message);
     }
 }
+
+/* ── discount codes ── */
+
+/** A code someone typed, if they can use it now; otherwise the reason they can't. */
+export async function findUsableCode(code: string, email: string): Promise<{ rule: DiscountRule } | { problem: string }> {
+    if (!code) return { problem: "Enter a code." };
+    await dbConnect();
+    const doc = await DiscountCode.findOne({ code }).lean();
+    const rule: DiscountRule | null = doc
+        ? {
+              code: doc.code,
+              kind: doc.kind,
+              value: doc.value,
+              maxUses: doc.maxUses ?? null,
+              uses: doc.uses ?? 0,
+              redeemedBy: doc.redeemedBy ?? [],
+              expiresAt: doc.expiresAt ? new Date(doc.expiresAt) : null,
+              active: doc.active,
+          }
+        : null;
+    const problem = discountProblem(rule, email);
+    return problem || !rule ? { problem: problem ?? "That code isn't valid." } : { rule };
+}
+
+/**
+ * Counts one use of a code by this person. A single conditional update, so two
+ * tabs can't both use the last place on a capped code. False if it couldn't be used.
+ */
+export async function markCodeUsed(code: string, email: string): Promise<boolean> {
+    await dbConnect();
+    const address = email.toLowerCase();
+    const result = await DiscountCode.updateOne(
+        {
+            code,
+            active: true,
+            redeemedBy: { $ne: address },
+            $and: [
+                { $or: [{ maxUses: null }, { $expr: { $lt: ["$uses", "$maxUses"] } }] },
+                { $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }] },
+            ],
+        },
+        { $inc: { uses: 1 }, $push: { redeemedBy: address } }
+    );
+    return result.modifiedCount === 1;
+}
+
+/**
+ * Passes given without payment: a free-passes code, or a percentage code that
+ * takes the price to nothing. Recorded like a purchase (₦0), so it shows in
+ * their payment history and has a receipt.
+ */
+export async function grantPasses(opts: { email: string; passes: number; label: string; code: string; fullAmount: number }): Promise<{ reference: string } | null> {
+    if (!(await markCodeUsed(opts.code, opts.email))) return null;
+    await dbConnect();
+    const reference = `gp_${Date.now().toString(36)}_${randomBytes(6).toString("hex")}`;
+    await PassPurchase.create({
+        email: opts.email,
+        reference,
+        passes: opts.passes,
+        amount: 0,
+        fullAmount: opts.fullAmount,
+        currency: PASS_CURRENCY,
+        label: opts.label,
+        status: "paid",
+        paidAt: new Date(),
+        discountCode: opts.code,
+    });
+    await PassWallet.updateOne({ email: opts.email }, { $inc: { unused: opts.passes }, $setOnInsert: { email: opts.email, activeUntil: null, freeInterviewsUsed: 0 } }, { upsert: true });
+    return { reference };
+}
+
+/** Redeems a free-passes code for this person. */
+export async function redeemFreePasses(email: string, code: string): Promise<{ passes: number; reference: string; label: string } | { problem: string }> {
+    const found = await findUsableCode(code, email);
+    if ("problem" in found) return found;
+    if (found.rule.kind !== "free_passes") return { problem: "That code takes money off a pass: choose a pass and press Continue to payment." };
+    const label = `${describeDiscount(found.rule)} (code ${found.rule.code})`;
+    const granted = await grantPasses({ email, passes: found.rule.value, label, code: found.rule.code, fullAmount: 0 });
+    if (!granted) return { problem: "That code has just been used up." };
+    return { passes: found.rule.value, reference: granted.reference, label };
+}
+
