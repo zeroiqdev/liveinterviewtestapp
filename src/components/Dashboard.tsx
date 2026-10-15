@@ -528,7 +528,7 @@ export default function Dashboard() {
     }, []);
 
     // What they have to practise with: a running pass, unused passes or the free interview.
-    const [passInfo, setPassInfo] = useState<{ active: boolean; expiresAt: string | null; unused: number; freeInterviewsLeft: number } | null>(null);
+    const [passInfo, setPassInfo] = useState<{ active: boolean; expiresAt: string | null; unused: number; freeInterviewsLeft: number; canStart?: boolean } | null>(null);
     useEffect(() => {
         let cancelled = false;
         fetch("/api/payments/pass", { cache: "no-store" })

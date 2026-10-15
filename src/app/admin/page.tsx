@@ -25,19 +25,22 @@ import {
     Lightbulb,
     UsersThree,
     ChartLineUp,
+    Ticket,
 } from "@phosphor-icons/react";
 import { UsersPanel } from "@/components/admin/UsersPanel";
 import { FeedbackPanel } from "@/components/admin/FeedbackPanel";
 import { WeeklyTipsPanel } from "@/components/admin/WeeklyTipsPanel";
 import { RoleRequestsPanel } from "@/components/admin/RoleRequestsPanel";
 import { MetricsPanel } from "@/components/admin/MetricsPanel";
+import { DiscountsPanel } from "@/components/admin/DiscountsPanel";
+import { VoiceCheckCard } from "@/components/admin/VoiceCheckCard";
 import styles from "@/components/admin.module.css";
 import type { RoleItem } from "@/app/api/roles/route";
 import type { QuestionItem } from "@/app/api/questions/route";
 import type { JobItem } from "@/app/api/jobs/route";
 import type { ScraperSource } from "@/app/api/jobs/sources/route";
 
-type AdminTab = "overview" | "metrics" | "roles" | "questions" | "jobs" | "feedback" | "tips" | "users";
+type AdminTab = "overview" | "metrics" | "discounts" | "roles" | "questions" | "jobs" | "feedback" | "tips" | "users";
 type JobsSubTab = "listings" | "sources";
 
 export default function AdminPage() {
@@ -730,6 +733,13 @@ export default function AdminPage() {
                     </button>
                     <button
                         type="button"
+                        className={`${styles.tabBtn} ${activeTab === "discounts" ? styles.tabBtnActive : ""}`}
+                        onClick={() => setActiveTab("discounts")}
+                    >
+                        <Ticket size={16} /> Discounts
+                    </button>
+                    <button
+                        type="button"
                         className={`${styles.tabBtn} ${activeTab === "roles" ? styles.tabBtnActive : ""}`}
                         onClick={() => setActiveTab("roles")}
                     >
@@ -776,10 +786,12 @@ export default function AdminPage() {
                 {activeTab === "tips" && <WeeklyTipsPanel onToast={showToast} />}
                 {activeTab === "users" && <UsersPanel />}
                 {activeTab === "metrics" && <MetricsPanel />}
+                {activeTab === "discounts" && <DiscountsPanel onToast={showToast} />}
 
                 {/* ════════ TAB 1: OVERVIEW ════════ */}
                 {activeTab === "overview" && (
                     <div>
+                        <VoiceCheckCard />
                         <div className={styles.statsGrid}>
                             <div className={styles.statCard}>
                                 <div className={styles.statInfo}>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/session";
+import { isAdminSession, requireAuth } from "@/lib/session";
 import { serverError } from "@/lib/apiError";
 import { passSummary } from "@/lib/passWallet";
 
@@ -10,7 +10,10 @@ export async function GET(req: NextRequest) {
     try {
         const auth = await requireAuth(req);
         if ("errorResponse" in auth) return auth.errorResponse;
-        return NextResponse.json(await passSummary(auth.session.email));
+        const [summary, isAdmin] = await Promise.all([passSummary(auth.session.email), isAdminSession(auth.session)]);
+        // Whether an interview can start right now: shown before the mic check, not after it.
+        const canStart = isAdmin || summary.active || summary.unused > 0 || summary.freeInterviewsLeft > 0;
+        return NextResponse.json({ ...summary, canStart, isAdmin });
     } catch (err) {
         return serverError("api/payments/pass", err, "Couldn't load your pass.");
     }

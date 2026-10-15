@@ -13,6 +13,9 @@ export interface IPassPurchase extends Document {
     currency: string;
     label: string;
     status: "pending" | "paid";
+    /** The discount code used, if any, and the full price before it. */
+    discountCode?: string;
+    fullAmount?: number;
     paidAt?: Date;
     createdAt: Date;
 }
@@ -28,6 +31,8 @@ const PassPurchaseSchema = new Schema<IPassPurchase>(
         label: { type: String, default: "" },
         status: { type: String, enum: ["pending", "paid"], default: "pending" },
         paidAt: { type: Date },
+        discountCode: { type: String },
+        fullAmount: { type: Number },
     },
     { timestamps: true }
 );

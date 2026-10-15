@@ -2,7 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { FREE_INTERVIEWS, decideStart, offerFor, priceForPasses } from "../src/lib/passes";
-import { baseUrlFor, isPaidInFull, verifyWebhook } from "../src/lib/bachs";
+import { baseUrlFor, createCheckout, isPaidInFull, verifyWebhook } from "../src/lib/bachs";
+import { discountedAmount } from "../src/lib/discounts";
 import { formatNaira, pricePerPass, receiptDate, receiptEmail, receiptNumber } from "../src/lib/receipts";
 
 describe("pass prices", () => {
@@ -126,3 +127,35 @@ describe("receipts", () => {
         assert.ok(!email.html.includes("<b>Okafor</b>"));
     });
 });
+
+describe("discounted checkouts", () => {
+    it("sends Bachs the discounted price, worked out on our side, and accepts exactly that", async () => {
+        const week = offerFor({ product: "week" })!;
+        const amount = discountedAmount(week.amount, { kind: "percent", value: 50 });
+        assert.equal(amount, 3250);
+
+        const realFetch = globalThis.fetch;
+        const realKey = process.env.BACHS_API_KEY;
+        let sent: { url: string; body: Record<string, unknown> } | null = null;
+        process.env.BACHS_API_KEY = "sk_test_example";
+        globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+            sent = { url: String(url), body: JSON.parse(String(init?.body)) };
+            return new Response(JSON.stringify({ checkout_id: "chk_1", checkout_url: "https://pay.example/chk_1", status: "open", amount: "3250.00", currency: "NGN" }), { status: 200 });
+        }) as typeof fetch;
+        try {
+            await createCheckout({ amountNaira: amount, reference: "gp_test_1", customer: { email: "a@x.test" }, description: `${week.label} (code HALF)` });
+        } finally {
+            globalThis.fetch = realFetch;
+            if (realKey === undefined) delete process.env.BACHS_API_KEY;
+            else process.env.BACHS_API_KEY = realKey;
+        }
+        assert.ok(sent);
+        const body = (sent as unknown as { body: { pricing: { currency: string; amount: string } } }).body;
+        assert.deepEqual(body.pricing, { currency: "NGN", amount: "3250.00" });
+
+        const session = { checkout_id: "chk_1", status: "completed", payment_status: "succeeded", amount: "3250.00", currency: "NGN" };
+        assert.equal(isPaidInFull(session, amount), true);
+        assert.equal(isPaidInFull({ ...session, amount: "3249.00" }, amount), false);
+    });
+});
+

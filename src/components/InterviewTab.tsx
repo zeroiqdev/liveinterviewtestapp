@@ -1053,6 +1053,21 @@ export default function InterviewTab() {
         []
     );
 
+    // Arriving here without a pass (and no free interview left): offer one
+    // straight away, before the mic and camera checks rather than after them.
+    useEffect(() => {
+        let cancelled = false;
+        fetch("/api/payments/pass", { cache: "no-store" })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((pass) => {
+                if (!cancelled && pass?.canStart === false) setPassRequired(true);
+            })
+            .catch(() => undefined);
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
     // Main entry point — user clicks "Start"
     const handleStartInterview = async () => {
         if (!micChecked) {
