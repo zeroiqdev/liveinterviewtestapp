@@ -14,6 +14,8 @@ export interface IResume {
     }>;
     missingKeywords?: string[];
     improvedDoc?: string;
+    /** Which version of the review made the score's feedback (see lib/resumeReviewVersion). */
+    reviewVersion?: number;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -66,6 +68,7 @@ const ResumeSchema = new Schema<IResume>(
         ],
         missingKeywords: [{ type: String }],
         improvedDoc: { type: String, default: "" },
+        reviewVersion: { type: Number },
     },
     { timestamps: true }
 );

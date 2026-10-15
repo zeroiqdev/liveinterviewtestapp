@@ -568,6 +568,8 @@ export interface ResumeScanFeedbackItem {
     suggestions?: ResumeScanSuggestion[];
     improvements?: (string | ResumeScanSuggestion)[];
     missingKeywords?: string[];
+    /** Which version of the review made it (see lib/resumeReviewVersion). */
+    reviewVersion?: number;
     updatedAt?: string;
     metrics?: {
         impactScore?: number;
