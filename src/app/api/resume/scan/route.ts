@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callJSON } from "@/engine/llm";
 import dbConnect from "@/lib/mongodb";
-import User from "@/models/User";
+import User, { type IResume, type IUser } from "@/models/User";
 import { extractDocumentText } from "@/lib/documentParser";
 import { calculateAtsScore, scoreGaps } from "@/lib/atsScorer";
 import { requireAuth } from "@/lib/session";
+import { RESUME_REVIEW_VERSION } from "@/lib/resumeReviewVersion";
 import { LIMITS, rateLimit } from "@/lib/rateLimit";
 import { serverError } from "@/lib/apiError";
 
@@ -99,6 +100,14 @@ CRITICAL RULES — you MUST follow these exactly:
 - strengths MUST call out the strong bullets you scored 7+.
 - Be precise and concise; do not generate generic template suggestions like "Engineered modular component design system" unless the original bullet was actually about frontend components.`;
 
+/** Adds a scanned resume to the account, or updates it if that id is already saved. */
+function saveScannedResume(user: IUser, resume: Omit<IResume, "createdAt" | "updatedAt">) {
+    const existing = user.resumes.find((r) => r.id === resume.id);
+    const saved = { ...resume, reviewVersion: RESUME_REVIEW_VERSION };
+    if (existing) Object.assign(existing, saved, { updatedAt: new Date() });
+    else user.resumes.push({ ...saved, createdAt: new Date(), updatedAt: new Date() } as IResume);
+}
+
 export async function POST(req: NextRequest) {
     try {
         const authResult = await requireAuth(req);
@@ -115,7 +124,11 @@ export async function POST(req: NextRequest) {
             fileData = "",
             doc: docFromClient,
             anchorMap: anchorMapFromClient,
+            resumeId: resumeIdFromClient,
         } = body as any;
+        // The id the browser gave this resume, so the scan updates that entry
+        // instead of saving the same file a second time under a new id.
+        const resumeId = typeof resumeIdFromClient === "string" && /^[\w-]{1,80}$/.test(resumeIdFromClient) ? resumeIdFromClient : `cv_${Date.now()}`;
         // Saved results always go to the signed-in user, never an email from the body.
         const email = authResult.session.email;
 
@@ -186,8 +199,7 @@ export async function POST(req: NextRequest) {
                         await dbConnect();
                         const user = await User.findOne({ email: email.toLowerCase().trim() });
                         if (user) {
-                            const resumeId = `cv_${Date.now()}`;
-                            user.resumes.push({
+                            saveScannedResume(user, {
                                 id: resumeId,
                                 name: resumeName,
                                 rawText: flat.map((n) => n.text).join("\n"),
@@ -197,14 +209,12 @@ export async function POST(req: NextRequest) {
                                 suggestions: result.suggestions,
                                 missingKeywords: result.missingKeywords,
                                 improvedDoc: "",
-                                createdAt: new Date(),
-                                updatedAt: new Date(),
-                            } as any);
+                            });
                             await user.save();
                         }
                     } catch {}
                 }
-                return NextResponse.json({ success: true, result, extractedText: flat.map((n) => n.text).join("\n"), usedNewPipeline: true, dropped });
+                return NextResponse.json({ success: true, result, extractedText: flat.map((n) => n.text).join("\n"), usedNewPipeline: true, dropped, reviewVersion: RESUME_REVIEW_VERSION });
             } catch (e) {
                 console.warn("[api/resume/scan] new pipeline fallback to legacy:", (e as Error).message);
             }
@@ -253,6 +263,21 @@ export async function POST(req: NextRequest) {
         if (ats.strengths.length > 0) {
             result.strengths = Array.from(new Set([...(result.strengths || []), ...ats.strengths]));
         }
+        // A low score always comes with lines to fix: if the reviewer listed
+        // none, use its weakest reviewed lines that have a rewrite.
+        if (ats.overallScore < 75 && (!result.suggestions || result.suggestions.length === 0)) {
+            result.suggestions = (result.bulletReviews || [])
+                .filter((b) => !b.isCompanyDescription && b.rewritten && b.rewritten.trim() !== b.originalText.trim())
+                .sort((a, b) => a.score - b.score)
+                .slice(0, 4)
+                .map((b) => ({
+                    category: b.category || "Impact & Metrics",
+                    feedback: b.feedback || "This line could show more clearly what you did and what came of it.",
+                    recommendation: b.recommendation || "Say what you did and the result, with a number if you have one.",
+                    targetSnippet: b.originalText,
+                    proposedText: b.rewritten!,
+                }));
+        }
 
         // Optionally persist scan to user record if email is provided
         if (email) {
@@ -260,8 +285,7 @@ export async function POST(req: NextRequest) {
                 await dbConnect();
                 const user = await User.findOne({ email: email.toLowerCase().trim() });
                 if (user) {
-                    const resumeId = `cv_${Date.now()}`;
-                    user.resumes.push({
+                    saveScannedResume(user, {
                         id: resumeId,
                         name: resumeName,
                         rawText: parsedText,
@@ -271,8 +295,6 @@ export async function POST(req: NextRequest) {
                         suggestions: result.suggestions,
                         missingKeywords: result.missingKeywords,
                         improvedDoc: "",
-                        createdAt: new Date(),
-                        updatedAt: new Date(),
                     });
                     await user.save();
                 }
@@ -285,6 +307,7 @@ export async function POST(req: NextRequest) {
             success: true,
             result,
             extractedText: parsedText,
+            reviewVersion: RESUME_REVIEW_VERSION,
         });
     } catch (err) {
         return serverError("api/resume/scan", err, "Failed to scan resume");

@@ -583,6 +583,7 @@ export function SettingsModal({
                         role: selectedRole,
                         domain: selectedDomain,
                         email: userEmail,
+                        resumeId: currentResumeId,
                     }),
                 });
 
@@ -626,6 +627,7 @@ export function SettingsModal({
                         strengths: data.result.strengths || [],
                         suggestions: data.result.suggestions || [],
                         missingKeywords: data.result.missingKeywords || [],
+                        reviewVersion: data.reviewVersion,
                         updatedAt: new Date().toISOString(),
                     };
 
@@ -680,6 +682,7 @@ export function SettingsModal({
                     role: selectedRole,
                     domain: selectedDomain,
                     email: userEmail,
+                    resumeId: currentResumeId,
                 }),
             });
 
@@ -712,6 +715,7 @@ export function SettingsModal({
                 strengths: data.result.strengths || [],
                 suggestions: data.result.suggestions || [],
                 missingKeywords: data.result.missingKeywords || [],
+                reviewVersion: data.reviewVersion,
                 updatedAt: new Date().toISOString(),
             };
 

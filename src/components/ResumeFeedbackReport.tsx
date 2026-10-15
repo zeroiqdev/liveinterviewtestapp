@@ -45,6 +45,7 @@ import {
     ANY_DATE_RE,
 } from "@/lib/resumeParser";
 import { scoreStructuredResume, introducesNumbers, scoreGaps } from "@/lib/atsScorer";
+import { RESUME_REVIEW_VERSION } from "@/lib/resumeReviewVersion";
 
 export type { StructuredResume, StructuredJob, StructuredBullet, SuggestionItem };
 
@@ -309,6 +310,10 @@ export default function ResumeFeedbackReport({
     const [analyzeError, setAnalyzeError] = useState<string | null>(null);
     const ownSaveRef = useRef(false);
     const [saveError, setSaveError] = useState<string | null>(null);
+    // A review saved before the current version is checked again once, so it
+    // gets a summary that matches its score and lines to rewrite.
+    const [isRefreshingReview, setIsRefreshingReview] = useState(false);
+    const refreshTriedRef = useRef(false);
 
     const bulletRefs = useRef<{ [key: string]: HTMLElement | null }>({});
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -345,6 +350,7 @@ export default function ResumeFeedbackReport({
                     strengths: stored.strengths || [],
                     suggestions: stored.suggestions || [],
                     missingKeywords: stored.missingKeywords || [],
+                    reviewVersion: stored.reviewVersion,
                     updatedAt: stored.updatedAt,
                 };
                 try {
@@ -365,6 +371,69 @@ export default function ResumeFeedbackReport({
         // Runs once, after the first draw, and only if there was nothing local.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [hasMounted]);
+
+    useEffect(() => {
+        if (!hasMounted || refreshTriedRef.current) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let saved: any = null;
+        try {
+            saved = JSON.parse(localStorage.getItem("useladder_last_resume_feedback") || "null");
+        } catch {
+            return;
+        }
+        if (!saved?.id || saved.id === "active-cv-feedback") return;
+        if ((saved.reviewVersion ?? 0) >= RESUME_REVIEW_VERSION) return;
+        const text: string = saved.resumeText || saved.rawText || "";
+        if (!hasReadableResumeText(text)) return;
+        // Never replace a review someone has started working through.
+        if (suggestions.some((s) => s.applied) || (Array.isArray(saved.exampleLines) && saved.exampleLines.length > 0)) return;
+
+        refreshTriedRef.current = true;
+        setIsRefreshingReview(true);
+        fetch("/api/resume/scan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                resumeText: text,
+                resumeName: saved.resumeName || report.resumeName || "Resume",
+                role: saved.role || report.role || "Product Manager",
+                domain: saved.domain || report.domain || "",
+                resumeId: saved.id,
+            }),
+        })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (!data?.result) return;
+                const updated = {
+                    ...saved,
+                    score: data.result.score,
+                    summary: data.result.summary || saved.summary || "",
+                    strengths: data.result.strengths || [],
+                    suggestions: data.result.suggestions || [],
+                    missingKeywords: data.result.missingKeywords || [],
+                    reviewVersion: data.reviewVersion ?? RESUME_REVIEW_VERSION,
+                    updatedAt: new Date().toISOString(),
+                };
+                try {
+                    localStorage.setItem("useladder_last_resume_feedback", JSON.stringify(updated));
+                    const all = JSON.parse(localStorage.getItem("useladder_all_resume_feedbacks") || "[]");
+                    if (Array.isArray(all)) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        localStorage.setItem("useladder_all_resume_feedbacks", JSON.stringify(all.map((f: any) => (f?.id === updated.id ? updated : f))));
+                    }
+                } catch {
+                    // Saved data is full or blocked: the page still shows the new review.
+                }
+                const loaded = getInitialResumeState(updated);
+                setReport(loaded.report);
+                setStructuredResume(loaded.structured);
+                setSuggestions(loaded.suggestions);
+                if (loaded.suggestions.length > 0) setActiveSuggestionId(loaded.suggestions[0].id);
+            })
+            .catch(() => undefined)
+            .finally(() => setIsRefreshingReview(false));
+        // Checks once the saved review (local, or fetched from the account) is in place.
+    }, [hasMounted, report, suggestions]);
 
     // Detect original font from uploaded docx to preserve it in preview + download
     useEffect(() => {
@@ -518,6 +587,8 @@ export default function ResumeFeedbackReport({
                     } catch {}
                 }
 
+                // One id for this resume, here and in the saved account.
+                const newResumeId = `cv_${Date.now()}`;
                 const res = await fetch("/api/resume/scan", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -528,6 +599,7 @@ export default function ResumeFeedbackReport({
                         role: report.role || "Product Manager",
                         domain: report.domain || "Product & Design",
                         email: userEmail,
+                        resumeId: newResumeId,
                     }),
                 });
 
@@ -540,7 +612,7 @@ export default function ResumeFeedbackReport({
                 const newScore = data.result?.score ?? 0;
 
                 const newPayload = {
-                    id: `cv_${Date.now()}`,
+                    id: newResumeId,
                     resumeName: file.name,
                     role: report.role || "Product Manager",
                     domain: report.domain || "Product & Design",
@@ -551,6 +623,7 @@ export default function ResumeFeedbackReport({
                     strengths: data.result.strengths || [],
                     suggestions: data.result.suggestions || [],
                     missingKeywords: data.result.missingKeywords || [],
+                    reviewVersion: data.reviewVersion,
                     updatedAt: new Date().toISOString(),
                 };
 
@@ -1590,6 +1663,11 @@ export default function ResumeFeedbackReport({
                     <div className={styles.unifiedGrid}>
                         {/* ── LEFT COLUMN: Actionable Suggestions ── */}
                         <div className={styles.suggestionsSidebar}>
+                            {isRefreshingReview && (
+                                <p role="status" className={styles.scoreGapDetail} style={{ margin: 0 }}>
+                                    Updating your review with the latest checks…
+                                </p>
+                            )}
                             {!isDocLoading && liveGaps.length > 0 && (
                                 <section className={styles.scoreGaps} aria-labelledby="score-gaps-title">
                                     <h3 id="score-gaps-title" className={styles.scoreGapsTitle}>What&rsquo;s lowering your score</h3>

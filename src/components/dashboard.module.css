@@ -5211,11 +5211,10 @@
         padding: 0 0 calc(64px + env(safe-area-inset-bottom));
     }
 
-    /* Header: the logo, the Prep Score and the avatar. The rest is in the avatar's menu. */
+    /* Header: the logo, the Prep Score, the bell and the avatar. The rest is in the avatar's menu. */
     .navRight .passPill,
     .navRight .settingsNavBtn,
-    .navRight .logoutBtn,
-    .navRight .notificationBtn {
+    .navRight .logoutBtn {
         display: none;
     }
     .xpBadge {

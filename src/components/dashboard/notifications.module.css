@@ -113,3 +113,16 @@ a.item:hover {
     font-size: 0.72rem;
     color: #94A3B8;
 }
+
+/* Phones: the list spans the screen under the header instead of hanging off the bell. */
+@media (max-width: 640px) {
+    .panel {
+        position: fixed;
+        top: calc(56px + env(safe-area-inset-top, 0px));
+        left: 16px;
+        right: 16px;
+        width: auto;
+        max-width: none;
+        max-height: 70vh;
+    }
+}

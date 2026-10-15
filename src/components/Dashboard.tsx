@@ -887,13 +887,15 @@ export default function Dashboard() {
                         </button>
                     )}
                     <FeedbackButton className={styles.settingsNavBtn} />
+                    {/* The resume editor, named and always in view. Changing role lives on the profile page. */}
                     <button
-                        className={styles.settingsNavBtn}
-                        onClick={() => setIsSettingsOpen(true)}
-                        aria-label="Your role and resume"
-                        title="Your role and resume"
+                        type="button"
+                        className={styles.passPill}
+                        onClick={resumeStanding ? openResumeReview : () => setIsSettingsOpen(true)}
+                        title={resumeStanding ? "Open the resume editor" : "Add your resume to get it reviewed"}
                     >
-                        <FileText size={18} weight="bold" />
+                        <FileText size={15} weight="bold" />
+                        <span>{resumeStanding ? `Resume ${resumeStanding.score}/100` : "Add resume"}</span>
                     </button>
                     <NotificationsMenu className={styles.notificationBtn} />
                     <button
@@ -1055,6 +1057,16 @@ export default function Dashboard() {
                         <span className={styles.bottomNavDot} />
                     </div>
                     <span>Recruiter</span>
+                </button>
+                <button
+                    id="mobile-nav-resume"
+                    className={styles.bottomNavBtn}
+                    onClick={resumeStanding ? openResumeReview : () => setIsSettingsOpen(true)}
+                    type="button"
+                    aria-label={resumeStanding ? `Resume, scores ${resumeStanding.score} out of 100` : "Add your resume"}
+                >
+                    <FileText size={20} weight="bold" />
+                    <span>Resume</span>
                 </button>
                 <button
                     id="mobile-nav-coach"
