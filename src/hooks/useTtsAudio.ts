@@ -222,6 +222,7 @@ function takeAudio(url: string): HTMLAudioElement {
     player.onplay = null;
     player.onended = null;
     player.onerror = null;
+    player.onpause = null;
     player.pause();
     player.muted = false;
     player.volume = 1;
@@ -294,6 +295,36 @@ export function useTtsAudio() {
   // ended clip (play() on an ended element replays it from the start).
   const pausedSourceRef = useRef<"element" | "speech" | null>(null);
 
+  /**
+   * Starts a clip and keeps it going. A refused start is retried a few times,
+   * and a pause nobody asked for is resumed: Safari pauses whatever is playing
+   * as it switches its audio into record-and-play mode, which used to swallow
+   * the welcome. Gives up through onGiveUp.
+   */
+  const startPlayback = useCallback((audio: HTMLAudioElement, playId: number, onGiveUp: () => void) => {
+    const current = () => playId === currentPlayIdRef.current && audioRef.current === audio;
+    audio.onpause = () => {
+      if (!current() || audio.ended || pausedSourceRef.current) return;
+      setTimeout(() => {
+        if (current() && audio.paused && !audio.ended && !pausedSourceRef.current) audio.play().catch(() => undefined);
+      }, 250);
+    };
+    const attempt = (n: number) => {
+      audio.play().catch((err: unknown) => {
+        if (!current()) return;
+        if (n < 3) {
+          setTimeout(() => {
+            if (current() && audio.paused) attempt(n + 1);
+          }, 400 * (n + 1));
+          return;
+        }
+        console.warn("[voice] The browser wouldn't play a clip:", (err as Error)?.name || err);
+        onGiveUp();
+      });
+    };
+    attempt(0);
+  }, []);
+
   const stopAudio = useCallback(() => {
     // Invalidate any in-flight requests
     currentPlayIdRef.current++;
@@ -303,6 +334,7 @@ export function useTtsAudio() {
       audioRef.current.onplay = null;
       audioRef.current.onended = null;
       audioRef.current.onerror = null;
+      audioRef.current.onpause = null;
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
       audioRef.current = null;
@@ -447,9 +479,7 @@ export function useTtsAudio() {
           fallbackWithoutVoice(text, options?.onStart, options?.onEnd);
         };
 
-        audio.play().catch(() => {
-          fallbackWithoutVoice(text, options?.onStart, options?.onEnd);
-        });
+        startPlayback(audio, thisPlayId, () => fallbackWithoutVoice(text, options?.onStart, options?.onEnd));
       };
 
       // Check client-side prefetch/memory cache first (0ms load time!)
@@ -501,7 +531,7 @@ export function useTtsAudio() {
         );
       }
     },
-    [stopAudio]
+    [stopAudio, startPlayback]
   );
 
   const replayCurrentAudio = useCallback(() => {
@@ -655,9 +685,7 @@ export function useTtsAudio() {
             setIsPlaying(false);
             fallbackWithoutVoice(segments[0].text, options?.onStart, options?.onEnd);
           };
-          audio.play().catch(() => {
-            fallbackWithoutVoice(segments[0].text, options?.onStart, options?.onEnd);
-          });
+          startPlayback(audio, thisPlayId, () => fallbackWithoutVoice(segments[0].text, options?.onStart, options?.onEnd));
           return;
         }
         return playTts(segments[0].text, options);
@@ -723,9 +751,7 @@ export function useTtsAudio() {
             playNextSegment();
           };
 
-          audio.play().catch(() => {
-            playNextSegment();
-          });
+          startPlayback(audio, thisPlayId, () => playNextSegment());
         } else {
           fallbackWithoutVoice(
             seg.text,
@@ -744,7 +770,7 @@ export function useTtsAudio() {
 
       playNextSegment();
     },
-    [playTts, stopAudio]
+    [playTts, stopAudio, startPlayback]
   );
 
   useEffect(() => {

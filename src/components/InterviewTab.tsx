@@ -158,6 +158,8 @@ const JOIN_STEPS = [
 ] as const;
 /** Longest the join screen waits on audio downloads before starting anyway. */
 const JOIN_AUDIO_WAIT_MS = 4000;
+/** The welcome must be loaded before the countdown: it gets longer than the fillers do. */
+const OPENING_AUDIO_WAIT_MS = 12000;
 
 /** Give up waiting for /turn after this long and offer a retry. */
 const TURN_TIMEOUT_MS = 30_000;
@@ -1016,6 +1018,36 @@ export default function InterviewTab() {
         return res.json();
     };
 
+    // Keeps the microphone connected to the page's audio from the countdown
+    // until the interview ends (see the countdown below).
+    const micAudioRef = useRef<AudioContext | null>(null);
+    // The newest stream: the start handler's own copy is from before it restarted the devices.
+    const latestStreamRef = useRef<MediaStream | null>(null);
+    useEffect(() => {
+        latestStreamRef.current = previewStream;
+    }, [previewStream]);
+    const warmMicrophoneAudio = () => {
+        if (micAudioRef.current || typeof window === "undefined") return;
+        const track = latestStreamRef.current?.getAudioTracks().find((t) => t.readyState === "live");
+        const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!track || !AudioCtx) return;
+        try {
+            const ctx = new AudioCtx();
+            ctx.createMediaStreamSource(new MediaStream([track])).connect(ctx.createAnalyser());
+            void ctx.resume().catch(() => undefined);
+            micAudioRef.current = ctx;
+        } catch {
+            // Not available: the interview works without it.
+        }
+    };
+    useEffect(
+        () => () => {
+            void micAudioRef.current?.close().catch(() => undefined);
+            micAudioRef.current = null;
+        },
+        []
+    );
+
     // Main entry point — user clicks "Start"
     const handleStartInterview = async () => {
         if (!micChecked) {
@@ -1081,7 +1113,7 @@ export default function InterviewTab() {
         }
         started.audioSegments = openingSegments?.length ? openingSegments : undefined;
         await Promise.all([
-            ...(started.audioSegments ?? []).map((segment) => waitForAudio(segment.audioUrl, JOIN_AUDIO_WAIT_MS)),
+            ...(started.audioSegments ?? []).map((segment) => waitForAudio(segment.audioUrl, OPENING_AUDIO_WAIT_MS)),
             Promise.race([
                 prefetchFillers({ persona: "recruiter" }),
                 new Promise((resolve) => setTimeout(resolve, JOIN_AUDIO_WAIT_MS)),
@@ -1104,6 +1136,12 @@ export default function InterviewTab() {
             setLocalTranscript([{ role: "interviewer", text: started.prompt.text }]);
         }
 
+        // Safari switches its audio into record-and-play mode the first time the
+        // page listens to the microphone, and pauses whatever is playing as it
+        // does. Doing that now, during the countdown, keeps it off the welcome.
+        startRecording();
+        warmMicrophoneAudio();
+
         let count = 3;
         setCountdown(count);
         const interval = setInterval(() => {
@@ -1111,7 +1149,6 @@ export default function InterviewTab() {
             if (count <= 0) {
                 clearInterval(interval);
                 setCountdown(null);
-                startRecording();
                 const promptText = started.prompt.text;
                 if (promptText) {
                     setTimeout(() => {
