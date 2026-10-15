@@ -41,12 +41,15 @@ const TTS_FALLBACK_WAIT_MS = 15000;
 function fallbackWithoutVoice(text: string, onStart?: () => void, onEnd?: () => void) {
   const words = text.replace(/\[[a-zA-Z0-9_\s]+\]/g, "").trim().split(/\s+/).filter(Boolean).length;
   console.warn("[voice] A line's recording wasn't available; it is shown as text instead of spoken.");
-  reportVoiceIssue("voice-shown-as-text", { words });
+  reportVoiceIssue("voice-shown-as-text", { words, ...(lastTtsFailure ?? {}) });
   onStart?.();
   // About as long as it takes to read, within sensible bounds.
   const readingMs = Math.min(10_000, Math.max(1_500, words * 320));
   setTimeout(() => onEnd?.(), readingMs);
 }
+
+// Why the last line couldn't be voiced, sent with "shown as text" reports.
+let lastTtsFailure: { status?: number; reason?: string; ms: number } | null = null;
 
 // In-memory cache of pre-fetched and synthesized TTS audio URLs
 const ttsUrlCache = new Map<string, { audioUrl: string; voiceLabel?: string }>();
@@ -134,6 +137,7 @@ export async function resolveTtsAudio(
   const cached = ttsUrlCache.get(cacheKey);
   if (cached?.audioUrl) return cached.audioUrl;
   const attempts = options?.attempts ?? 3;
+  const startedAt = Date.now();
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
       const res = await limitedTtsFetch({
@@ -148,9 +152,12 @@ export async function resolveTtsAudio(
           preloadAudio(data.audioUrl);
           return data.audioUrl;
         }
+      } else {
+        const data = await res.json().catch(() => ({}));
+        lastTtsFailure = { status: res.status, reason: data?.reason, ms: Date.now() - startedAt };
       }
     } catch {
-      // retry below
+      lastTtsFailure = { reason: "network", ms: Date.now() - startedAt };
     }
     if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
   }
@@ -305,8 +312,12 @@ export function useTtsAudio() {
   const [activeText, setActiveText] = useState<string | null>(null);
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  // Clips of the last multi-sentence line, for "Replay".
-  const lastSegmentsRef = useRef<Array<{ text: string; audioUrl?: string }> | null>(null);
+  // The last line the interviewer said (never a filler), for "Replay".
+  const replayRef = useRef<{
+    text: string;
+    persona: "recruiter" | "coach";
+    segments?: Array<{ text: string; audioUrl?: string }>;
+  } | null>(null);
   // playPipelinedSpeech is defined below replay; reach it through a ref.
   const playPipelinedRef = useRef<
     ((segments: Array<{ text: string; audioUrl?: string }>, options?: PlayTtsOptions) => Promise<void>) | null
@@ -431,7 +442,8 @@ export function useTtsAudio() {
   );
 
   const playTts = useCallback(
-    async (text: string, options?: PlayTtsOptions) => {
+    // asFiller: a filler line, which "Replay" skips.
+    async (text: string, options?: PlayTtsOptions, asFiller = false) => {
       if (!text || !text.trim()) {
         options?.onEnd?.();
         return;
@@ -439,13 +451,13 @@ export function useTtsAudio() {
 
       // Stop any active audio and track this play request
       stopAudio();
-      lastSegmentsRef.current = null;
       const thisPlayId = currentPlayIdRef.current;
 
       setIsLoadingAudio(true);
       setActiveText(text);
 
       const persona = options?.persona || "recruiter";
+      if (!asFiller) replayRef.current = { text, persona };
       let instantFallbackStarted = false;
       let instantFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -562,40 +574,20 @@ export function useTtsAudio() {
     [stopAudio, startPlayback]
   );
 
+  /**
+   * Says the interviewer's last line again: the same clips when it was
+   * voiced, or a fresh try at voicing it when it was only shown as text.
+   * Fillers are never replayed.
+   */
   const replayCurrentAudio = useCallback(() => {
-    const segments = lastSegmentsRef.current;
-    if (segments && playPipelinedRef.current) {
-      void playPipelinedRef.current(segments);
+    const target = replayRef.current;
+    if (!target) return;
+    if (target.segments && playPipelinedRef.current) {
+      void playPipelinedRef.current(target.segments, { persona: target.persona });
       return;
     }
-    if (currentAudioUrl) {
-      stopAudio();
-      const thisPlayId = currentPlayIdRef.current;
-      const audio = takeAudio(currentAudioUrl);
-      audio.defaultPlaybackRate = TTS_PLAYBACK_SPEED;
-      audio.playbackRate = TTS_PLAYBACK_SPEED;
-      audio.preservesPitch = true;
-      audioRef.current = audio;
-      audio.onplay = () => {
-        audio.playbackRate = TTS_PLAYBACK_SPEED;
-        if (thisPlayId !== currentPlayIdRef.current) return;
-        setIsPlaying(true);
-      };
-      audio.onended = () => {
-        if (thisPlayId !== currentPlayIdRef.current) return;
-        setIsPlaying(false);
-      };
-      audio.play().catch((err) => {
-        console.warn("[useTtsAudio] Replay failed:", err);
-        if (activeText) {
-          fallbackWithoutVoice(activeText);
-        }
-      });
-    } else if (activeText) {
-      stopAudio();
-      fallbackWithoutVoice(activeText);
-    }
-  }, [currentAudioUrl, activeText, stopAudio]);
+    void playTts(target.text, { persona: target.persona });
+  }, [playTts]);
 
   useEffect(() => {
     return () => {
@@ -613,7 +605,7 @@ export function useTtsAudio() {
       const persona = options?.persona || "recruiter";
       const jobRegion = options?.jobRegion || voiceRegion();
       if (!ttsUrlCache.get(`${persona}:${jobRegion}:${text.trim()}`)?.audioUrl) return false;
-      void playTts(text, options);
+      void playTts(text, options, true);
       return true;
     },
     [playTts]
@@ -685,7 +677,7 @@ export function useTtsAudio() {
         return;
       }
       // Replay should repeat these exact clips, not re-voice the text.
-      lastSegmentsRef.current = segments;
+      replayRef.current = { text: segments.map((seg) => seg.text).join(" "), persona: options?.persona || "recruiter", segments };
       setActiveText(segments.map((seg) => seg.text).join(" "));
 
       if (segments.length === 1) {

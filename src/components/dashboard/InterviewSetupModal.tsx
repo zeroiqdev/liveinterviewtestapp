@@ -480,6 +480,13 @@ export function InterviewSetupModal({
             setActiveResumeText(newResumeItem.rawText || "");
             setIsUploadingNew(false);
 
+            // Save it to the account, so it's still there after a reload or on another device.
+            fetch("/api/auth/user", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ resume: { id: newResumeItem.id, name: newResumeItem.name, rawText: finalText } }),
+            }).catch(() => {});
+
             // Sync with localStorage
             const raw = typeof window !== "undefined" ? localStorage.getItem("useladder_user") : null;
             if (raw) {
@@ -783,7 +790,7 @@ export function InterviewSetupModal({
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
                                                                 <button
                                                                     type="button"
                                                                     onClick={(e) => {
@@ -904,7 +911,7 @@ export function InterviewSetupModal({
                                                         <div className={styles.tabularNums} style={{ fontSize: "1.25rem", fontWeight: 800, color: matchData.overallMatch >= 75 ? "#15803D" : matchData.overallMatch >= 50 ? "#B45309" : "#B91C1C", lineHeight: 1 }}>{matchData.overallMatch}%</div>
                                                         <div style={{ fontSize: "0.6rem", fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "#475569", marginTop: 3 }}>Overall</div>
                                                     </div>
-                                                    <div style={{ flex: 1, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "0.7rem 0.95rem", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                                                    <div style={{ flex: 1, minWidth: 0, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "0.7rem 0.95rem", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                                                         <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                                                             <FileText size={18} weight="bold" color="#4782F6" style={{ flexShrink: 0 }} />
                                                             <div style={{ minWidth: 0 }}>
@@ -1009,7 +1016,7 @@ export function InterviewSetupModal({
                                                         </div>
 
                                                         {/* Strengths / gaps */}
-                                                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginTop: "0.25rem" }}>
+                                                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap: "0.75rem", marginTop: "0.25rem" }}>
                                                             <div style={{ background: "#F0FDF4", border: "1px solid #DCFCE7", borderRadius: 10, padding: "0.85rem 1rem" }}>
                                                                 <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#15803D", marginBottom: "0.4rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>Strengths</div>
                                                                 <ul style={{ margin: 0, paddingLeft: "1rem", fontSize: "0.74rem", color: "#166534", lineHeight: 1.55 }}>
