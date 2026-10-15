@@ -5,6 +5,7 @@
  */
 
 import { callJSON } from "@/engine/llm";
+import { SPOKEN_ONLY_RULE } from "@/engine/constants";
 
 export const TRY_COOKIE = "gp_try";
 /** Questions answered before sign-up. */
@@ -85,6 +86,7 @@ Rules for the questions:
 - Ask about the candidate's own experience and judgement ("Tell me about a time…", "How would you handle…"). Do not quiz facts or ask for definitions.
 - The first is the easiest to answer and the most central to the job. No two cover the same ground.
 - Do not ask "tell me about yourself" or why they want the job.
+- ${SPOKEN_ONLY_RULE}
 - Plain text, no markdown, no numbering. The candidate is applying as: ${role}.`;
 
     try {

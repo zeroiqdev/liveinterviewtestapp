@@ -103,3 +103,11 @@ export function weightsFor(blueprintId: string) {
         }
     );
 }
+
+/**
+ * The candidate can only talk: there is nowhere to write and nothing that
+ * runs code. Every prompt that writes something to ask them includes this.
+ */
+export const SPOKEN_ONLY_RULE =
+    "The candidate answers out loud only: there is nowhere to write, type or draw, and nothing checks code. Never ask them to write, type, show or run code, a query, a formula or a diagram. For technical topics, ask them to talk you through their approach, what they would use and why, and the trade-offs.";
+

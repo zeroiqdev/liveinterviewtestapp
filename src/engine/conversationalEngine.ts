@@ -10,6 +10,7 @@
    ══════════════════════════════════════════════════════════════ */
 
 import { LIVE_TURN_HEDGE_MS, LIVE_TURN_TIMEOUT_MS, callJSON } from "./llm";
+import { SPOKEN_ONLY_RULE } from "./constants";
 import { detectVoiceCommand } from "./voiceCommands";
 import type {
     AnswerAssessment,
@@ -161,6 +162,7 @@ STEP 3 — WRITE probe_question whenever the verdict is not "verified" and they 
   2+ so far → verification ("If X doubled tomorrow, what would fail first?", "What would you do differently?", "How did you know it worked?").
 - Never repeat a follow-up already asked (see the transcript). One focused question, 1 to 2 spoken sentences.
 - Curious and professional, never accusatory. From the second follow-up on, you may add that it is fine to say if they have not done something.
+- ${SPOKEN_ONLY_RULE}
 - Plain spoken text only — no markdown, no lists.
 - If the candidate points out that the question doesn't apply to them (e.g. no company or employer was specified, or it assumes experience they said they don't have), that is not evasion: do not push back on it — choose ask_question so the interview moves on, and leave probe_question empty.
 - Do not open with a generic acknowledgement ("Got it", "Okay", "Thanks for sharing") — the interviewer has already said one. Open by engaging with what they said, e.g. "But let me push back a bit on that." or "Writing PRDs gives me the process, but...".
