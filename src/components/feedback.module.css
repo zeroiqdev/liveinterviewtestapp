@@ -1322,6 +1322,79 @@
     }
 }
 
+/* What is costing the resume points, above the rewrites. */
+.scoreGaps {
+    border: 1px solid #E4E4E7;
+    border-radius: 10px;
+    background: #FFFFFF;
+    padding: 0.9rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.scoreGapsTitle {
+    margin: 0;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #18181B;
+}
+
+.scoreGapsList {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.scoreGapItem {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid #F1F5F9;
+}
+
+.scoreGapItem:first-child {
+    padding-top: 0;
+    border-top: 0;
+}
+
+.scoreGapTop {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.75rem;
+}
+
+.scoreGapName {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #1E293B;
+    min-width: 0;
+}
+
+.scoreGapPoints {
+    flex-shrink: 0;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #15803D;
+    background: #F0FDF4;
+    border: 1px solid #DCFCE7;
+    border-radius: 999px;
+    padding: 1px 8px;
+    font-variant-numeric: tabular-nums;
+}
+
+.scoreGapDetail {
+    margin: 0;
+    font-size: 0.76rem;
+    line-height: 1.45;
+    color: #64748B;
+}
+
 /* ── Left Suggestions Sidebar ── */
 .suggestionsSidebar {
     display: flex;

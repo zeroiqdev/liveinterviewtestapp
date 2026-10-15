@@ -470,7 +470,15 @@ const STRONG_ACTION_VERBS = new Set([
     "streamlined", "automated", "reduced", "maximized", "transformed", "overhauled",
     "amplified", "enhanced", "delivered", "executed", "implemented", "deployed",
     "produced", "resolved", "negotiated", "partnered", "mentored", "standardized",
-    "drove", "curated", "generated", "centralized", "restructured", "eliminated"
+    "drove", "curated", "generated", "centralized", "restructured", "eliminated",
+    // Everyday verbs from customer service, sales, banking and admin work,
+    // which were scored as weak because the list above was written for tech.
+    "managed", "coordinated", "organised", "organized", "supervised", "trained",
+    "coached", "onboarded", "increased", "improved", "grew", "cut", "lowered",
+    "raised", "achieved", "exceeded", "closed", "sold", "secured", "won",
+    "settled", "recovered", "retained", "reconciled", "audited", "processed",
+    "prepared", "planned", "introduced", "created", "analysed", "analyzed",
+    "converted", "expanded", "saved", "solved", "fixed"
 ]);
 
 const WEAK_PASSIVE_PHRASES = [
@@ -844,6 +852,75 @@ export function calculateStructuredAtsScore(
         depthGaps,
         extraBulletSuggestions,
     };
+}
+
+export interface ScoreGap {
+    area: "impact" | "keywords" | "verbs" | "layout" | "contact";
+    title: string;
+    detail: string;
+    /** Points the score can gain by fixing this. */
+    points: number;
+}
+
+/**
+ * What is holding the score back, biggest first, in plain words. Built from
+ * the score itself, so every point lost has a fix listed, even when no
+ * single line needs rewriting.
+ */
+export function scoreGaps(result: AtsScoreResult): ScoreGap[] {
+    const m = result.metrics;
+    const gaps: ScoreGap[] = [];
+    const lines = (n: number) => `${n} ${n === 1 ? "line" : "lines"}`;
+
+    if (m.impactPoints < 25) {
+        gaps.push({
+            area: "impact",
+            title: m.totalBullets === 0 ? "Add what you did in each job" : "Show results with numbers",
+            detail:
+                m.totalBullets === 0
+                    ? "Under each job, add a few lines about what you did and what came of it."
+                    : `${m.quantifiedBullets} of your ${lines(m.totalBullets)} show a result with a number. Add how many, how much or how fast to the others, using your real figures.`,
+            points: 25 - m.impactPoints,
+        });
+    }
+    if (m.roleAlignmentPoints < 30) {
+        const examples = m.missingKeywords.slice(0, 3).join(", ");
+        gaps.push({
+            area: "keywords",
+            title: "Use the words employers look for",
+            detail: `Your resume uses ${m.matchedKeywords.length} of the words employers search for in this role.${examples ? ` Add the ones that are true for you, such as ${examples}.` : ""}`,
+            points: 30 - m.roleAlignmentPoints,
+        });
+    }
+    if (m.brevityPoints < 20 && m.totalBullets > 0) {
+        const notStrong = m.totalBullets - m.strongVerbBullets;
+        const parts: string[] = [];
+        if (notStrong > 0) parts.push(`${notStrong} of your ${lines(m.totalBullets)} don't start with what you did. Start each one with a word like Resolved, Trained or Increased.`);
+        if (m.weakPhraseBullets > 0) parts.push(`Replace phrases like "responsible for" or "helped with" in ${lines(m.weakPhraseBullets)}.`);
+        if (m.averageWordsPerBullet > 38) parts.push(`Your lines average ${m.averageWordsPerBullet} words; keep each one under about 35.`);
+        else if (m.averageWordsPerBullet > 0 && m.averageWordsPerBullet < 12) parts.push(`Your lines average ${m.averageWordsPerBullet} words; add how you did it and what came of it.`);
+        if (parts.length > 0) {
+            gaps.push({ area: "verbs", title: "Start lines with what you did", detail: parts.join(" "), points: 20 - m.brevityPoints });
+        }
+    }
+    if (m.structurePoints < 15) {
+        const missing = m.missingSections.map((section) => (section === "Summary" ? "a short Summary at the top" : section === "Skills & Tools" ? "a Skills section" : `a ${section} section`));
+        gaps.push({
+            area: "layout",
+            title: missing.length > 0 ? "Add the missing sections" : "Add more detail to your jobs",
+            detail: missing.length > 0 ? `Add ${missing.join(" and ")}.` : "Add a few more lines under your recent jobs about what you achieved.",
+            points: 15 - m.structurePoints,
+        });
+    }
+    if (m.contactPoints < 10) {
+        gaps.push({
+            area: "contact",
+            title: "Complete your contact details",
+            detail: "Put your full name, email and phone number or LinkedIn link at the top.",
+            points: 10 - m.contactPoints,
+        });
+    }
+    return gaps.filter((gap) => gap.points > 0).sort((a, b) => b.points - a.points);
 }
 
 /**

@@ -301,7 +301,9 @@ export function parseResumeTextToStructured(
     const splitMultiBullets = text
         .split("\n")
         .map((l) => l.trim())
-        .filter(Boolean)
+        // A line with no words or numbers (a stray "- )") is left over from
+        // splitting a date, not something the person wrote.
+        .filter((l) => /[\p{L}\p{N}]/u.test(l))
         .flatMap((l) => {
             if (/[^\s]\s+[•·\u2022]\s+/.test(l)) {
                 return l
@@ -316,13 +318,19 @@ export function parseResumeTextToStructured(
     for (const l of splitMultiBullets) {
         const dm = l.match(DATE_RANGE_RE);
         if (dm && dm.index !== undefined) {
-            const before = l.slice(0, dm.index).trim();
+            // Brackets around the dates, as in "Konga, Lagos (Jan 2022 to Present)",
+            // belong to them: the ")" left behind used to become an empty bullet.
+            const before = l.slice(0, dm.index).trim().replace(/[([]\s*[-–—]?\s*$/, "").trim();
             const dateStr = dm[0].trim();
-            const after = l.slice(dm.index + dm[0].length).trim();
+            const after = l.slice(dm.index + dm[0].length).trim().replace(/^[)\]]+/, "").trim();
             if (after.length > 0 && !/^[-–—]/.test(after)) {
                 if (before.length > 0) lines.push(`${before}   ${dateStr}`);
                 else lines.push(dateStr);
                 lines.push(after);
+                continue;
+            }
+            if (after.length === 0 && before.length > 0) {
+                lines.push(`${before}   ${dateStr}`);
                 continue;
             }
         }

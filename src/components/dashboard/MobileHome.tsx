@@ -7,6 +7,7 @@ import styles from "./mobileHome.module.css";
 import { COACH_AVATAR, RECRUITER_AVATAR, getInterviewRoundsForRole } from "./constants";
 import { cleanJobTitle } from "./utils";
 import { FinishTryBanner } from "./FinishTryBanner";
+import type { ResumeStanding } from "./ResumeBanner";
 
 interface MobileHomeProps {
     userName: string;
@@ -20,13 +21,18 @@ interface MobileHomeProps {
     onOpenRecruiter: () => void;
     /** An interview begun before sign-up, waiting to be carried on. */
     pendingTry?: { role: string; company: string; title: string } | null;
+    /** The resume's score and what's left to fix; null when there's no resume yet. */
+    resume: ResumeStanding | null;
+    /** Opens the resume review, or adding a resume when there isn't one. */
+    onOpenResume: () => void;
 }
 
 /**
  * The phone's home screen: the interview types to swipe through, then one line
- * each from the coach and the recruiter that leads to their tab.
+ * each from the coach and the recruiter that leads to their tab, and the resume
+ * review.
  */
-export function MobileHome({ userName, userRole, userRoleFamily, onPractice, tip, jobs, onOpenTips, onOpenRecruiter, pendingTry }: MobileHomeProps) {
+export function MobileHome({ userName, userRole, userRoleFamily, onPractice, tip, jobs, onOpenTips, onOpenRecruiter, pendingTry, resume, onOpenResume }: MobileHomeProps) {
     const rounds = useMemo(() => getInterviewRoundsForRole(userRole, userRoleFamily), [userRole, userRoleFamily]);
     const [current, setCurrent] = useState(0);
     const deckRef = useRef<HTMLDivElement>(null);
@@ -113,6 +119,29 @@ export function MobileHome({ userName, userRole, userRoleFamily, onPractice, tip
                             <>
                                 <b>Open roles you can practise for</b>
                                 <span>See what the recruiter has found</span>
+                            </>
+                        )}
+                    </span>
+                    <CaretRight size={14} weight="bold" className={styles.rowChevron} />
+                </button>
+                <button type="button" className={styles.row} onClick={onOpenResume}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={COACH_AVATAR} alt="" className={styles.rowFace} draggable={false} />
+                    <span className={styles.rowText}>
+                        <small>Your resume</small>
+                        {resume ? (
+                            <>
+                                <b>Your resume scores {resume.score}/100</b>
+                                <span>
+                                    {resume.fixes === 0
+                                        ? "Nothing is costing you points"
+                                        : `${resume.fixes} ${resume.fixes === 1 ? "thing" : "things"} to fix · up to +${resume.points} points`}
+                                </span>
+                            </>
+                        ) : (
+                            <>
+                                <b>Get your resume reviewed</b>
+                                <span>See your score and what to change</span>
                             </>
                         )}
                     </span>

@@ -15,7 +15,37 @@ const shape = (resume: StructuredResume) => ({
     skills: resume.skills,
 });
 
+/** Dates in brackets after the company, a common way to write them. */
+const bracketed = `Amara Okafor
+amara.okafor@example.test
+
+EXPERIENCE
+Customer Service Representative, Konga, Lagos (Jan 2022 to Present)
+- Answered 70 customer calls and chats a day and kept satisfaction at 94%
+- Settled 30 billing disputes a week by checking order records with the finance team
+
+Customer Support Associate, MTN Nigeria, Lagos (Mar 2020 to Dec 2021)
+- Replied to 120 email and social media enquiries a day within 2 hours
+- Trained 6 new hires on the knowledge base in their first month
+
+EDUCATION
+BSc Mass Communication, University of Lagos, 2019`;
+
 describe("reading a resume", () => {
+    it("doesn't turn the bracket after a date into a line of its own", () => {
+        const resume = read(bracketed);
+        assert.deepEqual(resume.jobs.map((job) => job.bullets.length), [2, 2]);
+        assert.ok(resume.jobs.every((job) => job.bullets.every((bullet) => /[a-z]/i.test(bullet.text))));
+        assert.match(resume.jobs[0].date || "", /Jan 2022/);
+    });
+
+    it("cleans up resumes already saved with the stray bracket", () => {
+        const saved = bracketed.replace("Konga, Lagos (Jan 2022 to Present)", "Konga, Lagos ( — Jan 2022 to Present\n- )");
+        const resume = read(saved);
+        assert.equal(resume.jobs[0].bullets.length, 2);
+        assert.doesNotMatch(JSON.stringify(resume.jobs[0]), /\(\s*—|"\)"/);
+    });
+
     it("keeps each job, its company, its dates and its lines apart", () => {
         const resume = read(sample);
         assert.deepEqual(resume.jobs.map((job) => [job.title, job.company, job.date, job.bullets.length]), [
@@ -144,6 +174,29 @@ describe("resume score", () => {
     it("never offers fill-in lines of its own", async () => {
         const { calculateAtsScore } = await import("../src/lib/atsScorer");
         assert.deepEqual(calculateAtsScore(sample, "Backend Engineer").extraBulletSuggestions, []);
+    });
+
+    it("lists a fix for every part of the score that's below full", async () => {
+        const { calculateAtsScore, scoreGaps } = await import("../src/lib/atsScorer");
+        const result = calculateAtsScore(bracketed, "Customer Service Representative");
+        const gaps = scoreGaps(result);
+        const m = result.metrics;
+        const lost = 100 - (m.impactPoints + m.roleAlignmentPoints + m.brevityPoints + m.structurePoints + m.contactPoints);
+        assert.ok(result.overallScore < 75, `score ${result.overallScore}`);
+        assert.ok(gaps.length > 0);
+        // Every point lost is accounted for by a listed fix, biggest first.
+        assert.equal(gaps.reduce((sum, gap) => sum + gap.points, 0), lost);
+        assert.deepEqual(gaps.map((gap) => gap.points), [...gaps.map((gap) => gap.points)].sort((a, b) => b - a));
+        assert.ok(gaps.some((gap) => gap.area === "layout" && /Summary/.test(gap.detail)));
+        assert.doesNotMatch(gaps.map((gap) => `${gap.title} ${gap.detail}`).join(" "), /ATS|AI\b|leverage/);
+    });
+
+    it("counts everyday verbs from service and sales work as strong", async () => {
+        const { startsWithStrongActionVerb } = await import("../src/lib/atsScorer");
+        for (const line of ["Trained 6 new hires", "Settled 30 billing disputes a week", "Increased sales by 12%", "Managed a team of 4"]) {
+            assert.equal(startsWithStrongActionVerb(line), true, line);
+        }
+        assert.equal(startsWithStrongActionVerb("Responsible for customer calls"), false);
     });
 
     it("explains itself in plain words", async () => {
