@@ -3,7 +3,7 @@ import { callJSON } from "@/engine/llm";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { extractDocumentText } from "@/lib/documentParser";
-import { calculateAtsScore } from "@/lib/atsScorer";
+import { calculateAtsScore, scoreGaps } from "@/lib/atsScorer";
 import { requireAuth } from "@/lib/session";
 import { LIMITS, rateLimit } from "@/lib/rateLimit";
 import { serverError } from "@/lib/apiError";
@@ -94,7 +94,8 @@ CRITICAL RULES — you MUST follow these exactly:
 }
 
 - bulletReviews MUST cover every achievement bullet AND company-description line you identify (so frontend can map them 1:1 and skip 7+).
-- suggestions array MUST be exactly the subset of bulletReviews where score <7 and isCompanyDescription=false (0 to 4 items — if all bullets are 7+, return empty suggestions array, that is correct).
+- suggestions array MUST be exactly the subset of bulletReviews where score <7 and isCompanyDescription=false (0 to 4 items — if all bullets are 7+, return empty suggestions array, that is correct). EXCEPTION: when the RESUME SCORE given with the resume is below 75, always return the 2 to 4 weakest achievement lines as suggestions, scoring them 6 in bulletReviews.
+- The summary MUST agree with the RESUME SCORE given with the resume: never call a resume strong when its score is below 70.
 - strengths MUST call out the strong bullets you scored 7+.
 - Be precise and concise; do not generate generic template suggestions like "Engineered modular component design system" unless the original bullet was actually about frontend components.`;
 
@@ -225,7 +226,18 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const userPrompt = `TARGET ROLE: ${role}\nDOMAIN: ${domain}\n\nRESUME CONTENT:\n${parsedText.slice(0, 10000)}`;
+        // The score is worked out first and given to the reviewer, so the
+        // summary agrees with it and a low score always comes with lines to fix.
+        const ats = calculateAtsScore(parsedText, role);
+        const gaps = scoreGaps(ats);
+        const scoreContext = `RESUME SCORE: ${ats.overallScore} out of 100 (${ats.verdict}).\nWHAT IS LOWERING IT:\n${
+            gaps.length > 0 ? gaps.map((gap) => `- ${gap.title}: ${gap.detail}`).join("\n") : "- Nothing significant."
+        }\n${
+            ats.overallScore < 75
+                ? "Because the score is below 75, return the 2 to 4 weakest achievement lines as suggestions even if none is below 7, each with a grounded rewrite. Your summary must match the score: do not call the resume strong."
+                : ""
+        }`;
+        const userPrompt = `TARGET ROLE: ${role}\nDOMAIN: ${domain}\n\n${scoreContext}\n\nRESUME CONTENT:\n${parsedText.slice(0, 10000)}`;
 
         const result = await callJSON<ResumeScanResult>({
             system: SCAN_SYSTEM_PROMPT,
@@ -234,7 +246,6 @@ export async function POST(req: NextRequest) {
             timeoutMs: 35000,
         });
 
-        const ats = calculateAtsScore(parsedText, role);
         result.score = ats.overallScore;
         if (ats.metrics.missingKeywords.length > 0) {
             result.missingKeywords = Array.from(new Set([...(result.missingKeywords || []), ...ats.metrics.missingKeywords]));

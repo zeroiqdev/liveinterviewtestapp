@@ -30,8 +30,10 @@ import { SettingsModal } from "./dashboard/SettingsModal";
 import { NotificationsMenu } from "./dashboard/NotificationsMenu";
 import { InterviewSetupModal } from "./dashboard/InterviewSetupModal";
 import { useInterview } from "../context/InterviewContext";
-import { matchResumeToJob } from "@/lib/atsScorer";
-import { deriveJobResponsibilities } from "./dashboard/utils";
+import { matchResumeToJob, calculateAtsScore, scoreGaps } from "@/lib/atsScorer";
+import { hasReadableResumeText } from "@/lib/resumeParser";
+import { deriveJobResponsibilities, selectResumeForReview } from "./dashboard/utils";
+import { ResumeBanner, type ResumeStanding } from "./dashboard/ResumeBanner";
 
 interface StoredResumeItem {
     id: string;
@@ -638,6 +640,33 @@ export default function Dashboard() {
         return getInterviewRoundsForRole(user?.role, user?.roleFamily);
     }, [user?.role, user?.roleFamily]);
 
+    // The resume the review page opens, its score and what's left to fix, so
+    // the review can be found from the dashboard rather than only from a chat.
+    const activeResume = allResumes.find((r) => r.id === user?.selectedResumeId) || allResumes[0] || null;
+    const resumeStanding = useMemo<ResumeStanding | null>(() => {
+        if (!activeResume) return null;
+        // The review page reads its saved review of this resume; score that same text.
+        let text = resolveResumeTextForMatch(activeResume);
+        try {
+            const review = JSON.parse(localStorage.getItem("useladder_last_resume_feedback") || "null");
+            if (review?.id === activeResume.id && typeof review.resumeText === "string" && hasReadableResumeText(review.resumeText)) text = review.resumeText;
+        } catch {
+            // No saved review here: score the resume's own text.
+        }
+        if (!hasReadableResumeText(text)) return null;
+        const ats = calculateAtsScore(text, user?.role || "Product Manager");
+        const gaps = scoreGaps(ats);
+        return {
+            score: ats.overallScore,
+            fixes: gaps.length,
+            points: gaps.reduce((sum, gap) => sum + gap.points, 0),
+        };
+    }, [activeResume, user?.role]);
+    const openResumeReview = useCallback(() => {
+        selectResumeForReview(activeResume?.id);
+        router.push("/resume-feedback");
+    }, [activeResume?.id, router]);
+
     // Compute up to 4 matched jobs strictly locked to user's specialization and region + resume match ≥50% across all resumes
     const displayedJobs = useMemo(() => {
         if (!jobs || jobs.length === 0) return [];
@@ -861,8 +890,8 @@ export default function Dashboard() {
                     <button
                         className={styles.settingsNavBtn}
                         onClick={() => setIsSettingsOpen(true)}
-                        aria-label="Update Credentials"
-                        title="Update Credentials"
+                        aria-label="Your role and resume"
+                        title="Your role and resume"
                     >
                         <FileText size={18} weight="bold" />
                     </button>
@@ -919,6 +948,8 @@ export default function Dashboard() {
 
                     {pendingTry && <FinishTryBanner tried={pendingTry} />}
 
+                    <ResumeBanner role={user?.role} standing={resumeStanding} onImprove={openResumeReview} onAdd={() => setIsSettingsOpen(true)} />
+
                     <div className={styles.dashboardGrid}>
                         <TopJobsPanel
                             userLocation={userLocation}
@@ -959,6 +990,8 @@ export default function Dashboard() {
                             onOpenTips={() => setActiveMobileTab("coach")}
                             onOpenRecruiter={() => setActiveMobileTab("recruiter")}
                             pendingTry={pendingTry}
+                            resume={resumeStanding}
+                            onOpenResume={resumeStanding ? openResumeReview : () => setIsSettingsOpen(true)}
                         />
                     )}
 

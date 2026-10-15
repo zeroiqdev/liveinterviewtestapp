@@ -44,7 +44,7 @@ import {
     DATE_AT_END_RE,
     ANY_DATE_RE,
 } from "@/lib/resumeParser";
-import { scoreStructuredResume, introducesNumbers } from "@/lib/atsScorer";
+import { scoreStructuredResume, introducesNumbers, scoreGaps } from "@/lib/atsScorer";
 
 export type { StructuredResume, StructuredJob, StructuredBullet, SuggestionItem };
 
@@ -614,6 +614,8 @@ export default function ResumeFeedbackReport({
 
     // Live ATS Scoring Engine based on active document state
     const liveAtsResult = useMemo(() => scoreStructuredResume(structuredResume, report.role || "Product Manager"), [structuredResume, report.role]);
+    // What is costing points, so a low score always comes with things to do.
+    const liveGaps = useMemo(() => scoreGaps(liveAtsResult), [liveAtsResult]);
 
     const currentScore = liveAtsResult.overallScore;
     const appliedCount = suggestions.filter((s) => s.applied).length;
@@ -1588,6 +1590,22 @@ export default function ResumeFeedbackReport({
                     <div className={styles.unifiedGrid}>
                         {/* ── LEFT COLUMN: Actionable Suggestions ── */}
                         <div className={styles.suggestionsSidebar}>
+                            {!isDocLoading && liveGaps.length > 0 && (
+                                <section className={styles.scoreGaps} aria-labelledby="score-gaps-title">
+                                    <h3 id="score-gaps-title" className={styles.scoreGapsTitle}>What&rsquo;s lowering your score</h3>
+                                    <ol className={styles.scoreGapsList}>
+                                        {liveGaps.map((gap) => (
+                                            <li key={gap.area} className={styles.scoreGapItem}>
+                                                <div className={styles.scoreGapTop}>
+                                                    <span className={styles.scoreGapName}>{gap.title}</span>
+                                                    <span className={styles.scoreGapPoints}>up to +{gap.points}</span>
+                                                </div>
+                                                <p className={styles.scoreGapDetail}>{gap.detail}</p>
+                                            </li>
+                                        ))}
+                                    </ol>
+                                </section>
+                            )}
                             <div className={styles.suggestionsToolbar}>
                                 <span className={styles.suggestionsCountLabel}>
                                     <span>
@@ -1617,8 +1635,12 @@ export default function ResumeFeedbackReport({
                                 <div style={{ background: "#F0FDF4", border: "1px solid #DCFCE7", borderRadius: 10, padding: "0.9rem 1rem", display: "flex", gap: 8, alignItems: "flex-start" }}>
                                     <CheckCircle size={18} weight="fill" color="#16A34A" style={{ flexShrink: 0, marginTop: 1 }} />
                                     <div>
-                                        <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "#166534" }}>No rewrites needed</div>
-                                        <div style={{ fontSize: "0.76rem", color: "#15803D", lineHeight: 1.45, marginTop: 3 }}>Nothing here needs rewriting. Lines that could be stronger would be listed here.</div>
+                                        <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "#166534" }}>No lines need rewriting</div>
+                                        <div style={{ fontSize: "0.76rem", color: "#15803D", lineHeight: 1.45, marginTop: 3 }}>
+                                            {liveGaps.length > 0
+                                                ? "Your lines read well on their own. The fixes above are what will raise your score."
+                                                : "Nothing here needs rewriting. Lines that could be stronger would be listed here."}
+                                        </div>
                                     </div>
                                 </div>
                             ) : null}

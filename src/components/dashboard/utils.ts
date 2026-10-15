@@ -189,3 +189,28 @@ export function setCachedJobMatch(key: string, data: any): void {
 }
 
 
+
+/**
+ * Makes a resume the one /resume-feedback opens: its saved review when this
+ * browser has one, otherwise just marks it as the selected resume.
+ */
+export function selectResumeForReview(resumeId?: string) {
+    if (!resumeId) return;
+    try {
+        const raw = localStorage.getItem("useladder_all_resume_feedbacks");
+        const userRaw = localStorage.getItem("useladder_user");
+        const reviews: Array<{ id?: string }> = raw ? JSON.parse(raw) : [];
+        const review = Array.isArray(reviews) ? reviews.find((r) => r.id === resumeId) : null;
+        if (review) localStorage.setItem("useladder_last_resume_feedback", JSON.stringify(review));
+        if (userRaw) {
+            const user = JSON.parse(userRaw);
+            const known = review || (Array.isArray(user.resumes) && user.resumes.some((r: { id?: string }) => r.id === resumeId));
+            if (known) {
+                user.selectedResumeId = resumeId;
+                localStorage.setItem("useladder_user", JSON.stringify(user));
+            }
+        }
+    } catch {
+        // Saved data is blocked: the review page opens the latest resume instead.
+    }
+}
