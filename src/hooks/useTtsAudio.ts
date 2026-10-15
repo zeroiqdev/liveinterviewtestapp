@@ -196,9 +196,14 @@ export function unlockAudioPlayback(): void {
   }
 }
 
-/** Plays a moment of silence on an element during a tap, so it may play later without one. */
+/**
+ * Plays a moment of silence on an element during a tap, so it may play later
+ * without one. It must play unmuted: Safari lets muted media play anyway, so
+ * a muted play doesn't count as permission to make sound later.
+ */
 export function unlockMediaElement(element: HTMLAudioElement): void {
-  element.muted = true;
+  element.muted = false;
+  element.volume = 1;
   element.src = SILENT_CLIP;
   element
     .play()
@@ -206,10 +211,7 @@ export function unlockMediaElement(element: HTMLAudioElement): void {
       // Only if nothing real has been loaded into it since.
       if (element.src === SILENT_CLIP) element.pause();
     })
-    .catch(() => undefined)
-    .finally(() => {
-      element.muted = false;
-    });
+    .catch(() => undefined);
 }
 
 /** A ready-to-play element for the URL: the pre-loaded one if available. */
