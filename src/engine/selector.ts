@@ -15,7 +15,7 @@
    ══════════════════════════════════════ */
 
 import { LIVE_TURN_HEDGE_MS, LIVE_TURN_TIMEOUT_MS, callJSON } from "./llm";
-import { NOTES_WINDOW, weightsFor } from "./constants";
+import { NOTES_WINDOW, weightsFor, SPOKEN_ONLY_RULE } from "./constants";
 import type {
     BankQuestion,
     Blueprint,
@@ -181,6 +181,7 @@ Rules:
 - Do not repeat ground already covered in the running notes.
 - Interview progression matters more than novelty: use the broad stage for background, motivation and fit; use the first question in a competency for a concrete anchor example; use later questions to test a complementary dimension, trade-off or result. Do not use a closing or logistics question until the interview is actually winding down.
 - If the candidate's last answer was not a real answer — they objected, said the question doesn't apply to them (e.g. no company was given), asked for clarification, or said they don't know — do not praise it or call it useful/helpful context. Briefly acknowledge their point honestly ("Fair point — this is a general practice interview.") or omit the bridge.
+- ${SPOKEN_ONLY_RULE}
 - Never use ** for bold. Plain text only, no markdown.`;
 
     const user = `${companyGuidance(session.company)}

@@ -5,6 +5,7 @@
    ══════════════════════════════════════ */
 
 import { callJSON } from "./llm";
+import { SPOKEN_ONLY_RULE } from "./constants";
 import type {
     Blueprint,
     CandidateProfile,
@@ -28,6 +29,7 @@ Conversational rules:
 - When a source anchor is provided (resume/LinkedIn/portfolio location), ground the question in it naturally ("Your resume mentions X...").
 - When the detail contradicts a profile claim, surface the gap directly but politely.
 - Never stack multiple questions.
+- ${SPOKEN_ONLY_RULE}
 - Never use ** for bold. Plain text only, no markdown.
 
 Output ONLY: { "followUp": "<conversational lead-in + targeted question>", "reason": "<one sentence>" }`;

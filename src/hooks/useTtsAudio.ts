@@ -31,76 +31,20 @@ const TTS_PLAYBACK_SPEED = 1.0;
 // 3.5s gave long or cold lines (often the opening question) a second voice.
 const TTS_FALLBACK_WAIT_MS = 15000;
 
-function fallbackBrowserSpeech(
-  text: string,
-  onStart?: () => void,
-  onEnd?: () => void
-) {
-  if (typeof window === "undefined" || !window.speechSynthesis) {
-    onEnd?.();
-    return;
-  }
-
-  // Strip emotion tags like [happy], [slow], [thoughtful] so browser speech doesn't read brackets
-  const cleanedText = text.replace(/\[[a-zA-Z0-9_\s]+\]/g, "").replace(/\*\*(.*?)\*\*/g, "$1").trim();
-  if (!cleanedText) {
-    onEnd?.();
-    return;
-  }
-
-  if (process.env.NODE_ENV !== "production") {
-    console.info("[voice] Browser speech fallback (synthesized audio unavailable or too slow)");
-  }
-
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(cleanedText);
-  const voices = window.speechSynthesis.getVoices();
-
-  // Try to find a Nigerian or natural English voice
-  const preferredVoice =
-    voices.find((v) => v.lang === "en-NG" || v.lang.includes("NG") || v.name.includes("Nigeria")) ||
-    voices.find((v) => v.name.includes("Google UK English Male") || v.name.includes("Natural")) ||
-    voices.find((v) => v.lang.startsWith("en"));
-
-  if (preferredVoice) {
-    utterance.voice = preferredVoice;
-  }
-
-  utterance.rate = TTS_PLAYBACK_SPEED;
-
-  // Chrome sometimes never fires onend (notably for utterances over ~15s, or
-  // after a cancel/speak race), which used to leave the interview stuck on
-  // "speaking". Report the end exactly once, from whichever signal comes first.
-  const isChromium = /Chrome\//.test(navigator.userAgent);
-  let ended = false;
-  let started = false;
-  let quietPolls = 0;
-  const finish = () => {
-    if (ended) return;
-    ended = true;
-    clearInterval(monitor);
-    onEnd?.();
-  };
-  const monitor = setInterval(() => {
-    const synth = window.speechSynthesis;
-    // Keep Chrome's synthesizer from silently timing out on long utterances.
-    if (isChromium && synth.speaking && !synth.paused) {
-      synth.pause();
-      synth.resume();
-    }
-    if (!started || synth.paused) return;
-    quietPolls = synth.speaking || synth.pending ? 0 : quietPolls + 1;
-    if (quietPolls >= 2) finish();
-  }, 5000);
-
-  utterance.onstart = () => {
-    started = true;
-    onStart?.();
-  };
-  utterance.onend = finish;
-  utterance.onerror = finish;
-
-  window.speechSynthesis.speak(utterance);
+/**
+ * When a line's recorded clip can't be had (a failed or very slow voice
+ * request, or the browser refusing to play it), the line is NOT read by the
+ * browser's own voice: a second, robotic voice mid-interview was worse than
+ * none. The question is already on screen, so it's given time to be read and
+ * the interview carries on.
+ */
+function fallbackWithoutVoice(text: string, onStart?: () => void, onEnd?: () => void) {
+  const words = text.replace(/\[[a-zA-Z0-9_\s]+\]/g, "").trim().split(/\s+/).filter(Boolean).length;
+  console.warn("[voice] A line's recording wasn't available; it is shown as text instead of spoken.");
+  onStart?.();
+  // About as long as it takes to read, within sensible bounds.
+  const readingMs = Math.min(10_000, Math.max(1_500, words * 320));
+  setTimeout(() => onEnd?.(), readingMs);
 }
 
 // In-memory cache of pre-fetched and synthesized TTS audio URLs
@@ -238,8 +182,7 @@ function needsSharedPlayer(): boolean {
 
 /**
  * Call from a tap or click (synchronously, before any await): unlocks audio
- * for the rest of the interview, including the browser's own voice, which is
- * the fallback when a clip can't be had.
+ * for the rest of the interview.
  */
 export function unlockAudioPlayback(): void {
   if (typeof window === "undefined") return;
@@ -250,12 +193,6 @@ export function unlockAudioPlayback(): void {
       sharedPlayer.setAttribute("playsinline", "");
     }
     unlockMediaElement(sharedPlayer);
-  }
-  try {
-    // An empty line spoken now lets the browser voice speak later without a tap.
-    if (window.speechSynthesis) window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
-  } catch {
-    // No browser voice: nothing to unlock.
   }
 }
 
@@ -454,7 +391,7 @@ export function useTtsAudio() {
         if (instantFallbackStarted || thisPlayId !== currentPlayIdRef.current) return;
         instantFallbackStarted = true;
         setIsLoadingAudio(false);
-        fallbackBrowserSpeech(
+        fallbackWithoutVoice(
           text,
           () => {
             if (thisPlayId !== currentPlayIdRef.current) return;
@@ -505,11 +442,11 @@ export function useTtsAudio() {
           if (thisPlayId !== currentPlayIdRef.current) return;
           console.warn("[useTtsAudio] Main audio playback error, falling back:", err);
           setIsPlaying(false);
-          fallbackBrowserSpeech(text, options?.onStart, options?.onEnd);
+          fallbackWithoutVoice(text, options?.onStart, options?.onEnd);
         };
 
         audio.play().catch(() => {
-          fallbackBrowserSpeech(text, options?.onStart, options?.onEnd);
+          fallbackWithoutVoice(text, options?.onStart, options?.onEnd);
         });
       };
 
@@ -529,8 +466,8 @@ export function useTtsAudio() {
       }
 
       try {
-        // Retries a brief provider failure once before the (different) browser voice.
-        const audioUrl = await resolveTtsAudio(text, { persona, attempts: 2 });
+        // Retries brief provider failures before giving up and showing the line as text.
+        const audioUrl = await resolveTtsAudio(text, { persona, attempts: 3 });
 
         // If a new play request arrived while fetching, ignore this one
         if (instantFallbackTimer) clearTimeout(instantFallbackTimer);
@@ -547,7 +484,7 @@ export function useTtsAudio() {
         if (instantFallbackStarted) return;
         console.warn("[useTtsAudio] TTS API call failed, falling back to Web Speech:", err);
         setIsLoadingAudio(false);
-        fallbackBrowserSpeech(
+        fallbackWithoutVoice(
           text,
           () => {
             if (thisPlayId !== currentPlayIdRef.current) return;
@@ -591,12 +528,12 @@ export function useTtsAudio() {
       audio.play().catch((err) => {
         console.warn("[useTtsAudio] Replay failed:", err);
         if (activeText) {
-          fallbackBrowserSpeech(activeText);
+          fallbackWithoutVoice(activeText);
         }
       });
     } else if (activeText) {
       stopAudio();
-      fallbackBrowserSpeech(activeText);
+      fallbackWithoutVoice(activeText);
     }
   }, [currentAudioUrl, activeText, stopAudio]);
 
@@ -714,10 +651,10 @@ export function useTtsAudio() {
           audio.onerror = () => {
             if (thisPlayId !== currentPlayIdRef.current) return;
             setIsPlaying(false);
-            fallbackBrowserSpeech(segments[0].text, options?.onStart, options?.onEnd);
+            fallbackWithoutVoice(segments[0].text, options?.onStart, options?.onEnd);
           };
           audio.play().catch(() => {
-            fallbackBrowserSpeech(segments[0].text, options?.onStart, options?.onEnd);
+            fallbackWithoutVoice(segments[0].text, options?.onStart, options?.onEnd);
           });
           return;
         }
@@ -736,7 +673,7 @@ export function useTtsAudio() {
       const urlPromises = segments.map((seg) =>
         (seg.audioUrl
           ? Promise.resolve<string | null>(seg.audioUrl)
-          : resolveTtsAudio(seg.text, { persona, attempts: 2 })
+          : resolveTtsAudio(seg.text, { persona, attempts: 3 })
         ).then((url) => {
           // Start loading every sentence now so each is buffered before its turn.
           if (url) preloadAudio(url);
@@ -788,7 +725,7 @@ export function useTtsAudio() {
             playNextSegment();
           });
         } else {
-          fallbackBrowserSpeech(
+          fallbackWithoutVoice(
             seg.text,
             () => {
               if (thisPlayId !== currentPlayIdRef.current) return;

@@ -2784,7 +2784,7 @@
     "id": "SQL_001",
     "role_family": "data_science",
     "sub_type": "medium",
-    "question": "Write a SQL query using window functions (e.g. DENSE_RANK() or ROW_NUMBER()) to find the top 3 highest spending customers in each geographic region from a transactions table, handling ties gracefully.",
+    "question": "Talk me through how you'd find the top 3 highest-spending customers in each region from a transactions table. Which SQL functions would you reach for, such as window functions like DENSE_RANK or ROW_NUMBER, and why?",
     "category": "SQL & Analytics",
     "applies_to_all": false,
     "source": "curated_bank"
@@ -2793,7 +2793,7 @@
     "id": "SQL_002",
     "role_family": "data_science",
     "sub_type": "hard",
-    "question": "How would you write a query to calculate month-over-month user retention cohorts? Walk me through the CTE or self-join logic and how you compute cohort active percentages across consecutive months.",
+    "question": "How would you calculate month-over-month user retention cohorts? Talk me through the approach, whether you'd use CTEs or a self-join, and how you'd work out the share of each cohort still active in later months.",
     "category": "SQL & Analytics",
     "applies_to_all": false,
     "source": "curated_bank"
@@ -2802,7 +2802,7 @@
     "id": "SQL_003",
     "role_family": "data_science",
     "sub_type": "medium",
-    "question": "Given a table of user login timestamps, write a SQL query to identify users who logged in for 3 or more consecutive days. What window functions (like LEAD or LAG) or date arithmetic would you utilize?",
+    "question": "Given a table of user login timestamps, how would you find users who logged in on 3 or more consecutive days? Talk me through the approach and the SQL functions you'd use.",
     "category": "SQL & Analytics",
     "applies_to_all": false,
     "source": "curated_bank"
@@ -2820,7 +2820,7 @@
     "id": "SQL_005",
     "role_family": "data_science",
     "sub_type": "medium",
-    "question": "Write a SQL query to calculate the 7-day rolling average of daily transaction volume per merchant, properly handling missing days where no transactions occurred.",
+    "question": "How would you calculate a 7-day rolling average of daily transaction volume per merchant, including days with no transactions? Walk me through your approach in SQL and how you'd handle the missing days.",
     "category": "SQL & Analytics",
     "applies_to_all": false,
     "source": "curated_bank"
@@ -2847,7 +2847,7 @@
     "id": "SQL_008",
     "role_family": "data_science",
     "sub_type": "easy",
-    "question": "Write a SQL query to identify duplicate customer records where email matches regardless of casing or trailing whitespace, and demonstrate how you would clean and deduplicate the table.",
+    "question": "How would you find duplicate customer records where the email matches regardless of upper or lower case or extra spaces, and how would you decide which record to keep? Talk me through your approach.",
     "category": "SQL & Analytics",
     "applies_to_all": false,
     "source": "curated_bank"
