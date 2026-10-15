@@ -1,12 +1,16 @@
 "use client";
 
 import React, { useState } from "react";
-import { Check } from "@phosphor-icons/react";
+import { Check, Minus, Plus } from "@phosphor-icons/react";
 import styles from "./dashboard.module.css";
-import { priceForPasses } from "@/lib/passes";
+import { MAX_PASSES_PER_PURCHASE, priceForPasses } from "@/lib/passes";
 import { discountedAmount } from "@/lib/discounts";
 
-type Product = "day" | "week";
+type Product = "day" | "week" | "flexible";
+
+/** A custom bundle is at least two passes (one is the Day Pass). */
+const MIN_CUSTOM = 2;
+const clampPasses = (n: number) => Math.max(MIN_CUSTOM, Math.min(MAX_PASSES_PER_PURCHASE, Math.round(n) || MIN_CUSTOM));
 
 const OFFERS: Array<{ product: Product; name: string; amount: number; detail: string; note?: string }> = [
     { product: "day", name: "Day Pass", amount: priceForPasses(1), detail: "24 hours of interviews, starting when you begin your first one." },
@@ -42,6 +46,15 @@ interface PassOptionsProps {
  */
 export default function PassOptions({ onGranted, grantedLabel = "Start practising", padding = "1.1rem 2rem 1.25rem", actionClassName, onBusyChange }: PassOptionsProps) {
     const [product, setProduct] = useState<Product>("day");
+    // The custom bundle's size, and what's typed in its box while it's being edited.
+    const [customPasses, setCustomPasses] = useState(10);
+    const [customInput, setCustomInput] = useState("10");
+    const passesChosen = product === "day" ? 1 : product === "week" ? 7 : customPasses;
+    const setCustom = (n: number) => {
+        const next = clampPasses(n);
+        setCustomPasses(next);
+        setCustomInput(String(next));
+    };
     const [busy, setBusyState] = useState(false);
     const [error, setError] = useState<string | null>(null);
     // Discount codes: typed, checked, then either applied to the price or used for free passes.
@@ -62,7 +75,7 @@ export default function PassOptions({ onGranted, grantedLabel = "Start practisin
         setCodeBusy(true);
         setCodeError(null);
         try {
-            const res = await fetch("/api/payments/discount", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: codeInput, product }) });
+            const res = await fetch("/api/payments/discount", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: codeInput, product, passes: passesChosen }) });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.error || "That code isn't valid.");
             setApplied({ code: data.code, kind: data.kind, value: data.value, description: data.description });
@@ -97,11 +110,11 @@ export default function PassOptions({ onGranted, grantedLabel = "Start practisin
         setBusy(true);
         setError(null);
         try {
-            const res = await fetch("/api/payments/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ product, discountCode: applied?.kind === "percent" ? applied.code : undefined }) });
+            const res = await fetch("/api/payments/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ product, passes: passesChosen, discountCode: applied?.kind === "percent" ? applied.code : undefined }) });
             const data = await res.json().catch(() => ({}));
             // The code took the price to nothing: the passes are already on the account.
             if (res.ok && data.granted) {
-                setGranted({ passes: product === "week" ? 7 : 1, reference: data.reference });
+                setGranted({ passes: passesChosen, reference: data.reference });
                 setBusy(false);
                 return;
             }
@@ -138,7 +151,16 @@ export default function PassOptions({ onGranted, grantedLabel = "Start practisin
                 ) : (
                 <>
                 <div style={{ padding, display: "flex", flexDirection: "column", gap: "0.7rem" }} role="radiogroup" aria-label="Choose a pass">
-                    {OFFERS.map((offer) => {
+                    {[
+                        ...OFFERS,
+                        {
+                            product: "flexible" as Product,
+                            name: "Custom bundle",
+                            amount: priceForPasses(customPasses),
+                            detail: `${customPasses} passes, ${naira(Math.round(priceForPasses(customPasses) / customPasses))} each. The more you get, the less each one costs.`,
+                            note: undefined,
+                        },
+                    ].map((offer) => {
                         const selected = product === offer.product;
                         return (
                             <button
@@ -172,6 +194,53 @@ export default function PassOptions({ onGranted, grantedLabel = "Start practisin
                             </button>
                         );
                     })}
+                    {product === "flexible" && (
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "0.1rem 0.15rem" }}>
+                            <label htmlFor="pass-count" style={{ fontSize: "0.84rem", color: "#334155" }}>
+                                How many passes? <span style={{ color: "#94A3B8" }}>({MIN_CUSTOM} to {MAX_PASSES_PER_PURCHASE})</span>
+                            </label>
+                            <div style={{ display: "inline-flex", alignItems: "center", border: "1px solid #D9E0EC", borderRadius: 8, overflow: "hidden", background: "#FFFFFF" }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setCustom(customPasses - 1)}
+                                    disabled={customPasses <= MIN_CUSTOM}
+                                    aria-label="One pass fewer"
+                                    style={{ width: 38, height: 38, border: 0, background: "none", color: customPasses <= MIN_CUSTOM ? "#CBD5E1" : "#334155", cursor: customPasses <= MIN_CUSTOM ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                >
+                                    <Minus size={14} weight="bold" />
+                                </button>
+                                <input
+                                    id="pass-count"
+                                    inputMode="numeric"
+                                    value={customInput}
+                                    onChange={(e) => {
+                                        const typed = e.target.value.replace(/\D/g, "").slice(0, 2);
+                                        setCustomInput(typed);
+                                        const n = Number(typed);
+                                        if (n >= MIN_CUSTOM && n <= MAX_PASSES_PER_PURCHASE) setCustomPasses(n);
+                                    }}
+                                    onBlur={() => setCustom(Number(customInput))}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") setCustom(Number(customInput));
+                                    }}
+                                    aria-describedby="pass-count-price"
+                                    style={{ width: 48, height: 38, border: 0, borderLeft: "1px solid #E2E8F0", borderRight: "1px solid #E2E8F0", textAlign: "center", fontFamily: "inherit", fontSize: "1rem", fontVariantNumeric: "tabular-nums", color: "#0F172A" }}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setCustom(customPasses + 1)}
+                                    disabled={customPasses >= MAX_PASSES_PER_PURCHASE}
+                                    aria-label="One pass more"
+                                    style={{ width: 38, height: 38, border: 0, background: "none", color: customPasses >= MAX_PASSES_PER_PURCHASE ? "#CBD5E1" : "#334155", cursor: customPasses >= MAX_PASSES_PER_PURCHASE ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                >
+                                    <Plus size={14} weight="bold" />
+                                </button>
+                            </div>
+                            <span id="pass-count-price" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
+                                {customPasses} passes for {naira(applied?.kind === "percent" ? discountedAmount(priceForPasses(customPasses), applied) : priceForPasses(customPasses))}
+                            </span>
+                        </div>
+                    )}
                     {!showCode && !applied ? (
                         <button type="button" onClick={() => setShowCode(true)} style={{ alignSelf: "flex-start", background: "none", border: 0, padding: 0, fontFamily: "inherit", fontSize: "0.84rem", color: "#2563EB", cursor: "pointer" }}>
                             Have a discount code?

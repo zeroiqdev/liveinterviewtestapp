@@ -192,6 +192,7 @@
 }
 
 .notificationBtn {
+    position: relative;
     background: none;
     border: none;
     color: #94A3B8;

@@ -41,6 +41,8 @@ export interface IUser extends Document {
     resumes: IResume[];
     /** When they last opened the app. */
     lastSeenAt?: Date;
+    /** When they last opened the notifications list. */
+    notificationsSeenAt?: Date;
     /** Where they last used the app from, as the hosting network reports it (never typed in). */
     location?: { country?: string; region?: string; city?: string; updatedAt?: Date };
     createdAt: Date;
@@ -91,6 +93,7 @@ const UserSchema = new Schema<IUser>(
         linkedinUrl: { type: String, default: "" },
         resumes: [ResumeSchema],
         lastSeenAt: { type: Date },
+        notificationsSeenAt: { type: Date },
         location: {
             country: { type: String },
             region: { type: String },

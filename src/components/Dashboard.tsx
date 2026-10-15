@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
     SignOut,
-    Bell,
     ArrowRight,
     House,
     FileText,
@@ -28,6 +27,7 @@ import { FinishTryBanner } from "./dashboard/FinishTryBanner";
 import mobileStyles from "./dashboard/mobileHome.module.css";
 import { tipForWeek } from "@/lib/weeklyTips";
 import { SettingsModal } from "./dashboard/SettingsModal";
+import { NotificationsMenu } from "./dashboard/NotificationsMenu";
 import { InterviewSetupModal } from "./dashboard/InterviewSetupModal";
 import { useInterview } from "../context/InterviewContext";
 import { matchResumeToJob } from "@/lib/atsScorer";
@@ -866,16 +866,7 @@ export default function Dashboard() {
                     >
                         <FileText size={18} weight="bold" />
                     </button>
-                    <button
-                        className={styles.logoutBtn}
-                        onClick={handleLogout}
-                        aria-label="Logout"
-                    >
-                        <SignOut size={16} weight="bold" />
-                    </button>
-                    <button className={styles.notificationBtn} aria-label="Notifications">
-                        <Bell size={18} weight="bold" />
-                    </button>
+                    <NotificationsMenu className={styles.notificationBtn} />
                     <button
                         type="button"
                         className={styles.avatar}
