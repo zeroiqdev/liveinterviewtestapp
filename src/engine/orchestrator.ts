@@ -29,7 +29,9 @@ import { draftCovers } from "./utterance";
 import { RESUME_QUESTION_ID, pickResumeQuestion, resumeQuestionDue } from "./resumeQuestion";
 import { heardBefore, type InterviewHistory } from "./history";
 import { questionsForCompany, realCompanyName } from "./company";
-import { freshOpener, openingGreeting, openingIntro, planOpening, resolveOpener } from "./openers";
+import { OPENERS, freshOpener, openingGreeting, openingIntro, planOpening, resolveOpener } from "./openers";
+import { getCachedAudio } from "@/services/ttsService";
+import { cleanSpokenAudioText } from "./conversationalEngine";
 import {
     executeConversationalTurn,
     fallbackProbe,
@@ -448,6 +450,20 @@ async function askCarriedOver(session: SessionDoc, blueprint: Blueprint, carryOv
 
 /* ── asking ── */
 
+/** How long a written opener may take to be voiced before the recorded one is used. */
+const OPENER_VOICE_BUDGET_MS = 6000;
+
+/** Whether a line can be voiced (recorded already, or recorded now) within the budget. */
+async function canVoice(line: string, region?: string | null): Promise<boolean> {
+    const text = cleanSpokenAudioText(line);
+    if (!text) return false;
+    const result = await Promise.race([
+        getCachedAudio(text, "recruiter", region || "nigeria").then((r) => Boolean(r?.audioUrl)),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), OPENER_VOICE_BUDGET_MS)),
+    ]).catch(() => false);
+    return result;
+}
+
 async function askNextQuestion(
     session: SessionDoc,
     blueprint: Blueprint,
@@ -548,6 +564,14 @@ async function askOpening(session: SessionDoc, blueprint: Blueprint, comp: Compe
             audit(session, "selector", "opening_varied", "opener heard in a recent interview; wrote a different one");
             opener = fresh;
         }
+    }
+    // A written opener has to be voiced on the spot. If that can't be done in
+    // time, the recorded opener for the role is asked instead, so the welcome
+    // is never silent.
+    const recorded = plan.opener ?? OPENERS[plan.family]?.general ?? null;
+    if (recorded && opener !== recorded && !(await canVoice(opener, session.voiceRegion))) {
+        audit(session, "selector", "opening_recorded", "written opener couldn't be voiced in time; used the recorded one");
+        opener = recorded;
     }
     const greeting = openingGreeting(session.candidateName);
     const intro = openingIntro({ role, company, focus: plan.round?.focus });

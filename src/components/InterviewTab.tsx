@@ -10,6 +10,7 @@ import { setFeedbackContext } from "@/lib/feedbackContext";
 import styles from "./interview.module.css";
 import { initialsOf, interviewerNameFromVoice } from "@/lib/interviewer";
 import { clearTry } from "@/lib/tryClient";
+import { GENERIC_GREETING } from "@/engine/greeting";
 import { MODE_LABEL, modeLabel } from "@/lib/interviewModes";
 import { blueprintForRole } from "../engine/roleMapping";
 import { normalizeUserRoleFamily } from "../utils/locationDetector";
@@ -22,6 +23,7 @@ import {
     resolveTtsAudio,
     useTtsAudio,
     unlockAudioPlayback,
+    needsTapForAudio,
     waitForAudio,
 } from "../hooks/useTtsAudio";
 import {
@@ -228,6 +230,9 @@ export default function InterviewTab() {
     // "Joining the call" screen between Start and the countdown: index of the
     // step in progress (JOIN_STEPS), or null when not shown.
     const [joinStep, setJoinStep] = useState<number | null>(null);
+    // Safari and iPhones: the joining screen waits for a "Begin interview" tap (see the start handler).
+    const [awaitingBeginTap, setAwaitingBeginTap] = useState(false);
+    const beginTapRef = useRef<(() => void) | null>(null);
     // In-call tiles: who the interviewer is, and whether the candidate is talking.
     const [interviewerName, setInterviewerName] = useState("Interviewer");
     const [isUserSpeaking, setIsUserSpeaking] = useState(false);
@@ -1104,10 +1109,17 @@ export default function InterviewTab() {
             // One at a time, to stay inside the voice provider's rate limit;
             // all of them or none, so the opening never mixes voices.
             const resolved: Array<{ text: string; audioUrl: string }> = [];
-            for (const part of parts) {
-                const url = await resolveTtsAudio(part, { persona: "recruiter", attempts: 4 });
+            for (const [index, part] of parts.entries()) {
+                let text = part;
+                let url = await resolveTtsAudio(text, { persona: "recruiter", attempts: 4 });
+                // The greeting with their name is the one line not recorded ahead:
+                // the recorded one without a name stands in for it.
+                if (!url && index === 0 && parts.length > 1) {
+                    text = GENERIC_GREETING;
+                    url = await resolveTtsAudio(text, { persona: "recruiter", attempts: 2 });
+                }
                 if (!url) break;
-                resolved.push({ text: part, audioUrl: url });
+                resolved.push({ text, audioUrl: url });
             }
             if (resolved.length === parts.length) openingSegments = resolved;
         }
@@ -1122,6 +1134,24 @@ export default function InterviewTab() {
         setJoinStep(JOIN_STEPS.length);
         // Let the last tick register before the countdown takes over.
         await new Promise((resolve) => setTimeout(resolve, 350));
+
+        // Everything that listens to the microphone starts now, before any
+        // sound: Safari switches its audio into record-and-play mode the first
+        // time the page listens, and that can stop playback or undo the
+        // permission to play.
+        startRecording();
+        warmMicrophoneAudio();
+
+        // Safari and iPhones only allow sound that follows a tap, and the tap
+        // on Start came before the microphone was on. One more tap, now, lets
+        // the welcome play.
+        if (needsTapForAudio()) {
+            setAwaitingBeginTap(true);
+            await new Promise<void>((resolve) => {
+                beginTapRef.current = resolve;
+            });
+            setAwaitingBeginTap(false);
+        }
         setJoinStep(null);
 
         setSessionId(started.sessionId);
@@ -1135,12 +1165,6 @@ export default function InterviewTab() {
         if (started.prompt?.text) {
             setLocalTranscript([{ role: "interviewer", text: started.prompt.text }]);
         }
-
-        // Safari switches its audio into record-and-play mode the first time the
-        // page listens to the microphone, and pauses whatever is playing as it
-        // does. Doing that now, during the countdown, keeps it off the welcome.
-        startRecording();
-        warmMicrophoneAudio();
 
         let count = 3;
         setCountdown(count);
@@ -1838,6 +1862,21 @@ export default function InterviewTab() {
                                 );
                             })}
                         </ol>
+                        {awaitingBeginTap && (
+                            <button
+                                type="button"
+                                className={styles.joiningBeginBtn}
+                                onClick={() => {
+                                    // Must run in this tap, before anything else: it's what allows sound.
+                                    unlockAudioPlayback();
+                                    beginTapRef.current?.();
+                                    beginTapRef.current = null;
+                                }}
+                                autoFocus
+                            >
+                                Begin interview
+                            </button>
+                        )}
                     </div>
                 </div>
             )}

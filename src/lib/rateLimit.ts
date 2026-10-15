@@ -110,4 +110,5 @@ export const LIMITS = {
     tryStart: { bucket: "try-start", limit: 4, windowSeconds: 24 * 60 * 60, action: "practice tries today" },
     tryAnswer: { bucket: "try-answer", limit: 20, windowSeconds: 60 * 60, action: "answers" },
     roleRequest: { bucket: "role-request", limit: 5, windowSeconds: 60 * 60, action: "role requests" },
+    clientLog: { bucket: "client-log", limit: 60, windowSeconds: 60 * 60, action: "reports" },
 } satisfies Record<string, RateRule>;

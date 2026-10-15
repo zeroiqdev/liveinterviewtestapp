@@ -3083,3 +3083,24 @@
     color: #1E2540 !important;
     font-size: 1.4rem !important;
 }
+
+
+/* Safari and iPhones: the last step of joining is a tap, which is what allows the interviewer to be heard. */
+.joiningBeginBtn {
+    margin-top: 1.25rem;
+    height: 44px;
+    padding: 0 1.4rem;
+    border: 0;
+    border-radius: 8px;
+    background: #4782F6;
+    color: #FFFFFF;
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(71, 130, 246, 0.3);
+}
+
+.joiningBeginBtn:hover {
+    background: #3B71E8;
+}

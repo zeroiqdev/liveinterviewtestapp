@@ -41,6 +41,7 @@ const TTS_FALLBACK_WAIT_MS = 15000;
 function fallbackWithoutVoice(text: string, onStart?: () => void, onEnd?: () => void) {
   const words = text.replace(/\[[a-zA-Z0-9_\s]+\]/g, "").trim().split(/\s+/).filter(Boolean).length;
   console.warn("[voice] A line's recording wasn't available; it is shown as text instead of spoken.");
+  reportVoiceIssue("voice-shown-as-text", { words });
   onStart?.();
   // About as long as it takes to read, within sensible bounds.
   const readingMs = Math.min(10_000, Math.max(1_500, words * 320));
@@ -172,6 +173,26 @@ export function isAudioReady(url: string): boolean {
 const SILENT_CLIP = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==";
 let sharedPlayer: HTMLAudioElement | null = null;
 
+/** Tells the server about a playback problem the person can't see the cause of. */
+export function reportVoiceIssue(kind: "voice-unlock-failed" | "voice-play-refused" | "voice-paused-by-browser" | "voice-shown-as-text", detail: Record<string, string | number | boolean> = {}): void {
+  if (typeof window === "undefined") return;
+  try {
+    void fetch("/api/client-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, detail: { ...detail, sharedPlayer: needsSharedPlayer() } }),
+      keepalive: true,
+    }).catch(() => undefined);
+  } catch {
+    // Reporting must never get in the way.
+  }
+}
+
+/** Safari and iPhones: audio needs a tap, after the microphone is on, to be allowed. */
+export function needsTapForAudio(): boolean {
+  return needsSharedPlayer();
+}
+
 function needsSharedPlayer(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent;
@@ -211,7 +232,7 @@ export function unlockMediaElement(element: HTMLAudioElement): void {
       // Only if nothing real has been loaded into it since.
       if (element.src === SILENT_CLIP) element.pause();
     })
-    .catch(() => undefined);
+    .catch((err: unknown) => reportVoiceIssue("voice-unlock-failed", { error: (err as Error)?.name || String(err) }));
 }
 
 /** A ready-to-play element for the URL: the pre-loaded one if available. */
@@ -305,6 +326,7 @@ export function useTtsAudio() {
     const current = () => playId === currentPlayIdRef.current && audioRef.current === audio;
     audio.onpause = () => {
       if (!current() || audio.ended || pausedSourceRef.current) return;
+      reportVoiceIssue("voice-paused-by-browser", { at: Math.round(audio.currentTime * 10) / 10 });
       setTimeout(() => {
         if (current() && audio.paused && !audio.ended && !pausedSourceRef.current) audio.play().catch(() => undefined);
       }, 250);
@@ -319,6 +341,12 @@ export function useTtsAudio() {
           return;
         }
         console.warn("[voice] The browser wouldn't play a clip:", (err as Error)?.name || err);
+        reportVoiceIssue("voice-play-refused", {
+          error: (err as Error)?.name || String(err),
+          message: (err as Error)?.message || "",
+          readyState: audio.readyState,
+          networkState: audio.networkState,
+        });
         onGiveUp();
       });
     };
