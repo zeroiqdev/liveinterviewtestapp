@@ -10,6 +10,7 @@ import { clearTry, continueUrl, readTry, saveTry, type TryState } from "@/lib/tr
 import { initialsOf, interviewerNameFromVoice } from "@/lib/interviewer";
 import { useTurnDetection, type VoiceState } from "@/hooks/useTurnDetection";
 import { useVoiceActivity } from "@/hooks/useVoiceActivity";
+import { unlockMediaElement } from "@/hooks/useTtsAudio";
 import ob from "./onboarding.module.css";
 import iv from "./interview.module.css";
 import styles from "./tryInterview.module.css";
@@ -288,6 +289,10 @@ export default function TryInterview() {
 
     const begin = async () => {
         if (!state || preparing || !canListen) return;
+        // Unlocked during this tap: Safari and iPhones won't play the question later otherwise.
+        if (!audioRef.current) audioRef.current = new Audio();
+        audioRef.current.setAttribute("playsinline", "");
+        unlockMediaElement(audioRef.current);
         setPreparing(true);
         // Asked on this tap, so the browser lets the page use the camera and microphone.
         const [audio] = await Promise.all([withTimeout(questionAudio(state.question.index), AUDIO_WAIT_MS, { audioUrl: null, voiceLabel: null }), openDevices()]);

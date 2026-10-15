@@ -218,8 +218,78 @@ export function isAudioReady(url: string): boolean {
   return Boolean(audio && audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA);
 }
 
+/*
+ * Safari (and every browser on iPhone and iPad) only lets a page play audio
+ * from an element that was started by a tap. The interviewer's clips start
+ * after network loads, not taps, so there they all play through one element
+ * that is unlocked when the person taps to start. Other browsers keep the
+ * pre-loaded element per clip, which starts with no gap.
+ */
+const SILENT_CLIP = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==";
+let sharedPlayer: HTMLAudioElement | null = null;
+
+function needsSharedPlayer(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  const iOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const safari = /AppleWebKit/.test(ua) && /Safari/.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|Android|FxiOS/.test(ua);
+  return iOS || safari;
+}
+
+/**
+ * Call from a tap or click (synchronously, before any await): unlocks audio
+ * for the rest of the interview, including the browser's own voice, which is
+ * the fallback when a clip can't be had.
+ */
+export function unlockAudioPlayback(): void {
+  if (typeof window === "undefined") return;
+  if (needsSharedPlayer()) {
+    if (!sharedPlayer) {
+      sharedPlayer = new Audio();
+      sharedPlayer.preload = "auto";
+      sharedPlayer.setAttribute("playsinline", "");
+    }
+    unlockMediaElement(sharedPlayer);
+  }
+  try {
+    // An empty line spoken now lets the browser voice speak later without a tap.
+    if (window.speechSynthesis) window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+  } catch {
+    // No browser voice: nothing to unlock.
+  }
+}
+
+/** Plays a moment of silence on an element during a tap, so it may play later without one. */
+export function unlockMediaElement(element: HTMLAudioElement): void {
+  element.muted = true;
+  element.src = SILENT_CLIP;
+  element
+    .play()
+    .then(() => {
+      // Only if nothing real has been loaded into it since.
+      if (element.src === SILENT_CLIP) element.pause();
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      element.muted = false;
+    });
+}
+
 /** A ready-to-play element for the URL: the pre-loaded one if available. */
 function takeAudio(url: string): HTMLAudioElement {
+  if (sharedPlayer && needsSharedPlayer()) {
+    // The pre-load still did its job: the clip is in the browser's cache, so this starts quickly.
+    const player = sharedPlayer;
+    player.onplay = null;
+    player.onended = null;
+    player.onerror = null;
+    player.pause();
+    player.muted = false;
+    player.volume = 1;
+    player.src = url;
+    preloadAudio(url);
+    return player;
+  }
   const pooled = audioPool.get(url);
   audioPool.delete(url);
   // Keep the next play of this clip instant too (fillers repeat).

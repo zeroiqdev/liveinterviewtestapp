@@ -21,6 +21,7 @@ import {
     lockVoiceRegion,
     resolveTtsAudio,
     useTtsAudio,
+    unlockAudioPlayback,
     waitForAudio,
 } from "../hooks/useTtsAudio";
 import {
@@ -1021,6 +1022,8 @@ export default function InterviewTab() {
             setMicTestStatus("error");
             return;
         }
+        // This tap is what lets Safari and iPhones play the interviewer's voice later.
+        unlockAudioPlayback();
         setIsConnecting(true);
         setJoinStep(0);
         const granted = await startStream({ audioDeviceId: selectedAudioInput, videoDeviceId: selectedVideoInput });
