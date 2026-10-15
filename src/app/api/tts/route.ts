@@ -75,7 +75,20 @@ export async function POST(request: Request) {
     if (message.includes("Rate limit") || message.includes("429")) {
       return serverError("api/tts", err, "Voice service is busy. Please try again shortly.", 429);
     }
+    // Which step failed, in words that are safe to show: it makes a broken
+    // deployment setting obvious from the browser, with no secrets in it.
+    const reason = message.includes("environment variables must be set")
+      ? "voice_settings_missing"
+      : message.includes("Invalid Azure Speech key or region")
+        ? "voice_key_or_region_rejected"
+        : message.includes("rejected the request")
+          ? "voice_not_available_in_region"
+          : message.includes("Voice storage is not configured")
+            ? "voice_storage_settings_missing"
+            : "voice_provider_error";
+    console.error(`[api/tts] ${reason}`);
     // A provider key problem is ours, not the caller's: don't answer 401.
-    return serverError("api/tts", err, "Speech synthesis failed", message.includes("API key") ? 503 : 500);
+    const res = serverError("api/tts", err, "Speech synthesis failed", reason === "voice_provider_error" ? 500 : 503);
+    return NextResponse.json({ error: "Speech synthesis failed", reason }, { status: res.status });
   }
 }

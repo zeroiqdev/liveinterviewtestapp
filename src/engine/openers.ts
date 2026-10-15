@@ -9,6 +9,7 @@
    ══════════════════════════════════════ */
 
 import { callJSON } from "./llm";
+import { GENERIC_GREETING } from "./greeting";
 import { normalizeUserRoleFamily } from "@/utils/locationDetector";
 
 interface RoundOpener {
@@ -376,9 +377,15 @@ export async function freshOpener(context: { role: string; interviewType: string
 
 /* ── the spoken welcome ── */
 
+/**
+ * The greeting without a name. It's recorded ahead of time, so it stands in
+ * when a greeting with the person's name can't be voiced in time.
+ */
+export { GENERIC_GREETING } from "./greeting";
+
 export function openingGreeting(candidateName?: string | null): string {
     const name = candidateName?.trim();
-    return name ? `Hello ${name}, welcome!` : "Hello, welcome!";
+    return name ? `Hello ${name}, welcome!` : GENERIC_GREETING;
 }
 
 export function openingIntro(opts: { role: string; company?: string | null; focus?: string | null }): string {

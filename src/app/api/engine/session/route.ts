@@ -8,6 +8,7 @@ import { LIMITS, rateLimit } from "@/lib/rateLimit";
 import { serverError } from "@/lib/apiError";
 import { cleanSpokenAudioText } from "@/engine/conversationalEngine";
 import { getCachedAudio } from "@/services/ttsService";
+import { GENERIC_GREETING } from "@/engine/greeting";
 import { normalizeRegion } from "@/utils/regionNormalizer";
 import { liveAudioTiming } from "@/config/voiceConfig";
 import { claimInterviewStart } from "@/lib/passWallet";
@@ -31,16 +32,29 @@ const OPENING_AUDIO_BUDGET_MS = 15_000;
 async function prepareOpeningAudio(parts: string[], region: string) {
     const spoken = parts.map((part) => cleanSpokenAudioText(part)).filter(Boolean);
     if (spoken.length === 0) return null;
-    const results = await Promise.race([
-        Promise.all(spoken.map((text) => getCachedAudio(text, "recruiter", region))),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), OPENING_AUDIO_BUDGET_MS)),
-    ]).catch((err) => {
-        console.warn("[api/engine/session] opening audio failed:", (err as Error).message);
-        return null;
-    });
-    if (!results) return null;
+    const voice = (text: string) =>
+        Promise.race([
+            getCachedAudio(text, "recruiter", region),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), OPENING_AUDIO_BUDGET_MS)),
+        ]).catch((err) => {
+            console.warn("[api/engine/session] opening audio failed:", (err as Error).message);
+            return null;
+        });
+    const results = await Promise.all(spoken.map(voice));
+    // The greeting has their name in it, so it's the one line voiced on the spot.
+    // If that fails, the recorded greeting without a name stands in, rather than
+    // the whole welcome going silent.
+    if (!results[0] && spoken.length > 1) {
+        const generic = cleanSpokenAudioText(GENERIC_GREETING);
+        const fallback = await voice(generic);
+        if (fallback) {
+            spoken[0] = generic;
+            results[0] = fallback;
+        }
+    }
+    if (results.some((result) => !result)) return null;
     return {
-        audioSegments: spoken.map((text, i) => ({ text, audioUrl: results[i].audioUrl })),
+        audioSegments: spoken.map((text, i) => ({ text, audioUrl: results[i]!.audioUrl })),
         voiceLabel: results[0]?.voiceLabel ?? null,
     };
 }

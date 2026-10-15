@@ -305,6 +305,11 @@ async function audioForVoice(
       // Upload to Cloudflare R2 Storage
       const storagePath = `tts-cache/${hash}.mp3`;
       const audioUrl = await uploadToStorage(audioBuffer, storagePath);
+      // Without storage settings the upload returns a placeholder address. Never
+      // save that: the cache is shared, and it would break the line for everyone.
+      if (audioUrl.includes("storage.placeholder.local")) {
+        throw new Error("Voice storage is not configured (R2_* settings missing)");
+      }
 
       // Store in memory cache
       memoryCache.set(hash, audioUrl);
