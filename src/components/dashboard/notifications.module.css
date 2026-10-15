@@ -1,0 +1,115 @@
+/* The bell's list: a white card under the header, in the dashboard's card style. */
+.wrap {
+    position: relative;
+    display: flex;
+}
+
+.badge {
+    position: absolute;
+    top: -2px;
+    right: -4px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #DC2626;
+    color: #FFFFFF;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 16px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 0 0 2px #FFFFFF;
+}
+
+.panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: -8px;
+    z-index: 50;
+    width: 360px;
+    max-width: calc(100vw - 32px);
+    max-height: min(480px, 70vh);
+    overflow-y: auto;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+    font-family: 'Inter', sans-serif;
+}
+
+.head {
+    position: sticky;
+    top: 0;
+    padding: 0.85rem 1rem;
+    background: #FFFFFF;
+    border-bottom: 1px solid #F1F5F9;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #0F172A;
+}
+
+.empty {
+    margin: 0;
+    padding: 1.1rem 1rem 1.25rem;
+    font-size: 0.84rem;
+    line-height: 1.5;
+    color: #64748B;
+}
+
+.list {
+    margin: 0;
+    padding: 0.25rem 0;
+    list-style: none;
+}
+
+.item {
+    display: flex;
+    gap: 0.65rem;
+    padding: 0.75rem 1rem;
+    color: inherit;
+    text-decoration: none;
+}
+
+a.item:hover {
+    background: #F8FAFC;
+}
+
+.dot {
+    flex: 0 0 8px;
+    width: 8px;
+    height: 8px;
+    margin-top: 6px;
+    border-radius: 50%;
+    background: transparent;
+}
+
+.dotOn {
+    background: #4782F6;
+}
+
+.text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.text b {
+    font-size: 0.86rem;
+    font-weight: 500;
+    color: #0F172A;
+}
+
+.text span {
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: #64748B;
+    overflow-wrap: anywhere;
+}
+
+.text time {
+    font-size: 0.72rem;
+    color: #94A3B8;
+}
