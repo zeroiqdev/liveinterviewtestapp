@@ -15,9 +15,10 @@ export const SITE_URL = (
 ).replace(/\/+$/, "");
 
 export const SITE_NAME = "get prepped";
-export const SITE_TITLE = "get prepped — Mock interviews with real follow-up questions";
+// What people search ("interview practice") first, the brand last.
+export const SITE_TITLE = "Free Interview Practice for Your Dream Job | get prepped";
 export const SITE_DESCRIPTION =
-    "Sit the interview before the real one. A recruiter asks follow-up questions on your answers, then a coach tells you what to fix.";
+    "Practise a real job interview out loud. The interviewer asks follow-up questions on your answers, then shows you exactly what to fix. Your first interview is free.";
 export const COMPANY_NAME = "Zero and One Solutions Limited";
 
 /** Pages anyone can open, for the sitemap. Everything else needs an account. */
