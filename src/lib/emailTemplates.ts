@@ -63,3 +63,60 @@ export function welcomeEmail(opts: { name?: string; role?: string; siteUrl: stri
     });
     return { subject: "Welcome to get prepped", text, html };
 }
+
+type Built = { subject: string; text: string; html: string };
+const firstName = (name?: string) => name?.trim().split(/\s+/)[0];
+const base = (url: string) => url.replace(/\/$/, "");
+
+/** Day 1, no resume yet: what adding one gets them. */
+export function resumeNudgeEmail(opts: { name?: string; role?: string; siteUrl: string; unsubscribeUrl: string }): Built {
+    const first = firstName(opts.name);
+    const { html, text } = renderEmail({
+        preheader: "Get a score out of 100 and ready-made fixes before you apply.",
+        title: "Add your resume",
+        greeting: first ? `Hi ${first},` : "Hi,",
+        paragraphs: [
+            `Add your resume and I'll tell you how it reads to an employer${opts.role ? ` hiring for ${opts.role}` : ""}.`,
+            "You'll get a score out of 100, ready-made rewrites for anything holding it back, and a Word file with your changes in your own formatting. Your practice interviews will also ask about your own experience.",
+        ],
+        button: { label: "Add my resume", url: `${base(opts.siteUrl)}/dashboard` },
+        reason: "You're getting this because you created a get prepped account.",
+        unsubscribeUrl: opts.unsubscribeUrl,
+    });
+    return { subject: "Get your resume reviewed", text, html };
+}
+
+/** Day 1, resume added: its score and the main thing to fix. */
+export function resumeReviewEmail(opts: { name?: string; role?: string; score: number; topFix?: string; siteUrl: string; unsubscribeUrl: string }): Built {
+    const first = firstName(opts.name);
+    const { html, text } = renderEmail({
+        preheader: `Your resume scores ${opts.score} out of 100. Here's what will raise it.`,
+        title: `Your resume scores ${opts.score}/100`,
+        greeting: first ? `Hi ${first},` : "Hi,",
+        paragraphs: [
+            `I've gone through your resume${opts.role ? ` for ${opts.role} roles` : ""}.${opts.topFix ? ` The biggest thing holding it back: ${opts.topFix}` : ""}`,
+            "Your review has ready-made fixes for each line. Apply the ones you like and download it in your own formatting.",
+        ],
+        button: { label: "Improve my resume", url: `${base(opts.siteUrl)}/resume-feedback` },
+        reason: "You're getting this because you added a resume to get prepped.",
+        unsubscribeUrl: opts.unsubscribeUrl,
+    });
+    return { subject: `Your resume scores ${opts.score}/100: here's what to fix`, text, html };
+}
+
+/** Day 2 (and after): this week's tip for their role. */
+export function weeklyTipEmail(opts: { name?: string; tip: { topic: string; title: string; body: string; tryThis: string }; siteUrl: string; unsubscribeUrl: string }): Built {
+    const first = firstName(opts.name);
+    const { html, text } = renderEmail({
+        preheader: opts.tip.title,
+        title: opts.tip.title,
+        subtitle: `This week's tip · ${opts.tip.topic}`,
+        greeting: first ? `Hi ${first},` : "Hi,",
+        paragraphs: [opts.tip.body],
+        notes: [`Try this: ${opts.tip.tryThis}`],
+        button: { label: "Practise an interview", url: `${base(opts.siteUrl)}/dashboard` },
+        reason: "You're getting this because you have a get prepped account.",
+        unsubscribeUrl: opts.unsubscribeUrl,
+    });
+    return { subject: `This week's tip: ${opts.tip.title}`, text, html };
+}

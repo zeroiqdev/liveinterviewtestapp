@@ -589,6 +589,8 @@ export interface BuildCharactersOptions {
     hasAdminTips?: boolean;
     /** This week's and last week's approved tips for this user's role (from /api/weekly-tips). */
     weeklyTips?: Array<{ week: number; topic: string; title: string; body: string; tryThis: string; action?: TipAction }> | null;
+    /** Days since the account was made, when known. */
+    accountAgeDays?: number | null;
     /** Opens the jobs board. */
     onOpenJobs?: () => void;
     onPractice?: () => void;
@@ -611,6 +613,7 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
         onOpenJobs,
         onOpenFeedback,
         onOpenResumeFeedback,
+        accountAgeDays,
     } = opts;
 
     const family = userRoleFamily || (userRole ? normalizeUserRoleFamily(userRole) : "general");
@@ -633,15 +636,21 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
     // ─────────────────────────────────────────────────────────────
     // 1. INTERVIEW COACH
     //
-    // A new account gets three short messages: a welcome, a nudge to add a
-    // resume, and this week's tip. Advice about their answers and their role
-    // only appears once they have done an interview, when it means something.
+    // A new account's messages arrive a day apart, each with an email
+    // (lib/onboardingEmails): the welcome on day 0; on day 1 either a nudge to
+    // add a resume or the review of the one they added; this week's tip on
+    // day 2. Advice about their answers and their role appears after an interview.
     // A new tip arrives every Monday (lib/weeklyTips) with its own id, so it
     // shows as unread without anything being published by hand.
     // ─────────────────────────────────────────────────────────────
     const coachExplanation = "I listen to your answers, tell you what to fix, and send you a new tip every week.";
 
     const hasInterview = !!lastFeedback;
+    // Which day of their first days they're on (unknown age, as for accounts
+    // from before this, counts as past them).
+    const ageDays = accountAgeDays === null || accountAgeDays === undefined ? Infinity : accountAgeDays;
+    const resumeDay = ageDays >= 1;
+    const tipDay = ageDays >= 2;
 
     // Welcome, until the first interview is done.
     let welcomeItem: ChatDmItem | null = null;
@@ -801,7 +810,7 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
             insight: resumeLlmInsight,
             actions: [
                 {
-                    label: "Open my resume review",
+                    label: "Improve my resume",
                     primary: true,
                     onClick: () => onOpenResumeFeedback?.(fid),
                 },
@@ -849,18 +858,21 @@ export function buildCharactersForUser(opts: BuildCharactersOptions = {}): Chara
         };
     });
 
-    // Newest and most personal first. A new account sees the welcome, the
-    // resume nudge and this week's tip; nothing else until there is an interview.
+    // Newest and most personal first.
     const coachItems: ChatDmItem[] = [];
     if (feedbackItem) coachItems.push(feedbackItem);
     if (welcomeItem) coachItems.push(welcomeItem);
-    if (resumeFeedbackItems.length > 0) coachItems.push(...resumeFeedbackItems);
-    else coachItems.push(resumePromptItem);
-    coachItems.push(weeklyTipItems[0]);
+    // Day 1: their resume's review, or a nudge to add one.
+    if (resumeDay) {
+        if (resumeFeedbackItems.length > 0) coachItems.push(...resumeFeedbackItems);
+        else coachItems.push(resumePromptItem);
+    }
+    // Day 2: this week's tip.
+    if (tipDay) coachItems.push(weeklyTipItems[0]);
     if (starItem) coachItems.push(starItem);
     if (domainItem) coachItems.push(domainItem);
     // Last week's tip only once they've been around long enough to have had it.
-    if (hasInterview) coachItems.push(weeklyTipItems[1]);
+    if (hasInterview && ageDays >= 7) coachItems.push(weeklyTipItems[1]);
 
     const coachProfile: CharacterProfile = {
         id: "coach",
