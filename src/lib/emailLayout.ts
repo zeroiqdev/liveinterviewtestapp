@@ -29,6 +29,8 @@ export interface EmailContent {
     subtitle?: string;
     greeting?: string;
     paragraphs: string[];
+    /** Numbered steps, after the paragraphs. */
+    steps?: string[];
     /** A one-time code, shown large. */
     code?: string;
     /** Label/value lines, such as a receipt. */
@@ -76,6 +78,19 @@ export function renderEmail(content: EmailContent): RenderedEmail {
     const e = escapeHtml;
     const paragraph = (text: string, last = false) =>
         `<p style="margin:0 0 ${last ? 0 : 12}px;font-size:15px;line-height:1.6;color:${COLORS.body};">${e(text)}</p>`;
+
+    const steps = content.steps?.length
+        ? `<tr><td style="padding:14px 32px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+${content.steps
+    .map(
+        (step, i) =>
+            `<tr><td style="width:28px;vertical-align:top;padding:0 0 12px;"><div style="width:22px;height:22px;border-radius:11px;background:${COLORS.soft};color:${COLORS.brand};font-size:12px;font-weight:600;line-height:22px;text-align:center;">${i + 1}</div></td><td style="vertical-align:top;padding:1px 0 12px 8px;font-size:15px;line-height:1.55;color:${COLORS.body};">${e(step)}</td></tr>`
+    )
+    .join("\n")}
+</table>
+</td></tr>`
+        : "";
 
     const code = content.code
         ? `<tr><td style="padding:8px 32px 4px;">
@@ -142,6 +157,7 @@ ${content.subtitle ? `<p style="margin:6px 0 0;font-size:14px;line-height:1.45;c
 ${content.greeting ? `<p style="margin:0 0 12px;font-size:15px;color:${COLORS.ink};">${e(content.greeting)}</p>` : ""}
 ${content.paragraphs.map((p, i) => paragraph(p, i === content.paragraphs.length - 1)).join("\n")}
 </td></tr>
+${steps}
 ${code}
 ${rows}
 ${button}
@@ -163,6 +179,8 @@ ${e(content.reason)}${contactLine() ? `<br>${e(contactLine())}` : ""}
         content.greeting,
         content.greeting ? "" : undefined,
         ...content.paragraphs.flatMap((p) => [p, ""]),
+        ...(content.steps || []).map((step, i) => `${i + 1}. ${step}`),
+        ...(content.steps?.length ? [""] : []),
         ...(content.code ? [content.code, ""] : []),
         ...(content.rows || []).map((r) => `${r.label}: ${r.value}`),
         ...(content.rows?.length ? [""] : []),

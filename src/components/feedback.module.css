@@ -1425,6 +1425,20 @@
     border-radius: 4px;
 }
 
+/* Stacked on narrow screens: the suggestions scroll with the page above the
+   resume. (This has to come after the rule above, or the pinned column wins
+   and the resume slides underneath it.) */
+@media (max-width: 960px) {
+    .suggestionsSidebar {
+        position: static;
+        top: auto;
+        max-height: none;
+        overflow-y: visible;
+        border-right: none;
+        scrollbar-gutter: auto;
+    }
+}
+
 .suggestionsToolbar {
     display: flex;
     justify-content: space-between;
@@ -2162,4 +2176,45 @@
 
 .docConfirmBtn:hover {
     background: #FEF3C7;
+}
+
+/* ── Resume review on narrow screens. Kept at the end of the file so it
+   overrides the desktop rules above, whatever order they're in. ── */
+@media (max-width: 960px) {
+    .documentContainer {
+        padding-left: 0;
+    }
+}
+
+@media (max-width: 640px) {
+    .documentPaper {
+        padding: 1.5rem 1.1rem;
+        min-height: 0;
+    }
+    .docName {
+        font-size: 1.55rem;
+    }
+    /* Title and dates on their own lines rather than squeezed side by side. */
+    .docJobTop {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.15rem;
+    }
+    .docJobTop > .docJobDate {
+        margin-left: 0 !important;
+    }
+    /* Each line gets the full width; its badge and buttons sit underneath. */
+    .docBulletItem {
+        flex-wrap: wrap;
+        padding: 0.4rem 0.35rem;
+        row-gap: 0.3rem;
+    }
+    .docBulletItem > span:nth-of-type(2) {
+        /* !important: the line's text sets flex inline for the desktop layout. */
+        flex: 0 0 calc(100% - 1.25rem) !important;
+        min-width: 0;
+    }
+    .docBulletItem > span:nth-of-type(n + 3) {
+        margin-left: 1.1rem;
+    }
 }

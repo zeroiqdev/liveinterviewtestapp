@@ -43,6 +43,8 @@ export interface IUser extends Document {
     resumes: IResume[];
     /** When they last opened the app. */
     lastSeenAt?: Date;
+    /** When the welcome email went out (it's sent once). */
+    welcomeEmailSentAt?: Date;
     /** When they last opened the notifications list. */
     notificationsSeenAt?: Date;
     /** Where they last used the app from, as the hosting network reports it (never typed in). */
@@ -97,6 +99,7 @@ const UserSchema = new Schema<IUser>(
         resumes: [ResumeSchema],
         lastSeenAt: { type: Date },
         notificationsSeenAt: { type: Date },
+        welcomeEmailSentAt: { type: Date },
         location: {
             country: { type: String },
             region: { type: String },
