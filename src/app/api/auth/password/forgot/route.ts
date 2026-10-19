@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { CODE_TTL_MINUTES, issueEmailCode } from "@/lib/emailCode";
-import { EmailNotConfiguredError } from "@/lib/email";
+import { EmailSendError } from "@/lib/email";
 import { LIMITS, clientIp, rateLimit } from "@/lib/rateLimit";
 import { serverError } from "@/lib/apiError";
 
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
             message: `If an account exists for that email, we've sent a 6-digit reset code. It expires in ${CODE_TTL_MINUTES} minutes.`,
         });
     } catch (err) {
-        if (err instanceof EmailNotConfiguredError) {
+        if (err instanceof EmailSendError) {
             return serverError("api/auth/password/forgot", err, "We couldn't send your reset code right now. Please try again in a few minutes, or sign in with Google if that's how you joined.", 503);
         }
         return serverError("api/auth/password/forgot", err, "Could not send a reset code");
