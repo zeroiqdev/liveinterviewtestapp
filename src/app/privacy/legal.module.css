@@ -20,3 +20,14 @@
     .providers { grid-template-columns: minmax(0, 1fr); }
     .providers dd { border-top: 0; padding-top: 0; }
 }
+
+/* "Cookie settings" inside a sentence: looks like a link. */
+.inlineButton {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #2563EB;
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+}
