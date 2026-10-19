@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { Lock, Microphone, MicrophoneSlash, SpeakerHigh, VideoCamera, VideoCameraSlash } from "@phosphor-icons/react";
 import { TryStartForm } from "./TryStartForm";
 import { clearTry, continueUrl, readTry, saveTry, type TryState } from "@/lib/tryClient";
-import { initialsOf, interviewerNameFromVoice } from "@/lib/interviewer";
+import { initialsOf } from "@/lib/interviewer";
 import { useTurnDetection, type VoiceState } from "@/hooks/useTurnDetection";
 import { useVoiceActivity } from "@/hooks/useVoiceActivity";
 import { unlockMediaElement } from "@/hooks/useTtsAudio";
@@ -95,7 +95,8 @@ export default function TryInterview() {
     const [micError, setMicError] = useState<string | null>(null);
     const [signedIn, setSignedIn] = useState(false);
     const [preparing, setPreparing] = useState(false);
-    const [interviewerName, setInterviewerName] = useState("Interviewer");
+    // Shown as "Interviewer", never the voice's own name.
+    const interviewerName = "Interviewer";
     const [currentAudio, setCurrentAudio] = useState<string | null>(null);
 
     const [stream, setStream] = useState<MediaStream | null>(null);
@@ -253,7 +254,6 @@ export default function TryInterview() {
             setInterim("");
             setError(null);
             setCurrentAudio(audio.audioUrl);
-            if (audio.voiceLabel) setInterviewerName(interviewerNameFromVoice(audio.voiceLabel));
             play(audio.audioUrl, () => {
                 setSpeaking(false);
                 if (!isMutedRef.current) startListening();
@@ -452,7 +452,6 @@ export default function TryInterview() {
                                             <i /><i /><i />
                                         </span>
                                         <span className={iv.speakerNameText}>{interviewerName}</span>
-                                        {interviewerName !== "Interviewer" && <span className={iv.speakerRole}>Interviewer</span>}
                                     </div>
                                 </div>
 

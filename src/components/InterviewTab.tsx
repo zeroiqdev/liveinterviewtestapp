@@ -8,7 +8,7 @@ import PassDialog from "./PassDialog";
 import { FeedbackButton } from "./FeedbackButton";
 import { setFeedbackContext } from "@/lib/feedbackContext";
 import styles from "./interview.module.css";
-import { initialsOf, interviewerNameFromVoice } from "@/lib/interviewer";
+import { initialsOf } from "@/lib/interviewer";
 import { clearTry } from "@/lib/tryClient";
 import { GENERIC_GREETING } from "@/engine/greeting";
 import { MODE_LABEL, modeLabel } from "@/lib/interviewModes";
@@ -234,7 +234,8 @@ export default function InterviewTab() {
     const [awaitingBeginTap, setAwaitingBeginTap] = useState(false);
     const beginTapRef = useRef<(() => void) | null>(null);
     // In-call tiles: who the interviewer is, and whether the candidate is talking.
-    const [interviewerName, setInterviewerName] = useState("Interviewer");
+    // Shown as "Interviewer", never the voice's own name.
+    const interviewerName = "Interviewer";
     const [isUserSpeaking, setIsUserSpeaking] = useState(false);
     const [isTimerPaused, setIsTimerPaused] = useState(false);
     const [sessionStarted, setSessionStarted] = useState(false);
@@ -1101,7 +1102,6 @@ export default function InterviewTab() {
         // One voice for the whole interview, matching what the server uses.
         lockVoiceRegion(started.voiceRegion ?? null);
         lateDraftWaitRef.current = started.lateDraftWaitMs ?? DEFAULT_LATE_DRAFT_WAIT_MS;
-        setInterviewerName(interviewerNameFromVoice(started.voiceLabel));
         // The opening audio was generated during session start; cache it so
         // the first question plays immediately.
         started.audioSegments?.forEach((segment) => {
@@ -2369,7 +2369,6 @@ export default function InterviewTab() {
                                             <i /><i /><i />
                                         </span>
                                         <span className={styles.speakerNameText}>{interviewerName}</span>
-                                        {interviewerName !== "Interviewer" && <span className={styles.speakerRole}>Interviewer</span>}
                                     </div>
                                 </div>
 
