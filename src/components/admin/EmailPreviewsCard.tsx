@@ -7,6 +7,9 @@ import m from "./metrics.module.css";
 const EMAILS: Array<{ name: string; label: string; when: string }> = [
     { name: "verify", label: "Confirm your email", when: "Someone signs up with email and password, or asks for a new code." },
     { name: "welcome", label: "Welcome to get prepped", when: "Once, when a new account is ready: after the email code, or straight away with Google." },
+    { name: "resume-nudge", label: "Add your resume", when: "Day 1 after sign-up, if they haven't added a resume. Sent by the daily job." },
+    { name: "resume-review", label: "Your resume scores …/100", when: "Day 1 after sign-up, if they've added a resume: its score and the main thing to fix." },
+    { name: "weekly-tip", label: "This week's tip", when: "Day 2 after sign-up: this week's tip for their role." },
     { name: "reset", label: "Reset your password", when: "Someone asks to reset their password." },
     { name: "change-email", label: "Confirm your new email", when: "Someone changes their email in settings (sent to the new address)." },
     { name: "receipt", label: "Payment received", when: "A pass payment goes through." },

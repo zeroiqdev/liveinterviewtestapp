@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/session";
-import { codeEmail, welcomeEmail } from "@/lib/emailTemplates";
+import { codeEmail, resumeNudgeEmail, resumeReviewEmail, weeklyTipEmail, welcomeEmail } from "@/lib/emailTemplates";
+import { tipForWeek } from "@/lib/weeklyTips";
 import { receiptEmail } from "@/lib/receipts";
 import { roleAddedEmail } from "@/lib/roleRequests";
 import { SITE_URL } from "@/lib/site";
@@ -8,7 +9,7 @@ import { SITE_URL } from "@/lib/site";
 export const dynamic = "force-dynamic";
 
 /** Every email the app sends, with sample details, for checking how they look. */
-const EMAIL_PREVIEWS = ["verify", "welcome", "reset", "change-email", "receipt", "role-added"] as const;
+const EMAIL_PREVIEWS = ["verify", "welcome", "resume-nudge", "resume-review", "weekly-tip", "reset", "change-email", "receipt", "role-added"] as const;
 
 function sample(name: string) {
     switch (name) {
@@ -18,6 +19,12 @@ function sample(name: string) {
             return codeEmail(name, "483920", 10);
         case "welcome":
             return welcomeEmail({ name: "Amara Okafor", role: "Customer Service Representative", siteUrl: SITE_URL });
+        case "resume-nudge":
+            return resumeNudgeEmail({ name: "Amara Okafor", role: "Customer Service Representative", siteUrl: SITE_URL, unsubscribeUrl: `${SITE_URL}/api/email/stop?e=sample&t=sample` });
+        case "resume-review":
+            return resumeReviewEmail({ name: "Amara Okafor", role: "Customer Service Representative", score: 59, topFix: "use the words employers look for. Add the ones that are true for you, such as Zendesk, Intercom, Freshdesk.", siteUrl: SITE_URL, unsubscribeUrl: `${SITE_URL}/api/email/stop?e=sample&t=sample` });
+        case "weekly-tip":
+            return weeklyTipEmail({ name: "Amara Okafor", tip: tipForWeek(), siteUrl: SITE_URL, unsubscribeUrl: `${SITE_URL}/api/email/stop?e=sample&t=sample` });
         case "receipt":
             return receiptEmail(
                 { reference: "gp_sample_7f3a9c", label: "1-Week Bundle", passes: 7, amount: 6500, currency: "NGN", paidAt: new Date(), name: "Amara Okafor", email: "amara@example.test" },

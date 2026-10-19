@@ -51,6 +51,12 @@ export interface IUser extends Document {
     referralQualifiedAt?: Date;
     /** Free passes earned by inviting people so far. */
     referralRewards?: number;
+    /** When the day-1 resume email went out (sent once). */
+    onboardingResumeEmailAt?: Date;
+    /** When the day-2 weekly tip email went out (sent once). */
+    onboardingTipEmailAt?: Date;
+    /** They asked to stop tips and reminders (account, payment and security emails still go out). */
+    tipEmailsOff?: boolean;
     /** When the welcome email went out (it's sent once). */
     welcomeEmailSentAt?: Date;
     /** When they last opened the notifications list. */
@@ -112,6 +118,9 @@ const UserSchema = new Schema<IUser>(
         referredBy: { type: String, index: true },
         referralQualifiedAt: { type: Date },
         referralRewards: { type: Number, default: 0 },
+        onboardingResumeEmailAt: { type: Date },
+        onboardingTipEmailAt: { type: Date },
+        tipEmailsOff: { type: Boolean },
         location: {
             country: { type: String },
             region: { type: String },

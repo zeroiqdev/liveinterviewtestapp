@@ -208,8 +208,20 @@ export function ChatsPanel({
         };
     }, [userRoleFamily]);
 
+    // How long they've had the account: a brand-new one gets only the welcome.
+    const [accountAgeDays] = useState<number | null>(() => {
+        if (typeof window === "undefined") return null;
+        try {
+            const createdAt = JSON.parse(localStorage.getItem("useladder_user") || "null")?.createdAt;
+            return createdAt ? Math.floor((Date.now() - new Date(createdAt).getTime()) / 86_400_000) : null;
+        } catch {
+            return null;
+        }
+    });
+
     const coachProfile = useMemo(() => {
         const characters = buildCharactersForUser({
+            accountAgeDays,
             userRole,
             userRoleFamily,
             displayedJobs,
@@ -234,6 +246,7 @@ export function ChatsPanel({
         allResumeFeedbacks,
         hasAdminTips,
         weeklyTips,
+        accountAgeDays,
         onPractice,
         onOpenJob,
         handleOpenJobs,

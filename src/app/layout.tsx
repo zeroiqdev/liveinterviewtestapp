@@ -6,6 +6,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 import { FeedbackCapture } from "@/components/FeedbackCapture";
 import { ReferralCapture } from "@/components/ReferralCapture";
+import { Analytics } from "@/components/Analytics";
 
 const inter = Inter({ subsets: ["latin"] });
 const ebGaramond = EB_Garamond({ subsets: ["latin"], variable: "--font-eb-garamond" });
@@ -77,6 +78,7 @@ export default function RootLayout({
                         {children}
                     </DashboardLayout>
                 </InterviewProvider>
+                <Analytics />
             </body>
         </html>
     );

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import styles from "./legal.module.css";
+import { CookieSettingsButton } from "@/components/CookieSettingsButton";
 
 export const metadata = {
     title: "Privacy Policy",
@@ -15,7 +16,7 @@ export default function PrivacyPage() {
         <main className={styles.page}>
             <Link href="/" className={styles.back}>← Back to Home</Link>
             <h1 className={styles.title}>Privacy Policy</h1>
-            <p className={styles.meta}>Last updated: 14 October 2026 · get prepped is run by Zero and One Solutions Limited</p>
+            <p className={styles.meta}>Last updated: 19 October 2026 · get prepped is run by Zero and One Solutions Limited</p>
             <p className={styles.lead}>
                 This page explains what we collect when you use get prepped, why we need it, who helps us run the service, how long we keep it, and how you can change or delete it.
                 We don&rsquo;t sell your data and we don&rsquo;t show ads.
@@ -56,6 +57,14 @@ export default function PrivacyPage() {
                             showed, so we can find the problem.
                         </li>
                     </ul>
+                    <h3 id="analytics">Website visits (Google Analytics)</h3>
+                    <ul>
+                        <li>
+                            Only if you accept cookies: Google Analytics records which pages you visit, how long you stay, your type of device and browser, and roughly
+                            where you are (city level). It never receives your name, email, resumes, answers or reports.
+                        </li>
+                        <li>If you decline, Google Analytics isn&rsquo;t loaded at all. You can change your choice at any time: <CookieSettingsButton className={styles.inlineButton} />.</li>
+                    </ul>
                     <h3>Payments</h3>
                     <ul>
                         <li>What you bought, how much you paid, when, and the payment reference. Your card or bank details go straight to our payment provider and never reach us.</li>
@@ -87,6 +96,8 @@ export default function PrivacyPage() {
                         <dd>Turns the interviewer&rsquo;s and coach&rsquo;s words into speech.</dd>
                         <dt>Google (Gemini)</dt>
                         <dd>Reads your answers, resumes and job descriptions to write questions, follow-ups and feedback.</dd>
+                        <dt>Google Analytics</dt>
+                        <dd>Counts visits to the website, only if you accept cookies.</dd>
                         <dt>Google sign-in</dt>
                         <dd>Signs you in, if you choose Continue with Google.</dd>
                         <dt>Resend</dt>
@@ -101,6 +112,7 @@ export default function PrivacyPage() {
                     <ul>
                         <li>Your account and everything in it, until you delete your account.</li>
                         <li>Interviews tried before signing up: seven days, unless you sign up and carry on.</li>
+                        <li>Website visit data in Google Analytics: 14 months.</li>
                         <li>Payment records: kept after you delete your account, because we need them for our accounts.</li>
                     </ul>
                 </section>
