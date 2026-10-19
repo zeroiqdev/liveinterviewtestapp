@@ -2218,3 +2218,247 @@
         margin-left: 1.1rem;
     }
 }
+
+/* ── Resume review on phones: fixes and resume as tabs, one fix at a time,
+   actions in a bar at the bottom. Only used under 960px. ── */
+.phoneTabs {
+    position: sticky;
+    /* Just under the page's own pinned header (60px). */
+    top: calc(60px + env(safe-area-inset-top, 0px));
+    z-index: 20;
+    display: flex;
+    gap: 4px;
+    margin: 0.5rem 0 1rem;
+    padding: 4px;
+    background: #F1F5F9;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+}
+
+.phoneTab {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 40px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: #475569;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.phoneTabOn {
+    background: #FFFFFF;
+    color: #0F172A;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.phoneTabBadge {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #4782F6;
+    color: #FFFFFF;
+    font-size: 0.7rem;
+    line-height: 18px;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 960px) {
+    .unifiedWorkspace[data-phone-tab] {
+        padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+    }
+    .unifiedWorkspace[data-phone-tab="fixes"] .documentContainer,
+    .unifiedWorkspace[data-phone-tab="resume"] .suggestionsSidebar {
+        display: none;
+    }
+}
+
+.phoneProgress {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.phoneProgressTop {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #0F172A;
+}
+
+.phoneProgressBar {
+    height: 4px;
+    border-radius: 2px;
+    background: #E2E8F0;
+    overflow: hidden;
+}
+
+.phoneProgressBar span {
+    display: block;
+    height: 100%;
+    background: #4782F6;
+    transition: width 0.3s ease;
+}
+
+.phoneLinkBtn {
+    border: 0;
+    background: none;
+    padding: 4px 0;
+    color: #2563EB;
+    font-family: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+
+.phoneFixActions {
+    display: flex;
+    gap: 8px;
+    margin-top: 0.85rem;
+}
+
+.phoneFixActions .phonePrimaryBtn {
+    flex: 1;
+}
+
+.phonePrimaryBtn,
+.phoneSecondaryBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 16px;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 0.92rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.phonePrimaryBtn {
+    border: 1px solid #4782F6;
+    background: #4782F6;
+    color: #FFFFFF;
+}
+
+.phoneSecondaryBtn {
+    border: 1px solid #E2E8F0;
+    background: #FFFFFF;
+    color: #334155;
+}
+
+.phoneDone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 1.5rem 1rem;
+    text-align: center;
+    background: #FFFFFF;
+    border: 1px solid #E4E4E7;
+    border-radius: 12px;
+}
+
+.phoneDone strong {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #0F172A;
+}
+
+.phoneDone span {
+    font-size: 0.85rem;
+    color: #64748B;
+}
+
+.phoneDone .phonePrimaryBtn,
+.phoneDone .phoneSecondaryBtn {
+    width: 100%;
+}
+
+.phoneBar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: rgba(255, 255, 255, 0.97);
+    border-top: 1px solid #E2E8F0;
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
+}
+
+.phoneBarScore {
+    flex: 1;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    min-width: 0;
+}
+
+.phoneBarScore strong {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #0F172A;
+    font-variant-numeric: tabular-nums;
+}
+
+.phoneBarScore span {
+    font-size: 0.8rem;
+    color: #64748B;
+}
+
+.phoneBarScore em {
+    font-style: normal;
+    font-weight: 600;
+    color: #15803D;
+}
+
+.phoneToast {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    z-index: 31;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #0F172A;
+    color: #FFFFFF;
+    font-size: 0.88rem;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2);
+}
+
+.phoneToast button {
+    border: 0;
+    background: none;
+    color: #93C5FD;
+    font-family: inherit;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+@media (min-width: 961px) {
+    .phoneTabs,
+    .phoneBar,
+    .phoneToast,
+    .phoneProgress {
+        display: none;
+    }
+}

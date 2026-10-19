@@ -1171,6 +1171,70 @@ export default function ResumeFeedbackReport({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [suggestions, planState]);
 
+    // ── Phones: fixes and resume as two tabs, one fix at a time, actions in a bottom bar ──
+    const [isPhone, setIsPhone] = useState(false);
+    useEffect(() => {
+        const query = window.matchMedia("(max-width: 960px)");
+        const update = () => setIsPhone(query.matches);
+        update();
+        query.addEventListener("change", update);
+        return () => query.removeEventListener("change", update);
+    }, []);
+    const [phoneTab, setPhoneTab] = useState<"fixes" | "resume">("fixes");
+    const [showAllFixes, setShowAllFixes] = useState(false);
+    const [skippedFixes, setSkippedFixes] = useState<Set<string>>(() => new Set());
+    /** Fixes applied since the Resume tab was last opened. */
+    const [unseenChanges, setUnseenChanges] = useState(0);
+    const [phoneToast, setPhoneToast] = useState<string | null>(null);
+    const startScoreRef = useRef<number | null>(null);
+    useEffect(() => {
+        if (planState === "done" && startScoreRef.current === null) startScoreRef.current = liveAtsResult.overallScore;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [planState]);
+
+    const openFixes = suggestions.filter((sug) => !sug.applied && !skippedFixes.has(sug.id));
+    const currentFix = openFixes[0];
+    const reviewedCount = suggestions.length - openFixes.length;
+    // Skipped and still not applied (Apply all can apply a skipped one).
+    const skippedOpen = suggestions.filter((sug) => skippedFixes.has(sug.id) && !sug.applied).length;
+
+    const flashPhone = (message: string) => {
+        setPhoneToast(message);
+        window.setTimeout(() => setPhoneToast((current) => (current === message ? null : current)), 2600);
+    };
+    const showPhoneTab = (tab: "fixes" | "resume") => {
+        setPhoneTab(tab);
+        if (tab === "resume") setUnseenChanges(0);
+        window.scrollTo({ top: document.getElementById("resume-workspace")?.offsetTop ?? 0, behavior: "smooth" });
+    };
+    const phoneApply = (sugId: string) => {
+        handleApplyImprovement(sugId);
+        setUnseenChanges((n) => n + 1);
+        flashPhone("Applied. See it in your resume.");
+    };
+    const phoneApplyAll = () => {
+        const count = suggestions.filter((sug) => !sug.applied).length;
+        handleApplyAll();
+        setUnseenChanges((n) => n + count);
+        flashPhone(`${count} ${count === 1 ? "fix" : "fixes"} applied.`);
+    };
+    const phoneSkip = (sugId: string) => setSkippedFixes((prev) => new Set(prev).add(sugId));
+    /** Opens the line in the resume with the suggestion filled in, to change before keeping it. */
+    const phoneEdit = (sug: SuggestionItem) => {
+        if (sug.type === "summary") {
+            handleApplyImprovement(sug.id);
+            showPhoneTab("resume");
+            startEditing({ kind: "summary" }, sug.proposedText);
+            return;
+        }
+        const bullet = structuredResume.jobs.flatMap((job) => job.bullets).find((b) => b.suggestionId === sug.id);
+        if (!bullet) return;
+        setPhoneTab("resume");
+        setUnseenChanges(0);
+        startEditing({ kind: "bullet", id: bullet.id }, sug.proposedText);
+        window.setTimeout(() => bulletRefs.current[bullet.id]?.scrollIntoView({ behavior: "smooth", block: "center" }), 150);
+    };
+
     // ── Suggested numbers: they count once the person says they're true ──
     const unconfirmedLines = structuredResume.jobs.reduce((n, job) => n + job.bullets.filter((b) => b.exampleNumbers).length, 0);
     const confirmNumbers = (bulletId: string) => {
@@ -2002,7 +2066,47 @@ export default function ResumeFeedbackReport({
                 </div>
 
                 {/* ── Single Unified Workspace: Suggestions Left, Document Right ── */}
-                <div className={styles.unifiedWorkspace}>
+                {isPhone && !isDocLoading && (
+                    <div className={styles.phoneBar}>
+                        <div className={styles.phoneBarScore}>
+                            <strong>{currentScore}</strong>
+                            <span>
+                                / 100
+                                {startScoreRef.current !== null && currentScore > startScoreRef.current && <em> +{currentScore - startScoreRef.current}</em>}
+                            </span>
+                        </div>
+                        {suggestions.some((sug) => !sug.applied) && (
+                            <button type="button" className={styles.phoneSecondaryBtn} onClick={phoneApplyAll}>
+                                Apply all
+                            </button>
+                        )}
+                        <button type="button" className={styles.phonePrimaryBtn} onClick={() => void handleDownloadDocx()}>
+                            {copiedDoc ? "Downloaded" : "Download"}
+                        </button>
+                    </div>
+                )}
+                {isPhone && phoneToast && (
+                    <div className={styles.phoneToast} role="status">
+                        <span>{phoneToast}</span>
+                        {phoneTab === "fixes" && /Applied|applied/.test(phoneToast) && (
+                            <button type="button" onClick={() => showPhoneTab("resume")}>
+                                View
+                            </button>
+                        )}
+                    </div>
+                )}
+                {isPhone && !isDocLoading && (
+                    <div className={styles.phoneTabs} role="tablist" aria-label="Resume review">
+                        <button type="button" role="tab" aria-selected={phoneTab === "fixes"} className={`${styles.phoneTab} ${phoneTab === "fixes" ? styles.phoneTabOn : ""}`} onClick={() => showPhoneTab("fixes")}>
+                            Fixes{openFixes.length > 0 ? ` (${openFixes.length})` : ""}
+                        </button>
+                        <button type="button" role="tab" aria-selected={phoneTab === "resume"} className={`${styles.phoneTab} ${phoneTab === "resume" ? styles.phoneTabOn : ""}`} onClick={() => showPhoneTab("resume")}>
+                            Resume
+                            {unseenChanges > 0 && <span className={styles.phoneTabBadge}>{unseenChanges}</span>}
+                        </button>
+                    </div>
+                )}
+                <div id="resume-workspace" className={styles.unifiedWorkspace} data-phone-tab={isPhone ? phoneTab : undefined}>
                     <div className={styles.unifiedGrid}>
                         {/* ── LEFT COLUMN: Actionable Suggestions ── */}
                         <div className={styles.suggestionsSidebar}>
@@ -2021,7 +2125,20 @@ export default function ResumeFeedbackReport({
                                     </button>
                                 </div>
                             )}
-                            <div className={styles.suggestionsToolbar}>
+                            {isPhone && !isDocLoading && suggestions.length > 0 && (
+                                <div className={styles.phoneProgress}>
+                                    <div className={styles.phoneProgressTop}>
+                                        <span>{currentFix && !showAllFixes ? `Fix ${reviewedCount + 1} of ${suggestions.length}` : `${appliedCount} of ${suggestions.length} applied`}</span>
+                                        <button type="button" className={styles.phoneLinkBtn} onClick={() => setShowAllFixes((v) => !v)}>
+                                            {showAllFixes ? "One at a time" : "See all fixes"}
+                                        </button>
+                                    </div>
+                                    <div className={styles.phoneProgressBar} aria-hidden="true">
+                                        <span style={{ width: `${Math.round((reviewedCount / suggestions.length) * 100)}%` }} />
+                                    </div>
+                                </div>
+                            )}
+                            <div className={styles.suggestionsToolbar} style={isPhone ? { display: "none" } : undefined}>
                                 <span className={styles.suggestionsCountLabel}>
                                     <span>
                                         {totalCount === 0 ? "Suggested rewrites" : `${appliedCount} of ${totalCount} improvements applied`}
@@ -2083,7 +2200,22 @@ export default function ResumeFeedbackReport({
                                     </div>
                                 </div>
                             ) : null}
-                            {!isDocLoading && suggestions.map((sug) => {
+                            {isPhone && !showAllFixes && !isDocLoading && suggestions.length > 0 && !currentFix && planState !== "working" && (
+                                <div className={styles.phoneDone}>
+                                    <CheckCircle size={22} weight="fill" color="#16A34A" />
+                                    <strong>You&rsquo;ve been through every fix</strong>
+                                    <span>{appliedCount} applied{skippedOpen > 0 ? `, ${skippedOpen} skipped` : ""}.</span>
+                                    <button type="button" className={styles.phonePrimaryBtn} onClick={() => showPhoneTab("resume")}>
+                                        See your resume
+                                    </button>
+                                    {skippedOpen > 0 && (
+                                        <button type="button" className={styles.phoneSecondaryBtn} onClick={() => setSkippedFixes(new Set())}>
+                                            Go back to skipped fixes ({skippedOpen})
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                            {!isDocLoading && (isPhone && !showAllFixes ? (currentFix ? [currentFix] : []) : suggestions).map((sug) => {
                                 const isActive = activeSuggestionId === sug.id;
                                 const isApplied = sug.applied;
                                 const isKeywordAddition = !!sug.fusedKeyword;
@@ -2168,6 +2300,22 @@ export default function ResumeFeedbackReport({
                                             </p>
                                         )}
 
+                                        {isPhone && !showAllFixes && !isApplied ? (
+                                            <div className={styles.phoneFixActions}>
+                                                <button type="button" className={styles.phoneSecondaryBtn} onClick={(e) => { e.stopPropagation(); phoneSkip(sug.id); }}>
+                                                    Skip
+                                                </button>
+                                                {(sug.type === "edit" || sug.type === "summary" || !sug.type) && (
+                                                    <button type="button" className={styles.phoneSecondaryBtn} onClick={(e) => { e.stopPropagation(); phoneEdit(sug); }}>
+                                                        Edit
+                                                    </button>
+                                                )}
+                                                <button type="button" className={styles.phonePrimaryBtn} onClick={(e) => { e.stopPropagation(); phoneApply(sug.id); }}>
+                                                    <Check size={15} weight="bold" />
+                                                    Apply
+                                                </button>
+                                            </div>
+                                        ) : (
                                         <div className={styles.suggestionActionRow}>
                                             <span style={{ fontSize: "0.74rem", color: "#64748B" }}>
                                                 {isApplied ? "Applied — click Undo to revert" : isActive ? "Highlighting in document →" : "Click to view in document"}
@@ -2197,12 +2345,14 @@ export default function ResumeFeedbackReport({
                                                 </button>
                                             )}
                                         </div>
+                                        )}
                                     </div>
                                 );
                             })}
 
                             {/* Missing Keywords Box — now with Fuse into experience */}
-                            {report.missingKeywords && report.missingKeywords.length > 0 && (
+                            {/* On a phone, one fix at a time: keyword fixes are already cards. */}
+                            {report.missingKeywords && report.missingKeywords.length > 0 && !(isPhone && !showAllFixes) && (
                                 <div id="missing-keywords" style={{ background: "#FFFFFF", border: "1px solid #E4E4E7", borderRadius: "10px", padding: "1rem" }}>
                                     <div style={{ marginBottom: "0.5rem" }}>
                                         <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#0F172A" }}>
