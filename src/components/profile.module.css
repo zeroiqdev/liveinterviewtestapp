@@ -110,3 +110,8 @@ select.input { appearance: auto; }
     .segmented { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .saveRow { flex-wrap: wrap; }
 }
+
+/* Progress toward the next free pass from invites. */
+.inviteDots { display: flex !important; flex-direction: row !important; gap: 6px !important; }
+.inviteDots i { width: 14px; height: 14px; border-radius: 50%; background: #FFFFFF; border: 2px solid #C9DBFF; }
+.inviteDots .inviteDotOn { background: #4782F6; border-color: #4782F6; }

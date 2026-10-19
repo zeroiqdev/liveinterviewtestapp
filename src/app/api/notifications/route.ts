@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
             PassPurchase.find({ email, status: "paid", $or: [{ paidAt: { $gte: since } }, { paidAt: null, createdAt: { $gte: since } }] })
                 .sort({ paidAt: -1 })
                 .limit(MAX_NOTIFICATIONS)
-                .select("reference passes amount discountCode paidAt createdAt")
+                .select("reference passes amount discountCode label paidAt createdAt")
                 .lean(),
             InterviewReport.find({ email, createdAt: { $gte: since } })
                 .sort({ createdAt: -1 })
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
         ]);
         const notifications = buildNotifications({
             accountCreatedAt: user?.createdAt,
-            purchases: purchases.map((p) => ({ reference: p.reference, passes: p.passes, amount: p.amount, discountCode: p.discountCode, paidAt: p.paidAt ?? p.createdAt })),
+            purchases: purchases.map((p) => ({ reference: p.reference, passes: p.passes, amount: p.amount, discountCode: p.discountCode, label: p.label, paidAt: p.paidAt ?? p.createdAt })),
             reports: reports.map((r) => ({ sessionId: r.sessionId, overallScore: r.overallScore, role: r.role, interviewType: r.interviewType, createdAt: r.createdAt })),
             resumes: (user?.resumes ?? []).map((r) => ({ id: r.id, name: r.name, score: r.score, createdAt: r.createdAt })),
             activeUntil: wallet?.activeUntil ?? null,

@@ -43,6 +43,14 @@ export interface IUser extends Document {
     resumes: IResume[];
     /** When they last opened the app. */
     lastSeenAt?: Date;
+    /** Their invite code, for links like /?ref=K7Q2MX (made the first time it's needed). */
+    referralCode?: string;
+    /** Email of the person who invited them, set when the account was created. */
+    referredBy?: string;
+    /** When they first bought a pass, which counts toward their inviter's reward. */
+    referralQualifiedAt?: Date;
+    /** Free passes earned by inviting people so far. */
+    referralRewards?: number;
     /** When the day-1 resume email went out (sent once). */
     onboardingResumeEmailAt?: Date;
     /** When the day-2 weekly tip email went out (sent once). */
@@ -106,6 +114,10 @@ const UserSchema = new Schema<IUser>(
         lastSeenAt: { type: Date },
         notificationsSeenAt: { type: Date },
         welcomeEmailSentAt: { type: Date },
+        referralCode: { type: String, unique: true, sparse: true },
+        referredBy: { type: String, index: true },
+        referralQualifiedAt: { type: Date },
+        referralRewards: { type: Number, default: 0 },
         onboardingResumeEmailAt: { type: Date },
         onboardingTipEmailAt: { type: Date },
         tipEmailsOff: { type: Boolean },

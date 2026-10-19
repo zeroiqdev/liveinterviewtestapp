@@ -5,6 +5,7 @@ import { InterviewProvider } from "@/context/InterviewContext";
 import DashboardLayout from "@/components/DashboardLayout";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 import { FeedbackCapture } from "@/components/FeedbackCapture";
+import { ReferralCapture } from "@/components/ReferralCapture";
 import { Analytics } from "@/components/Analytics";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -70,6 +71,7 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body className={`${inter.className} ${ebGaramond.variable}`}>
+                <ReferralCapture />
                 <FeedbackCapture />
                 <InterviewProvider>
                     <DashboardLayout>
