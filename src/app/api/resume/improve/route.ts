@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
                 .filter((l: { text: string }) => l.text)
                 .slice(0, 14);
             const other: string[] = (Array.isArray(body.otherLines) ? body.otherLines : []).map((l: unknown) => clip(l, 400).trim()).filter(Boolean).slice(0, 20);
-            const keywords: string[] = (Array.isArray(body.missingKeywords) ? body.missingKeywords : []).map((k: unknown) => clip(k, 40).trim()).filter(Boolean).slice(0, 8);
+            const keywords: string[] = (Array.isArray(body.missingKeywords) ? body.missingKeywords : []).map((k: unknown) => clip(k, 40).trim()).filter(Boolean).slice(0, 12);
             const needSummary = body.needSummary === true;
             const needSkills = body.needSkills === true;
             if (weak.length === 0 && keywords.length === 0 && !needSummary && !needSkills) return NextResponse.json({ rewrites: [] });

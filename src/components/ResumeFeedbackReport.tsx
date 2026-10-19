@@ -866,6 +866,7 @@ export default function ResumeFeedbackReport({
     const handleApplyImprovement = (sugId: string) => {
         const sug = suggestions.find((s) => s.id === sugId);
         if (!sug) return;
+        markHandled([sug.proposedText, sug.targetSnippet]);
 
         if (sug.type === "summary" || sug.type === "skills") {
             setStructuredResume((prev) => applySection(prev, sug));
@@ -961,6 +962,7 @@ export default function ResumeFeedbackReport({
 
     // Apply all improvements at once
     const handleApplyAll = () => {
+        markHandled(suggestions.filter((s) => !s.applied).flatMap((s) => [s.proposedText, s.targetSnippet]));
         setStructuredResume((prev) => {
             let updatedJobs = prev.jobs.map((job) => ({
                 ...job,
@@ -1014,12 +1016,53 @@ export default function ResumeFeedbackReport({
 
     const stripBullet = (text: string) => text.replace(/^[•·●\u25CF]\s*/, "");
 
-    /** Remembered per version of the resume, so reopening the page doesn't redo the work. */
-    const planKey = () => {
-        const text = `${report.role}|${structuredToText(displayResume)}`;
-        let h = 5381;
-        for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
-        return `useladder_resume_plan:${(h >>> 0).toString(36)}`;
+    /**
+     * What has been suggested for this resume, kept per resume (not per version
+     * of its text), so applying a suggestion doesn't bring a fresh set next time:
+     * the cards still open, the lines already dealt with (applied, edited or
+     * numbers confirmed), and the keywords and sections already offered.
+     */
+    interface PlanStore {
+        cards: SuggestionItem[];
+        handled: string[];
+        keywords: string[];
+        sections: string[];
+    }
+    const lineKey = (text: string) => stripBullet(text).toLowerCase().replace(/\s+/g, " ").trim();
+    const planStoreKey = () => {
+        let id = "";
+        try {
+            const saved = JSON.parse(localStorage.getItem("useladder_last_resume_feedback") || "null");
+            if (saved?.id && saved.id !== "active-cv-feedback") id = saved.id;
+        } catch {
+            // Fall back to the resume's name below.
+        }
+        return `useladder_resume_plan_v2:${id || `${report.resumeName || "resume"}|${report.role || ""}`}`;
+    };
+    const readPlanStore = (): PlanStore => {
+        try {
+            const stored = JSON.parse(localStorage.getItem(planStoreKey()) || "null");
+            if (stored && Array.isArray(stored.cards)) {
+                return { cards: stored.cards, handled: stored.handled || [], keywords: stored.keywords || [], sections: stored.sections || [] };
+            }
+        } catch {
+            // Saved data is blocked: start empty.
+        }
+        return { cards: [], handled: [], keywords: [], sections: [] };
+    };
+    const writePlanStore = (store: PlanStore) => {
+        try {
+            localStorage.setItem(planStoreKey(), JSON.stringify({ ...store, handled: store.handled.slice(-300) }));
+        } catch {
+            // Saved data is full or blocked: suggestions are worked out again next time.
+        }
+    };
+    /** Lines the person has dealt with: never suggested again. */
+    const markHandled = (texts: string[]) => {
+        const store = readPlanStore();
+        const handled = new Set(store.handled);
+        for (const t of texts) if (t && t.trim()) handled.add(lineKey(t));
+        writePlanStore({ ...store, handled: Array.from(handled) });
     };
 
     /** Puts plan cards in the list, each line card tied to its line in the document. */
@@ -1046,42 +1089,44 @@ export default function ResumeFeedbackReport({
     };
 
     const runPlan = async () => {
-        const key = planKey();
-        try {
-            const cached = JSON.parse(localStorage.getItem(key) || "null");
-            if (Array.isArray(cached)) {
-                showPlanCards(cached);
-                setPlanState("done");
-                return;
-            }
-        } catch {
-            // Saved data is blocked: work it out again.
-        }
+        const store = readPlanStore();
+        const handled = new Set(store.handled);
+        // Cards from earlier visits that weren't applied come back as they were.
+        const reopened = store.cards.filter((card) => !card.applied);
+        const reopenedLines = new Set(reopened.filter((c) => c.type === "edit").map((c) => lineKey(c.targetSnippet)));
+        if (reopened.length > 0) showPlanCards(reopened);
 
         const weakLines: Array<{ text: string; issues: string[] }> = [];
         const otherLines: string[] = [];
         for (const job of structuredResume.jobs) {
             for (const b of job.bullets) {
                 if (isProjectHeader(b.text) || b.suggestionId) continue;
+                // Lines the person has dealt with are final: never rewritten again, not even for a keyword.
+                if (handled.has(lineKey(b.text))) continue;
+                // Already has a card, or only waiting for its numbers to be confirmed.
+                if (reopenedLines.has(lineKey(b.text)) || b.exampleNumbers) continue;
                 const issues = [...(hasMetric(b.text) ? [] : ["number"]), ...(startsWithStrongActionVerb(b.text) && !hasWeakPhrase(b.text) ? [] : ["verb"])];
                 if (issues.length > 0) weakLines.push({ text: stripBullet(b.text), issues });
                 else otherLines.push(stripBullet(b.text));
             }
         }
         const fullText = structuredToText(displayResume).toLowerCase();
-        const missingKeywords = Array.from(new Set([...liveAtsResult.metrics.missingKeywords, ...(report.missingKeywords || [])]))
-            .filter((k) => k && !fullText.includes(k.toLowerCase()) && !infusedKeywords.has(k))
-            .slice(0, 8);
-        const needSummary = liveAtsResult.metrics.missingSections.includes("Summary") && !suggestions.some((s) => s.type === "summary");
-        const needSkills = liveAtsResult.metrics.missingSections.includes("Skills & Tools") && !suggestions.some((s) => s.type === "skills");
-        if (weakLines.length === 0 && missingKeywords.length === 0 && !needSummary && !needSkills) {
+        // Every missing word at once, so later visits don't keep finding "new" ones.
+        const missingKeywords = Array.from(new Set([...liveAtsResult.metrics.allMissingKeywords, ...(report.missingKeywords || [])]))
+            .filter((k) => k && !fullText.includes(k.toLowerCase()) && !infusedKeywords.has(k) && !store.keywords.includes(k))
+            .slice(0, 12);
+        const needSummary = liveAtsResult.metrics.missingSections.includes("Summary") && !store.sections.includes("summary") && !suggestions.some((s) => s.type === "summary");
+        const needSkills = liveAtsResult.metrics.missingSections.includes("Skills & Tools") && !store.sections.includes("skills") && !suggestions.some((s) => s.type === "skills");
+        // Keywords need lines to go into; without any open lines there is nothing to ask for.
+        const keywordsToPlace = weakLines.length + otherLines.length > 0 ? missingKeywords : [];
+        if (weakLines.length === 0 && keywordsToPlace.length === 0 && !needSummary && !needSkills) {
             setPlanState("done");
             return;
         }
 
         setPlanState("working");
         try {
-            const data = await askForFix({ kind: "plan", weakLines, otherLines, missingKeywords, needSummary, needSkills });
+            const data = await askForFix({ kind: "plan", weakLines, otherLines, missingKeywords: keywordsToPlace, needSummary, needSkills });
             const cards: SuggestionItem[] = [];
             if (data.summary) {
                 cards.push({ id: "fix-summary", type: "summary", category: "Structure & Clarity", title: "Add a short summary at the top", feedback: "Recruiters read the top first. A summary tells them in one glance what you do and what you've achieved.", recommendation: "", targetSnippet: "", proposedText: data.summary, scoreLift: 3, applied: false });
@@ -1092,7 +1137,7 @@ export default function ResumeFeedbackReport({
             for (const r of (data.rewrites || []) as Array<{ original: string; rewritten: string; reason: string; keyword?: string }>) {
                 const issues = weakLines.find((l) => l.text === r.original)?.issues || [];
                 cards.push({
-                    id: `plan-${cards.length}-${r.original.slice(0, 12).replace(/\W+/g, "")}`,
+                    id: `plan-${Date.now().toString(36)}-${cards.length}`,
                     type: "edit",
                     category: r.keyword ? "Role Alignment & Keywords" : issues.includes("number") ? "Impact & Metrics" : "Action Verbs & Brevity",
                     title: r.reason,
@@ -1105,11 +1150,12 @@ export default function ResumeFeedbackReport({
                     ...(r.keyword ? { fusedKeyword: r.keyword } : {}),
                 });
             }
-            try {
-                localStorage.setItem(key, JSON.stringify(cards));
-            } catch {
-                // Saved data is full or blocked: it's worked out again next time.
-            }
+            writePlanStore({
+                cards: [...reopened, ...cards],
+                handled: store.handled,
+                keywords: Array.from(new Set([...store.keywords, ...missingKeywords])),
+                sections: Array.from(new Set([...store.sections, ...(needSummary ? ["summary"] : []), ...(needSkills ? ["skills"] : [])])),
+            });
             showPlanCards(cards);
             setPlanState("done");
         } catch {
@@ -1117,9 +1163,19 @@ export default function ResumeFeedbackReport({
         }
     };
 
+    // The open cards, saved as they change (once this visit's plan has loaded).
+    useEffect(() => {
+        if (planState !== "done") return;
+        const store = readPlanStore();
+        writePlanStore({ ...store, cards: suggestions.filter((sug) => (sug.id.startsWith("plan-") || sug.id.startsWith("fix-")) && !sug.applied) });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [suggestions, planState]);
+
     // ── Suggested numbers: they count once the person says they're true ──
     const unconfirmedLines = structuredResume.jobs.reduce((n, job) => n + job.bullets.filter((b) => b.exampleNumbers).length, 0);
     const confirmNumbers = (bulletId: string) => {
+        const line = structuredResume.jobs.flatMap((job) => job.bullets).find((b) => b.id === bulletId);
+        if (line) markHandled([line.text]);
         setStructuredResume((prev) => ({
             ...prev,
             jobs: prev.jobs.map((job) => ({ ...job, bullets: job.bullets.map((b) => (b.id === bulletId ? { ...b, exampleNumbers: undefined } : b)) })),
@@ -1145,6 +1201,7 @@ export default function ResumeFeedbackReport({
             if (text) setStructuredResume((prev) => ({ ...prev, contact: text }));
         } else {
             const id = editing.id;
+            markHandled([text]);
             let linked: string | undefined;
             setStructuredResume((prev) => ({
                 ...prev,

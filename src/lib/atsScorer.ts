@@ -36,7 +36,10 @@ export interface AtsMetrics {
     weakPhraseBullets: number;
     averageWordsPerBullet: number;
     matchedKeywords: string[];
+    /** The top few missing words, for display. */
     missingKeywords: string[];
+    /** Every missing word, most important first. */
+    allMissingKeywords: string[];
     sectionsFound: string[];
     missingSections: string[];
 }
@@ -848,6 +851,7 @@ export function calculateStructuredAtsScore(
             averageWordsPerBullet: avgWords,
             matchedKeywords,
             missingKeywords: missingKeywords.slice(0, 5),
+            allMissingKeywords: missingKeywords,
             sectionsFound,
             missingSections,
         },
