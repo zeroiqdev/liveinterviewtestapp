@@ -26,7 +26,7 @@ export default function OpengraphImage() {
                 <div style={{ display: "flex", fontSize: 40, fontWeight: 700, letterSpacing: -1 }}>{SITE_NAME}</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
                     <div style={{ display: "flex", fontSize: 76, fontWeight: 700, lineHeight: 1.08, letterSpacing: -2, maxWidth: 980 }}>
-                        Free interview practice for your dream job.
+                        We help talents prepare for their dream job.
                     </div>
                     <div style={{ display: "flex", fontSize: 34, color: "#A9B8D4", maxWidth: 940, lineHeight: 1.3 }}>
                         Practise out loud. The interviewer follows up on your answers, then shows you what to fix.
