@@ -17,8 +17,7 @@ export const SITE_URL = (
 export const SITE_NAME = "get prepped";
 // What people search ("interview practice") first, the brand last.
 export const SITE_TITLE = "Free Interview Practice for Your Dream Job | get prepped";
-export const SITE_DESCRIPTION =
-    "Practise a real job interview out loud. The interviewer asks follow-up questions on your answers, then shows you exactly what to fix. Your first interview is free.";
+export const SITE_DESCRIPTION = "We help you prepare for your dream job, one practice interview at a time. Your first one is free.";
 export const COMPANY_NAME = "Zero and One Solutions Limited";
 
 /** Pages anyone can open, for the sitemap. Everything else needs an account. */
