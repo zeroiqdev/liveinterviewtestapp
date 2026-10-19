@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/session";
-import { codeEmail } from "@/lib/emailTemplates";
+import { codeEmail, welcomeEmail } from "@/lib/emailTemplates";
 import { receiptEmail } from "@/lib/receipts";
 import { roleAddedEmail } from "@/lib/roleRequests";
 import { SITE_URL } from "@/lib/site";
@@ -8,7 +8,7 @@ import { SITE_URL } from "@/lib/site";
 export const dynamic = "force-dynamic";
 
 /** Every email the app sends, with sample details, for checking how they look. */
-const EMAIL_PREVIEWS = ["verify", "reset", "change-email", "receipt", "role-added"] as const;
+const EMAIL_PREVIEWS = ["verify", "welcome", "reset", "change-email", "receipt", "role-added"] as const;
 
 function sample(name: string) {
     switch (name) {
@@ -16,6 +16,8 @@ function sample(name: string) {
         case "reset":
         case "change-email":
             return codeEmail(name, "483920", 10);
+        case "welcome":
+            return welcomeEmail({ name: "Amara Okafor", role: "Customer Service Representative", siteUrl: SITE_URL });
         case "receipt":
             return receiptEmail(
                 { reference: "gp_sample_7f3a9c", label: "1-Week Bundle", passes: 7, amount: 6500, currency: "NGN", paidAt: new Date(), name: "Amara Okafor", email: "amara@example.test" },

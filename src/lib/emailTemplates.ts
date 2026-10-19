@@ -1,6 +1,7 @@
 /** Wording for the emailed one-time codes, in the shared email layout. */
 
 import { renderEmail } from "@/lib/emailLayout";
+import { FREE_INTERVIEWS } from "@/lib/passes";
 import type { EmailCodePurpose } from "@/models/EmailCode";
 
 const COPY: Record<EmailCodePurpose, { subject: string; title: string; lead: string; ifNotYou: string; reason: string }> = {
@@ -40,4 +41,25 @@ export function codeEmail(purpose: EmailCodePurpose, code: string, minutes: numb
     });
     // The code goes in the subject's preview, not the subject itself, so it isn't left in inbox lists.
     return { subject: copy.subject, text, html };
+}
+
+/** Sent once, when a new account is ready to use. */
+export function welcomeEmail(opts: { name?: string; role?: string; siteUrl: string }): { subject: string; text: string; html: string } {
+    const first = opts.name?.trim().split(/\s+/)[0];
+    const role = opts.role?.trim();
+    const free = FREE_INTERVIEWS > 0;
+    const { html, text } = renderEmail({
+        preheader: free ? "Your first interview is on us. Here's how to get the most from it." : "Here's how to get the most from your practice.",
+        title: "Welcome to get prepped",
+        greeting: first ? `Hi ${first},` : "Hi,",
+        paragraphs: [`Your account is ready. Here's how to get ready for your next ${role ? `${role} ` : ""}interview:`],
+        steps: [
+            `Practise a real interview. The interviewer asks follow-up questions on your answers, then you get a report on what to fix.${free ? " Your first one is free." : ""}`,
+            "Add your resume. You'll get a score out of 100 and ready-made fixes for anything holding it back.",
+            "See the jobs matched to you, and practise for the one you want.",
+        ],
+        button: { label: "Start your first interview", url: `${opts.siteUrl.replace(/\/$/, "")}/dashboard` },
+        reason: "You're getting this because you created a get prepped account with this address.",
+    });
+    return { subject: "Welcome to get prepped", text, html };
 }

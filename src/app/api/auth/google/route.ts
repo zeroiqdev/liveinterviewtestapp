@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { normalizeUserRoleFamily } from "@/utils/locationDetector";
+import { sendWelcomeOnce } from "@/lib/welcome";
 import { loginResponse } from "@/lib/session";
 import { LIMITS, clientIp, rateLimit } from "@/lib/rateLimit";
 import { serverError } from "@/lib/apiError";
@@ -77,6 +78,8 @@ export async function POST(req: NextRequest) {
         const email = identity.email.toLowerCase().trim();
         let user = await User.findOne({ email });
         const isNewUser = !user;
+        // Only a new account, or one Google is verifying now, is welcomed.
+        let justVerified = false;
 
         if (!user) {
             const initialRole = typeof body.role === "string" && body.role ? body.role : "Software Engineer";
@@ -102,6 +105,7 @@ export async function POST(req: NextRequest) {
             if (!user.avatar && identity.picture) user.avatar = identity.picture;
             if (!user.googleId) user.googleId = identity.sub;
             if (user.emailVerified === false) {
+                justVerified = true;
                 // An unverified sign-up may have been made by someone else:
                 // drop anything they set before the real owner took over.
                 user.password = "";
@@ -109,6 +113,12 @@ export async function POST(req: NextRequest) {
             }
             user.emailVerified = true;
             await user.save();
+        }
+
+        // A new account (or one just verified through Google) gets its welcome once.
+        if (isNewUser || justVerified) {
+            const readyEmail = user.email;
+            after(() => sendWelcomeOnce(readyEmail));
         }
 
         return loginResponse(user, { isNewUser });

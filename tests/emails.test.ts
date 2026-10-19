@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { renderEmail } from "../src/lib/emailLayout";
-import { codeEmail } from "../src/lib/emailTemplates";
+import { codeEmail, welcomeEmail } from "../src/lib/emailTemplates";
 import { receiptEmail } from "../src/lib/receipts";
 import { roleAddedEmail } from "../src/lib/roleRequests";
 
@@ -11,6 +11,7 @@ const all = () => [
     codeEmail("change-email", "483920", 10),
     receiptEmail({ reference: "gp_ref", label: "Day Pass", passes: 1, amount: 1500, currency: "NGN", paidAt: new Date("2026-10-01T10:00:00Z"), name: "Ada Obi", email: "ada@example.test" }, "https://example.test/payment/receipt/gp_ref"),
     roleAddedEmail({ requested: "Supply chain analyst", role: "Supply Chain Analyst", siteUrl: "https://example.test" }),
+    welcomeEmail({ name: "Ada Obi", role: "Product Manager", siteUrl: "https://example.test" }),
 ];
 
 describe("emails", () => {
@@ -38,6 +39,15 @@ describe("emails", () => {
         const receipt = all()[3];
         assert.match(receipt.text, /https:\/\/example\.test\/payment\/receipt\/gp_ref/);
         assert.match(receipt.text, /Total paid: ₦1,500/);
+    });
+
+    it("welcomes by first name, with numbered steps and a link to start", () => {
+        const email = welcomeEmail({ name: "Ada Obi", role: "Product Manager", siteUrl: "https://example.test/" });
+        assert.equal(email.subject, "Welcome to get prepped");
+        assert.match(email.text, /^Hi Ada,/);
+        assert.match(email.text, /Product Manager interview/);
+        assert.match(email.text, /1\. Practise a real interview/);
+        assert.match(email.text, /https:\/\/example\.test\/dashboard/);
     });
 
     it("never says AI", () => {

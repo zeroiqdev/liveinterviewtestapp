@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { verifyPassword } from "@/lib/password";
 import { normalizeCode, verifyEmailCode } from "@/lib/emailCode";
+import { sendWelcomeOnce } from "@/lib/welcome";
 import { loginResponse } from "@/lib/session";
 import { LIMITS, clientIp, rateLimit } from "@/lib/rateLimit";
 import { serverError } from "@/lib/apiError";
@@ -49,6 +50,8 @@ export async function POST(req: NextRequest) {
         }
         user.emailVerified = true;
         await user.save();
+        // After the response, so signing in isn't held up by the email.
+        after(() => sendWelcomeOnce(user.email));
 
         return loginResponse(user, { needsPassword: !user.password });
     } catch (err) {
