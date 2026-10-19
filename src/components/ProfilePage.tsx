@@ -9,6 +9,7 @@ import {
     Check,
     CreditCard,
     FileText,
+    Gift,
     LockKey,
     SignOut,
     Trash,
@@ -20,6 +21,7 @@ import { FeedbackButton } from "./FeedbackButton";
 import PassDialog from "./PassDialog";
 import PasswordChecklist from "./PasswordChecklist";
 import { DeleteAccountDialog } from "./dashboard/DeleteAccountDialog";
+import { InviteFriends } from "./InviteFriends";
 import { isStrongPassword } from "@/lib/passwordPolicy";
 import { normalizeUserRoleFamily } from "@/utils/locationDetector";
 import { receiptNumber } from "@/lib/receipts";
@@ -65,6 +67,7 @@ const SECTIONS = [
     { id: "resumes", label: "Resumes", icon: FileText },
     { id: "security", label: "Sign-in and security", icon: LockKey },
     { id: "billing", label: "Passes and payments", icon: CreditCard },
+    { id: "invite", label: "Invite friends", icon: Gift },
     { id: "account", label: "Delete account", icon: Warning },
 ] as const;
 
@@ -666,6 +669,10 @@ export default function ProfilePage() {
                                     ))}
                                 </ul>
                             )}
+                        </Section>
+
+                        <Section id="invite" title="Invite friends" description="Share your link. For every 3 friends who sign up and buy a pass, you get a free pass.">
+                            <InviteFriends />
                         </Section>
 
                         <Section id="account" title="Delete account" description="Removes your profile, resumes, interview reports and everything else we keep about you. A record of any payments you made is kept for our accounts. This can't be undone." tone="danger">

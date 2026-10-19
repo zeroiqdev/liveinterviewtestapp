@@ -47,6 +47,7 @@ export async function moveAccountEmail(oldEmail: string, newEmail: string): Prom
         AppFeedback.updateMany({ email: from }, { $set: { email: to } }),
         PassWallet.updateMany({ email: from }, { $set: { email: to } }),
         ResumeFile.updateMany({ email: from }, { $set: { email: to } }),
+        User.updateMany({ referredBy: from }, { $set: { referredBy: to } }),
         PassPurchase.updateMany({ email: from }, { $set: { email: to } }),
         TrySession.updateMany({ claimedBy: from }, { $set: { claimedBy: to } }),
         // Older interviews were filed by email rather than account id.

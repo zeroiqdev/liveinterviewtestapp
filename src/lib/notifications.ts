@@ -22,7 +22,7 @@ export interface AppNotification {
 
 export interface NotificationSources {
     accountCreatedAt?: Date;
-    purchases: Array<{ reference: string; passes: number; amount: number; discountCode?: string; paidAt: Date }>;
+    purchases: Array<{ reference: string; passes: number; amount: number; discountCode?: string; label?: string; paidAt: Date }>;
     reports: Array<{ sessionId: string; overallScore: number; role?: string; interviewType?: string; createdAt: Date }>;
     resumes: Array<{ id: string; name: string; score?: number; createdAt?: Date }>;
     activeUntil?: Date | null;
@@ -45,6 +45,17 @@ export function buildNotifications(sources: NotificationSources, now: Date = new
 
     for (const p of sources.purchases) {
         const passes = plural(p.passes, "pass", "passes");
+        if (p.label === "Referral reward") {
+            items.push({
+                id: `purchase:${p.reference}`,
+                kind: "purchase",
+                title: "You earned a free pass",
+                detail: "Friends you invited bought passes, so a free pass has been added to your account.",
+                at: p.paidAt,
+                href: "/profile#invite",
+            });
+            continue;
+        }
         items.push({
             id: `purchase:${p.reference}`,
             kind: "purchase",

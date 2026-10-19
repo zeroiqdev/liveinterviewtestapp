@@ -63,3 +63,20 @@ export function welcomeEmail(opts: { name?: string; role?: string; siteUrl: stri
     });
     return { subject: "Welcome to get prepped", text, html };
 }
+
+/** To someone whose invited friends have bought enough passes to earn them one. */
+export function referralRewardEmail(opts: { name?: string; friends: number; siteUrl: string }): { subject: string; text: string; html: string } {
+    const first = opts.name?.trim().split(/\s+/)[0];
+    const { html, text } = renderEmail({
+        preheader: "A free pass has been added to your account.",
+        title: "You've earned a free pass",
+        greeting: first ? `Hi ${first},` : "Hi,",
+        paragraphs: [
+            `${opts.friends} ${opts.friends === 1 ? "person" : "people"} you invited ${opts.friends === 1 ? "has" : "have"} bought a pass, so we've added a free pass to your account. Thank you for sharing get prepped.`,
+            "It gives you 24 hours of interviews, starting when you begin the first one. Keep inviting: every three friends who buy a pass earn you another.",
+        ],
+        button: { label: "Use your free pass", url: `${opts.siteUrl.replace(/\/$/, "")}/dashboard` },
+        reason: "You're getting this because people you invited to get prepped bought passes.",
+    });
+    return { subject: "You've earned a free get prepped pass", text, html };
+}

@@ -1,6 +1,7 @@
 /** Reading and changing a user's passes in the database. Server only. */
 
 import dbConnect from "@/lib/mongodb";
+import { countReferralPurchase } from "@/lib/referrals";
 import PassWallet from "@/models/PassWallet";
 import PassPurchase from "@/models/PassPurchase";
 import { FREE_INTERVIEWS, PASS_HOURS, decideStart, type StartDecision } from "@/lib/passes";
@@ -76,6 +77,8 @@ export async function settleCheckout(checkoutId: string): Promise<"paid" | "not-
         await PassWallet.updateOne({ email: purchase.email }, { $inc: { unused: purchase.passes }, $setOnInsert: { email: purchase.email, activeUntil: null, freeInterviewsUsed: 0 } }, { upsert: true });
         if (purchase.discountCode) await markCodeUsed(purchase.discountCode, purchase.email);
         await emailReceipt(purchase.reference);
+        // A first paid pass counts toward whoever invited them.
+        await countReferralPurchase(purchase.email, purchase.amount);
     }
     return "paid";
 }

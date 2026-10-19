@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
+import { REFERRAL_COOKIE } from "@/lib/referralRules";
+import { inviterFor } from "@/lib/referrals";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import { normalizeUserRoleFamily } from "@/utils/locationDetector";
@@ -83,7 +85,9 @@ export async function POST(req: NextRequest) {
 
         if (!user) {
             const initialRole = typeof body.role === "string" && body.role ? body.role : "Software Engineer";
+            const inviter = await inviterFor(req.cookies.get(REFERRAL_COOKIE)?.value ?? body.ref, email);
             user = await User.create({
+                ...(inviter ? { referredBy: inviter } : {}),
                 email,
                 name: identity.name?.trim() || email.split("@")[0],
                 avatar: identity.picture || "",

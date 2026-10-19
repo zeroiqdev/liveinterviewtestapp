@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { REFERRAL_COOKIE } from "@/lib/referralRules";
+import { inviterFor } from "@/lib/referrals";
 import dbConnect from "@/lib/mongodb";
 import ResumeFile from "@/models/ResumeFile";
 import User, { type IResume, type IUser } from "@/models/User";
@@ -242,6 +244,11 @@ export async function POST(req: NextRequest) {
             resumes: [],
         };
         const user = existing ? Object.assign(existing, fields) : new User(fields);
+        // Who invited them, from the link they arrived through (kept in a cookie).
+        if (!user.referredBy) {
+            const inviter = await inviterFor(req.cookies.get(REFERRAL_COOKIE)?.value ?? body.ref, email);
+            if (inviter) user.referredBy = inviter;
+        }
         applyProfileFields(user, { portfolioUrl: body.portfolioUrl, linkedinUrl: body.linkedinUrl });
         if (body.resume) upsertResume(user, body.resume);
         await user.save();
