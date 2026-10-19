@@ -486,6 +486,14 @@ export function InterviewSetupModal({
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ resume: { id: newResumeItem.id, name: newResumeItem.name, rawText: finalText } }),
             }).catch(() => {});
+            // And the Word file itself, so edits can be downloaded in its own formatting.
+            if (content.startsWith("data:application/vnd.openxmlformats-officedocument.wordprocessingml.document")) {
+                fetch("/api/resume/file", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ resumeId: newResumeItem.id, name: file.name, fileData: content }),
+                }).catch(() => {});
+            }
 
             // Sync with localStorage
             const raw = typeof window !== "undefined" ? localStorage.getItem("useladder_user") : null;

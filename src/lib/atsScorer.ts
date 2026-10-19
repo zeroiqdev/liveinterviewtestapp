@@ -478,7 +478,11 @@ const STRONG_ACTION_VERBS = new Set([
     "raised", "achieved", "exceeded", "closed", "sold", "secured", "won",
     "settled", "recovered", "retained", "reconciled", "audited", "processed",
     "prepared", "planned", "introduced", "created", "analysed", "analyzed",
-    "converted", "expanded", "saved", "solved", "fixed"
+    "converted", "expanded", "saved", "solved", "fixed",
+    // Product, research and operations work.
+    "defined", "wrote", "drafted", "documented", "assessed", "analysed", "validated",
+    "tested", "researched", "mapped", "shipped", "scoped", "prioritised", "prioritized",
+    "presented", "identified", "secured"
 ]);
 
 const WEAK_PASSIVE_PHRASES = [

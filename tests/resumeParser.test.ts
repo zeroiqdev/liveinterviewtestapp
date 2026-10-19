@@ -39,6 +39,35 @@ describe("reading a resume", () => {
         assert.match(resume.jobs[0].date || "", /Jan 2022/);
     });
 
+    it("reads company-then-title layouts, bulleted titles and bulleted headings", () => {
+        const resume = read(`Ada Obi
+Lagos | ada@example.test
+EXPERIENCE
+Kora Labs Jul 2025 – Present
+• Product Manager
+• Defined the roadmap for a payments dashboard used by 40 merchants.
+Paystack Jul 2023 – Jun 2025
+Product Manager | B2B payments platform
+• Led an API channel that signed 50+ partners in 6 months.
+Flutterwave Jun 2022 – Jul 2023
+Associate Product Manager | consumer payments
+• Introduced weekly discovery calls with customers.
+• SKILLS & TRAINING
+• Tools: Jira, Figma, Mixpanel
+EDUCATION
+BSc Computer Science, University of Lagos, 2021`);
+        assert.deepEqual(resume.jobs.map((job) => [job.title, job.company, job.date, job.bullets.length]), [
+            ["Product Manager", "Kora Labs", "Jul 2025 – Present", 1],
+            ["Product Manager", "Paystack", "Jul 2023 – Jun 2025", 1],
+            ["Associate Product Manager", "Flutterwave", "Jun 2022 – Jul 2023", 1],
+        ]);
+        assert.deepEqual(resume.skills, [{ category: "Tools", items: "Jira, Figma, Mixpanel" }]);
+        // Saved and read back, it's the same resume (the page does this on every reload).
+        const reread = read(structuredToText(resume));
+        assert.deepEqual(reread.jobs.map((job) => [job.title, job.company, job.bullets.length]), resume.jobs.map((job) => [job.title, job.company, job.bullets.length]));
+        assert.equal(reread.jobs[1].companyDescription, "B2B payments platform");
+    });
+
     it("cleans up resumes already saved with the stray bracket", () => {
         const saved = bracketed.replace("Konga, Lagos (Jan 2022 to Present)", "Konga, Lagos ( — Jan 2022 to Present\n- )");
         const resume = read(saved);

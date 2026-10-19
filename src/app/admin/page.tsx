@@ -34,6 +34,7 @@ import { RoleRequestsPanel } from "@/components/admin/RoleRequestsPanel";
 import { MetricsPanel } from "@/components/admin/MetricsPanel";
 import { DiscountsPanel } from "@/components/admin/DiscountsPanel";
 import { VoiceCheckCard } from "@/components/admin/VoiceCheckCard";
+import { EmailPreviewsCard } from "@/components/admin/EmailPreviewsCard";
 import styles from "@/components/admin.module.css";
 import type { RoleItem } from "@/app/api/roles/route";
 import type { QuestionItem } from "@/app/api/questions/route";
@@ -792,6 +793,7 @@ export default function AdminPage() {
                 {activeTab === "overview" && (
                     <div>
                         <VoiceCheckCard />
+                        <EmailPreviewsCard />
                         <div className={styles.statsGrid}>
                             <div className={styles.statCard}>
                                 <div className={styles.statInfo}>

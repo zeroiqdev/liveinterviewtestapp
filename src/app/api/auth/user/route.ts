@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
+import ResumeFile from "@/models/ResumeFile";
 import User, { type IResume, type IUser } from "@/models/User";
 import { normalizeUserRoleFamily } from "@/utils/locationDetector";
 import { hashPassword, verifyPassword } from "@/lib/password";
@@ -177,6 +178,7 @@ export async function DELETE(req: NextRequest) {
         }
 
         await user.save();
+        await ResumeFile.deleteOne({ email: target.email, resumeId }).catch(() => undefined);
         return NextResponse.json({ success: true, resumes: user.resumes });
     } catch (err) {
         return serverError("api/auth/user DELETE", err, "Failed to delete resume");
