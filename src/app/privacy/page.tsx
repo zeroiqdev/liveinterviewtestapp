@@ -32,7 +32,7 @@ export default function PrivacyPage() {
                     </ul>
                     <h3>Your resumes</h3>
                     <ul>
-                        <li>The resumes you upload, the text we read from them, and the suggestions and scores we give you.</li>
+                        <li>The resumes you upload, the text we read from them, and the suggestions and scores we give you. If you upload a Word file, we keep the file itself so you can download your edits in its own formatting; deleting the resume deletes it.</li>
                     </ul>
                     <h3>Your interviews</h3>
                     <ul>

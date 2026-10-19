@@ -71,9 +71,18 @@ export interface SuggestionItem {
     applied: boolean;
     fusedKeyword?: string;
     targetJobLabel?: string;
-    type?: "addition" | "edit";
+    /** edit: rewrite a line. addition: a new line in a job. summary / skills: a section the resume doesn't have. */
+    type?: "addition" | "edit" | "summary" | "skills";
     targetJobId?: string;
 }
+
+/** Whether a line opens with a common achievement verb ("Led", "Built", "Answered"). */
+function startsWithStrongVerb(line: string): boolean {
+    return /^(led|built|managed|developed|launched|delivered|designed|created|answered|resolved|trained|handled|increased|reduced|grew|cut|sold|closed|ran|wrote|defined|introduced|analysed|analyzed|validated|coordinated|assessed|supported|helped|worked|served|processed|prepared|organised|organized|achieved|improved|owned|drove|set|made)\b/i.test(line.trim());
+}
+
+/** Words that make a short line a job title ("Product Manager", "Sales Associate"). */
+const JOB_TITLE_WORD_RE = /\b(manager|engineer|lead|director|developer|analyst|associate|head|designer|founder|consultant|specialist|officer|representative|executive|assistant|coordinator|administrator|intern|supervisor|agent|advisor|adviser|accountant|teller|scientist|architect|owner|president|strategist|researcher)\b/i;
 
 export const DATE_RANGE_RE = /\b(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{4}|\d{4})\s*[-–—to]+\s*(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{4}|\d{4}|present|current)\b/i;
 export const DATE_AT_END_RE = /(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{4}|\d{4})\s*[-–—to]+\s*(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{4}|\d{4}|present|current)$/i;
@@ -157,7 +166,11 @@ export function isCompanyDescriptionLine(line: string): boolean {
 export type SectionType = "none" | "summary" | "experience" | "skills" | "education" | "projects" | "custom";
 
 export function isSectionHeader(line: string): { isHeader: boolean; type: SectionType; title: string } {
-    const cleaned = cleanLine(line);
+    let cleaned = cleanLine(line);
+    // A heading typed as a bullet ("• SKILLS & TRAINING"). Only in capitals, so an
+    // ordinary line such as "• 5 years experience" is never taken for one.
+    const unbulleted = cleaned.replace(/^[•·●\u25CF]\s*/, "");
+    if (unbulleted !== cleaned && unbulleted.length > 2 && unbulleted === unbulleted.toUpperCase()) cleaned = unbulleted;
     const l = cleaned.toLowerCase();
     if (!l || l.length > 55 || /[.!?]$/.test(l)) {
         return { isHeader: false, type: "none", title: "" };
@@ -176,7 +189,7 @@ export function isSectionHeader(line: string): { isHeader: boolean; type: Sectio
     ) {
         return { isHeader: true, type: "experience", title: cleaned };
     }
-    if (/^(technical\s+|core\s+|key\s+)?(skills|competencies|technologies|tools|stack)(\s*(&|and|\+)\s*(technical\s+|core\s+|key\s+)?(skills|competencies|technologies|tools|stack))?$/i.test(l) || /^tools$/i.test(l) || /^core\s+competencies$/i.test(l)) {
+    if (/^(technical\s+|core\s+|key\s+)?(skills|competencies|technologies|tools|stack)(\s*(&|and|\+)\s*(technical\s+|core\s+|key\s+)?(skills|competencies|technologies|tools|stack|training|interests|certifications))?$/i.test(l) || /^tools$/i.test(l) || /^core\s+competencies$/i.test(l)) {
         return { isHeader: true, type: "skills", title: cleaned };
     }
     if (/^(education(al\s+background)?|academics|qualifications|certifications|education\s+and\s+certifications|degrees\s+&\s+certifications)$/i.test(l)) {
@@ -407,6 +420,7 @@ export function parseResumeTextToStructured(
     };
 
     let activeProjectHeader = "";
+    let jobFromCompanyLine = false;
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -460,7 +474,7 @@ export function parseResumeTextToStructured(
         if (currentSection === "skills") {
             if (cleanedLine.includes(":")) {
                 const parts = cleanedLine.split(":");
-                const cat = parts[0].trim();
+                const cat = parts[0].replace(/^[•·●\u25CF]\s*/, "").trim();
                 const itms = parts.slice(1).join(":").trim();
                 flushSkills();
                 if (itms) {
@@ -470,7 +484,7 @@ export function parseResumeTextToStructured(
                     activeSkillCategory = cat;
                 }
             } else {
-                activeSkillItems.push(cleanedLine);
+                activeSkillItems.push(cleanedLine.replace(/^[•·●\u25CF]\s*/, ""));
             }
             continue;
         }
@@ -503,9 +517,11 @@ export function parseResumeTextToStructured(
 
         // Section is experience, projects, or none
         const hasDateAtEnd = !!cleanedLine.match(DATE_AT_END_RE);
-        const isOnlyDate = DATE_AT_END_RE.test(cleanedLine) && cleanedLine.trim().split(/\s+/).length <= 6;
+        // Only the dates, nothing else: "Buypower Jun 2022 – Jul 2023" is a company with its dates.
+        const isDateOnly = (s: string) => DATE_AT_END_RE.test(s) && s.replace(DATE_RANGE_RE, "").replace(/[\s,|·•–—-]+/g, "").length === 0;
+        const isOnlyDate = isDateOnly(cleanedLine);
         const nextLine = lines[i + 1] ? cleanLine(lines[i + 1]) : "";
-        const nextLineIsDate = DATE_AT_END_RE.test(nextLine) && nextLine.split(/\s+/).length <= 6;
+        const nextLineIsDate = isDateOnly(nextLine);
 
         const startsAsBullet = /^[•·\-\*—–●\u25CF]/.test(line.trim());
         const isLikelyJobHeader =
@@ -525,6 +541,21 @@ export function parseResumeTextToStructured(
 
         if (currentSection === "none" && isLikelyJobHeader) {
             currentSection = "experience";
+        }
+
+        // "Company  Jul 2023 – Jun 2025" then "Product Manager | B2B payments platform"
+        // (or "• Product Manager"): the second line is this job's title, not a new job.
+        if (currentJob && jobFromCompanyLine && currentJob.bullets.length === 0 && !DATE_RANGE_RE.test(cleanedLine)) {
+            const bare = cleanedLine.replace(/^[•·●\u25CF]\s*/, "").trim();
+            const [left, ...rest] = bare.split(/\s*\|\s*/);
+            const shortTitle = left.split(/\s+/).length <= 7 && !/[.!?]$/.test(left);
+            if (shortTitle && (rest.length > 0 || (startsAsBullet && JOB_TITLE_WORD_RE.test(left)))) {
+                currentJob.company = currentJob.title;
+                currentJob.title = left;
+                if (rest.length > 0 && !currentJob.companyDescription) currentJob.companyDescription = rest.join(" | ");
+                jobFromCompanyLine = false;
+                continue;
+            }
         }
 
         const targetList = currentSection === "projects" ? projects : jobs;
@@ -559,6 +590,8 @@ export function parseResumeTextToStructured(
 
             let title = headerWithoutDate || displayRole;
             let company = "";
+            // Only a name and dates: the title may follow on the next line.
+            jobFromCompanyLine = currentSection !== "projects" && Boolean(date) && !/\s\|\s|\sat\s|,|·|\|/i.test(headerWithoutDate);
             if (headerWithoutDate.includes(" | ")) {
                 const parts = headerWithoutDate.split(" | ");
                 title = parts[0].trim();
@@ -638,7 +671,18 @@ export function parseResumeTextToStructured(
             continue;
         }
 
-        if (isCompanyDescriptionLine(cleanedLine)) {
+        // A short plain line straight under a job heading ("B2B payments platform")
+        // says what the company does; it isn't one of the person's lines.
+        const shortDescriptor =
+            !isBulletSymbol &&
+            activeTarget.bullets.length === 0 &&
+            !activeTarget.companyDescription &&
+            cleanedLine.split(/\s+/).length <= 8 &&
+            !/[.!?]$/.test(cleanedLine) &&
+            // A real figure ("70 calls", "30%") means it's an achievement; "B2B" isn't one.
+            !/\d{2,}|\d+\s*%/.test(cleanedLine) &&
+            !startsWithStrongVerb(cleanedLine);
+        if (shortDescriptor || isCompanyDescriptionLine(cleanedLine)) {
             if (!activeTarget.companyDescription) activeTarget.companyDescription = cleanedLine;
             else if (!activeTarget.companyDescription.includes(cleanedLine.slice(0, 24))) activeTarget.companyDescription += " " + cleanedLine;
             continue;

@@ -6,6 +6,8 @@ import { extractDocumentText } from "@/lib/documentParser";
 import { calculateAtsScore, scoreGaps } from "@/lib/atsScorer";
 import { requireAuth } from "@/lib/session";
 import { RESUME_REVIEW_VERSION } from "@/lib/resumeReviewVersion";
+import { saveResumeFile } from "@/lib/resumeFiles";
+import { plainWords } from "@/lib/plainWords";
 import { LIMITS, rateLimit } from "@/lib/rateLimit";
 import { serverError } from "@/lib/apiError";
 
@@ -43,6 +45,7 @@ TONE — applies to "summary", "feedback" and "recommendation":
 - No jargon: do not say "X-Y-Z formula", "ATS", "leverage", "synergy" or "stakeholder alignment". Say what to change in ordinary words.
 - Use the vocabulary of the candidate's own field. A customer service line is about customers, calls and complaints, not "product ownership" or "user validation".
 - Never mention AI or that this was generated.
+- Use standard professional resume language: open lines with common, strong verbs such as Led, Built, Launched, Delivered, Managed, Designed, Defined, Wrote, Drove, Grew, Increased, Reduced, Improved, Introduced, Analysed, Negotiated. Avoid unusual or inflated words: not "Authored", "Spearheaded", "Orchestrated", "Championed", "Pioneered", "Utilized", "Leveraged", "Facilitated", "Synergized", "Helmed".
 
 CRITICAL RULES — you MUST follow these exactly:
 
@@ -57,8 +60,10 @@ CRITICAL RULES — you MUST follow these exactly:
    - DO NOT NITPICK OR GENERATE COSMETIC SUGGESTIONS: If a candidate has already revised and polished their bullets so that ownership and impact are clear, DO NOT nitpick minor stylistic word choices or synonyms. Only flag bullets with legitimate structural or metric deficiencies. If all bullets are 7+, return an empty suggestions array.
 
  3. GROUNDED REWRITES — NO FABRICATION:
-    - Rewrites MUST reuse numbers/metrics already in the original bullet (e.g. keep "250 billion Naira", "30%", "99.99%", "100M transactions", "80% volume", "92.23% reduction"). Do NOT invent generic metrics like "35% velocity" or "95+ Lighthouse" unless they replace a vague claim and you signal they're illustrative.
-    - Use Google X-Y-Z where helpful: "Accomplished [X] as measured by [Y] by doing [Z]" but keep it faithful to the original story.
+    - Rewrites MUST reuse numbers/metrics already in the original bullet (e.g. keep "250 billion Naira", "30%", "99.99%", "100M transactions", "80% volume", "92.23% reduction").
+    - Where a result needs a number the bullet doesn't give, suggest a realistic, conservative estimate the person can confirm: base it on figures and scale elsewhere in the resume (team size, partners, users, timeframes), prefer modest round numbers, and never anything extreme (e.g. "cutting response time by 20%"). The person is shown it as a suggestion to confirm. Never add a result or claim the bullet doesn't state.
+    - Where it helps, say what was achieved, how it was measured and how it was done, keeping to the original story.
+    - Never write placeholders such as [X], [Y] or [number]: every rewrite must read as a finished line.
     - Keep the candidate's voice and technology domain; don't switch product-manager context to frontend components.
 
  5. AVOID REPETITIVE TEMPLATES:
@@ -220,6 +225,9 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        // Keep the Word file itself, so the editor's download keeps its formatting.
+        if (email && fileData) await saveResumeFile(email, resumeId, resumeName, fileData).catch(() => false);
+
         const inputToExtract = fileData || resumeText;
         let parsedText = await extractDocumentText(inputToExtract, resumeName);
 
@@ -257,6 +265,9 @@ export async function POST(req: NextRequest) {
         });
 
         result.score = ats.overallScore;
+        // Standard resume wording, whatever the model reached for.
+        result.suggestions = (result.suggestions || []).map((sug) => ({ ...sug, proposedText: sug.proposedText ? plainWords(sug.proposedText) : sug.proposedText }));
+        result.bulletReviews = (result.bulletReviews || []).map((b) => ({ ...b, rewritten: b.rewritten ? plainWords(b.rewritten) : b.rewritten }));
         if (ats.metrics.missingKeywords.length > 0) {
             result.missingKeywords = Array.from(new Set([...(result.missingKeywords || []), ...ats.metrics.missingKeywords]));
         }

@@ -19,6 +19,7 @@ import JobMatchCache from "@/models/JobMatchCache";
 import AppFeedback from "@/models/AppFeedback";
 import EmailCode from "@/models/EmailCode";
 import PassWallet from "@/models/PassWallet";
+import ResumeFile from "@/models/ResumeFile";
 import TrySession from "@/models/TrySession";
 import RoleRequest from "@/models/RoleRequest";
 import { EngineProfileModel, EngineSessionModel, PreparedTurnModel } from "@/models/EngineSession";
@@ -50,6 +51,7 @@ export async function deleteAccount(email: string, userId?: string): Promise<Del
         AppFeedback.deleteMany({ email: address }),
         EmailCode.deleteMany({ email: address }),
         PassWallet.deleteMany({ email: address }),
+        ResumeFile.deleteMany({ email: address }),
         TrySession.deleteMany({ claimedBy: address }),
     ]);
     // Taken off any "tell me when this role is added" lists.

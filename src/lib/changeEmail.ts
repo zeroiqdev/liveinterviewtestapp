@@ -12,6 +12,7 @@ import CoachRead from "@/models/CoachRead";
 import JobMatchCache from "@/models/JobMatchCache";
 import AppFeedback from "@/models/AppFeedback";
 import PassWallet from "@/models/PassWallet";
+import ResumeFile from "@/models/ResumeFile";
 import PassPurchase from "@/models/PassPurchase";
 import TrySession from "@/models/TrySession";
 import RoleRequest from "@/models/RoleRequest";
@@ -45,6 +46,7 @@ export async function moveAccountEmail(oldEmail: string, newEmail: string): Prom
         JobMatchCache.updateMany({ email: from }, { $set: { email: to } }),
         AppFeedback.updateMany({ email: from }, { $set: { email: to } }),
         PassWallet.updateMany({ email: from }, { $set: { email: to } }),
+        ResumeFile.updateMany({ email: from }, { $set: { email: to } }),
         PassPurchase.updateMany({ email: from }, { $set: { email: to } }),
         TrySession.updateMany({ claimedBy: from }, { $set: { claimedBy: to } }),
         // Older interviews were filed by email rather than account id.

@@ -44,7 +44,8 @@ import {
     DATE_AT_END_RE,
     ANY_DATE_RE,
 } from "@/lib/resumeParser";
-import { scoreStructuredResume, introducesNumbers, scoreGaps } from "@/lib/atsScorer";
+import { scoreStructuredResume, introducesNumbers, hasMetric, startsWithStrongActionVerb, hasWeakPhrase } from "@/lib/atsScorer";
+import { patchDocx } from "@/lib/resume/patchDocx";
 import { RESUME_REVIEW_VERSION } from "@/lib/resumeReviewVersion";
 
 export type { StructuredResume, StructuredJob, StructuredBullet, SuggestionItem };
@@ -111,6 +112,40 @@ async function extractFontAsync(dataUrl: string | null): Promise<string | null> 
         if (docMatch) return docMatch[1];
     } catch {}
     return null;
+}
+
+/** Shows each [X] (a number for the person to fill in) highlighted. */
+function markPlaceholders(text: string, className: string): React.ReactNode {
+    const parts = text.split(/(\[X\])/);
+    if (parts.length === 1) return text;
+    return parts.map((part, i) => (part === "[X]" ? <mark key={i} className={className}>[X]</mark> : <React.Fragment key={i}>{part}</React.Fragment>));
+}
+
+/** Highlights figures a rewrite suggests that the original line didn't have. */
+function markNewNumbers(proposed: string, original: string, className: string): React.ReactNode {
+    const had = new Set((original.match(/\d+(?:[.,]\d+)?/g) || []).map((n) => n.replace(/,/g, "")));
+    const parts = proposed.split(/((?:₦|\$)?\d+(?:[.,]\d+)?\+?\s?%?)/);
+    if (parts.length === 1) return markPlaceholders(proposed, className);
+    return parts.map((part, i) => {
+        const digits = part.match(/\d+(?:[.,]\d+)?/)?.[0]?.replace(/,/g, "");
+        return digits && !had.has(digits) ? <mark key={i} className={className}>{part}</mark> : <React.Fragment key={i}>{markPlaceholders(part, className)}</React.Fragment>;
+    });
+}
+
+/** Puts a suggested summary or skills section into the resume. */
+function applySection(prev: StructuredResume, sug: SuggestionItem): StructuredResume {
+    if (sug.type === "summary") return { ...prev, summary: sug.proposedText, summaryTitle: prev.summaryTitle || "Summary" };
+    if (sug.type === "skills") {
+        const skills = sug.proposedText
+            .split("\n")
+            .map((line) => {
+                const [category, ...items] = line.split(":");
+                return { category: category.trim(), items: items.join(":").trim() };
+            })
+            .filter((sk) => sk.category && sk.items);
+        return { ...prev, skills };
+    }
+    return prev;
 }
 
 interface ResumeFeedbackReportProps {
@@ -687,8 +722,6 @@ export default function ResumeFeedbackReport({
 
     // Live ATS Scoring Engine based on active document state
     const liveAtsResult = useMemo(() => scoreStructuredResume(structuredResume, report.role || "Product Manager"), [structuredResume, report.role]);
-    // What is costing points, so a low score always comes with things to do.
-    const liveGaps = useMemo(() => scoreGaps(liveAtsResult), [liveAtsResult]);
 
     const currentScore = liveAtsResult.overallScore;
     const appliedCount = suggestions.filter((s) => s.applied).length;
@@ -833,6 +866,13 @@ export default function ResumeFeedbackReport({
     const handleApplyImprovement = (sugId: string) => {
         const sug = suggestions.find((s) => s.id === sugId);
         if (!sug) return;
+        markHandled([sug.proposedText, sug.targetSnippet]);
+
+        if (sug.type === "summary" || sug.type === "skills") {
+            setStructuredResume((prev) => applySection(prev, sug));
+            setSuggestions((prev) => prev.map((s) => (s.id === sugId ? { ...s, applied: true } : s)));
+            return;
+        }
 
         if (sug.type === "addition") {
             setStructuredResume((prev) => ({
@@ -855,6 +895,8 @@ export default function ResumeFeedbackReport({
             );
             return;
         }
+
+        if (sug.fusedKeyword) setInfusedKeywords((prev) => new Set(prev).add(sug.fusedKeyword!));
 
         // Update document bullets
         setStructuredResume((prev) => ({
@@ -879,6 +921,17 @@ export default function ResumeFeedbackReport({
     const handleUndoImprovement = (sugId: string) => {
         const sug = suggestions.find((s) => s.id === sugId);
         if (!sug) return;
+
+        if (sug.type === "summary") {
+            setStructuredResume((prev) => ({ ...prev, summary: "" }));
+            setSuggestions((prev) => prev.map((s) => (s.id === sugId ? { ...s, applied: false } : s)));
+            return;
+        }
+        if (sug.type === "skills") {
+            setStructuredResume((prev) => ({ ...prev, skills: [] }));
+            setSuggestions((prev) => prev.map((s) => (s.id === sugId ? { ...s, applied: false } : s)));
+            return;
+        }
 
         if (sug.type === "addition") {
             setStructuredResume((prev) => ({
@@ -909,6 +962,7 @@ export default function ResumeFeedbackReport({
 
     // Apply all improvements at once
     const handleApplyAll = () => {
+        markHandled(suggestions.filter((s) => !s.applied).flatMap((s) => [s.proposedText, s.targetSnippet]));
         setStructuredResume((prev) => {
             let updatedJobs = prev.jobs.map((job) => ({
                 ...job,
@@ -937,14 +991,292 @@ export default function ResumeFeedbackReport({
                 });
             });
 
-            return { ...prev, jobs: updatedJobs };
+            let next = { ...prev, jobs: updatedJobs };
+            for (const sug of suggestions) if ((sug.type === "summary" || sug.type === "skills") && !sug.applied) next = applySection(next, sug);
+            return next;
         });
 
         setSuggestions((prev) => prev.map((s) => ({ ...s, applied: true })));
     };
 
-    // Standardized Resume Generator — EB Garamond widely accepted template
+    // ── Everything costing points, as improvement cards, worked out when the page opens ──
+    const [planState, setPlanState] = useState<"idle" | "working" | "done" | "error">("idle");
+    const planTriedRef = useRef(false);
+
+    const askForFix = async (body: Record<string, unknown>) => {
+        const res = await fetch("/api/resume/improve", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ resumeText: structuredToText(displayResume), role: report.role, ...body }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "We couldn't write that just now. Please try again.");
+        return data;
+    };
+
+    const stripBullet = (text: string) => text.replace(/^[•·●\u25CF]\s*/, "");
+
+    /**
+     * What has been suggested for this resume, kept per resume (not per version
+     * of its text), so applying a suggestion doesn't bring a fresh set next time:
+     * the cards still open, the lines already dealt with (applied, edited or
+     * numbers confirmed), and the keywords and sections already offered.
+     */
+    interface PlanStore {
+        cards: SuggestionItem[];
+        handled: string[];
+        keywords: string[];
+        sections: string[];
+    }
+    const lineKey = (text: string) => stripBullet(text).toLowerCase().replace(/\s+/g, " ").trim();
+    const planStoreKey = () => {
+        let id = "";
+        try {
+            const saved = JSON.parse(localStorage.getItem("useladder_last_resume_feedback") || "null");
+            if (saved?.id && saved.id !== "active-cv-feedback") id = saved.id;
+        } catch {
+            // Fall back to the resume's name below.
+        }
+        return `useladder_resume_plan_v2:${id || `${report.resumeName || "resume"}|${report.role || ""}`}`;
+    };
+    const readPlanStore = (): PlanStore => {
+        try {
+            const stored = JSON.parse(localStorage.getItem(planStoreKey()) || "null");
+            if (stored && Array.isArray(stored.cards)) {
+                return { cards: stored.cards, handled: stored.handled || [], keywords: stored.keywords || [], sections: stored.sections || [] };
+            }
+        } catch {
+            // Saved data is blocked: start empty.
+        }
+        return { cards: [], handled: [], keywords: [], sections: [] };
+    };
+    const writePlanStore = (store: PlanStore) => {
+        try {
+            localStorage.setItem(planStoreKey(), JSON.stringify({ ...store, handled: store.handled.slice(-300) }));
+        } catch {
+            // Saved data is full or blocked: suggestions are worked out again next time.
+        }
+    };
+    /** Lines the person has dealt with: never suggested again. */
+    const markHandled = (texts: string[]) => {
+        const store = readPlanStore();
+        const handled = new Set(store.handled);
+        for (const t of texts) if (t && t.trim()) handled.add(lineKey(t));
+        writePlanStore({ ...store, handled: Array.from(handled) });
+    };
+
+    /** Puts plan cards in the list, each line card tied to its line in the document. */
+    const showPlanCards = (cards: SuggestionItem[]) => {
+        const links = new Map<string, string>();
+        const usable = cards.filter((card) => {
+            if (card.type === "summary") return !structuredResume.summary?.trim() && !suggestions.some((s) => s.type === "summary");
+            if (card.type === "skills") return structuredResume.skills.length === 0 && !suggestions.some((s) => s.type === "skills");
+            const bullet = structuredResume.jobs.flatMap((job) => job.bullets).find((b) => !b.suggestionId && stripBullet(b.text) === stripBullet(card.targetSnippet) && !links.has(b.id));
+            if (!bullet) return false;
+            links.set(bullet.id, card.id);
+            return true;
+        });
+        if (links.size > 0) {
+            setStructuredResume((prev) => ({
+                ...prev,
+                jobs: prev.jobs.map((job) => ({ ...job, bullets: job.bullets.map((b) => (links.has(b.id) ? { ...b, suggestionId: links.get(b.id) } : b)) })),
+            }));
+        }
+        if (usable.length > 0) {
+            setSuggestions((prev) => [...prev.filter((s) => !usable.some((u) => u.id === s.id)), ...usable]);
+            setActiveSuggestionId((current) => current || usable[0].id);
+        }
+    };
+
+    const runPlan = async () => {
+        const store = readPlanStore();
+        const handled = new Set(store.handled);
+        // Cards from earlier visits that weren't applied come back as they were.
+        const reopened = store.cards.filter((card) => !card.applied);
+        const reopenedLines = new Set(reopened.filter((c) => c.type === "edit").map((c) => lineKey(c.targetSnippet)));
+        if (reopened.length > 0) showPlanCards(reopened);
+
+        const weakLines: Array<{ text: string; issues: string[] }> = [];
+        const otherLines: string[] = [];
+        for (const job of structuredResume.jobs) {
+            for (const b of job.bullets) {
+                if (isProjectHeader(b.text) || b.suggestionId) continue;
+                // Lines the person has dealt with are final: never rewritten again, not even for a keyword.
+                if (handled.has(lineKey(b.text))) continue;
+                // Already has a card, or only waiting for its numbers to be confirmed.
+                if (reopenedLines.has(lineKey(b.text)) || b.exampleNumbers) continue;
+                const issues = [...(hasMetric(b.text) ? [] : ["number"]), ...(startsWithStrongActionVerb(b.text) && !hasWeakPhrase(b.text) ? [] : ["verb"])];
+                if (issues.length > 0) weakLines.push({ text: stripBullet(b.text), issues });
+                else otherLines.push(stripBullet(b.text));
+            }
+        }
+        const fullText = structuredToText(displayResume).toLowerCase();
+        // Every missing word at once, so later visits don't keep finding "new" ones.
+        const missingKeywords = Array.from(new Set([...liveAtsResult.metrics.allMissingKeywords, ...(report.missingKeywords || [])]))
+            .filter((k) => k && !fullText.includes(k.toLowerCase()) && !infusedKeywords.has(k) && !store.keywords.includes(k))
+            .slice(0, 12);
+        const needSummary = liveAtsResult.metrics.missingSections.includes("Summary") && !store.sections.includes("summary") && !suggestions.some((s) => s.type === "summary");
+        const needSkills = liveAtsResult.metrics.missingSections.includes("Skills & Tools") && !store.sections.includes("skills") && !suggestions.some((s) => s.type === "skills");
+        // Keywords need lines to go into; without any open lines there is nothing to ask for.
+        const keywordsToPlace = weakLines.length + otherLines.length > 0 ? missingKeywords : [];
+        if (weakLines.length === 0 && keywordsToPlace.length === 0 && !needSummary && !needSkills) {
+            setPlanState("done");
+            return;
+        }
+
+        setPlanState("working");
+        try {
+            const data = await askForFix({ kind: "plan", weakLines, otherLines, missingKeywords: keywordsToPlace, needSummary, needSkills });
+            const cards: SuggestionItem[] = [];
+            if (data.summary) {
+                cards.push({ id: "fix-summary", type: "summary", category: "Structure & Clarity", title: "Add a short summary at the top", feedback: "Recruiters read the top first. A summary tells them in one glance what you do and what you've achieved.", recommendation: "", targetSnippet: "", proposedText: data.summary, scoreLift: 3, applied: false });
+            }
+            if (Array.isArray(data.skills) && data.skills.length > 0) {
+                cards.push({ id: "fix-skills", type: "skills", category: "Role Alignment & Keywords", title: "Add a skills section", feedback: "A skills section lets employers see your tools and methods at a glance, and their screening software looks for it.", recommendation: "", targetSnippet: "", proposedText: (data.skills as StructuredSkill[]).map((sk) => `${sk.category}: ${sk.items}`).join("\n"), scoreLift: 4, applied: false });
+            }
+            for (const r of (data.rewrites || []) as Array<{ original: string; rewritten: string; reason: string; keyword?: string }>) {
+                const issues = weakLines.find((l) => l.text === r.original)?.issues || [];
+                cards.push({
+                    id: `plan-${Date.now().toString(36)}-${cards.length}`,
+                    type: "edit",
+                    category: r.keyword ? "Role Alignment & Keywords" : issues.includes("number") ? "Impact & Metrics" : "Action Verbs & Brevity",
+                    title: r.reason,
+                    feedback: r.reason,
+                    recommendation: "",
+                    targetSnippet: r.original,
+                    proposedText: r.rewritten,
+                    scoreLift: 0,
+                    applied: false,
+                    ...(r.keyword ? { fusedKeyword: r.keyword } : {}),
+                });
+            }
+            writePlanStore({
+                cards: [...reopened, ...cards],
+                handled: store.handled,
+                keywords: Array.from(new Set([...store.keywords, ...missingKeywords])),
+                sections: Array.from(new Set([...store.sections, ...(needSummary ? ["summary"] : []), ...(needSkills ? ["skills"] : [])])),
+            });
+            showPlanCards(cards);
+            setPlanState("done");
+        } catch {
+            setPlanState("error");
+        }
+    };
+
+    // The open cards, saved as they change (once this visit's plan has loaded).
+    useEffect(() => {
+        if (planState !== "done") return;
+        const store = readPlanStore();
+        writePlanStore({ ...store, cards: suggestions.filter((sug) => (sug.id.startsWith("plan-") || sug.id.startsWith("fix-")) && !sug.applied) });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [suggestions, planState]);
+
+    // ── Suggested numbers: they count once the person says they're true ──
+    const unconfirmedLines = structuredResume.jobs.reduce((n, job) => n + job.bullets.filter((b) => b.exampleNumbers).length, 0);
+    const confirmNumbers = (bulletId: string) => {
+        const line = structuredResume.jobs.flatMap((job) => job.bullets).find((b) => b.id === bulletId);
+        if (line) markHandled([line.text]);
+        setStructuredResume((prev) => ({
+            ...prev,
+            jobs: prev.jobs.map((job) => ({ ...job, bullets: job.bullets.map((b) => (b.id === bulletId ? { ...b, exampleNumbers: undefined } : b)) })),
+        }));
+    };
+
+    // ── Editing a line in the document ──
+    type EditTarget = { kind: "bullet"; id: string } | { kind: "summary" } | { kind: "contact" };
+    const [editing, setEditing] = useState<EditTarget | null>(null);
+    const [editDraft, setEditDraft] = useState("");
+    const startEditing = (target: EditTarget, text: string) => {
+        setEditing(target);
+        setEditDraft(text.replace(/^[•·●\u25CF]\s*/, ""));
+    };
+    const isEditing = (target: EditTarget) =>
+        editing !== null && editing.kind === target.kind && (target.kind !== "bullet" || (editing.kind === "bullet" && editing.id === target.id));
+    const saveEdit = () => {
+        if (!editing) return;
+        const text = editDraft.replace(/\s+/g, " ").trim();
+        if (editing.kind === "summary") {
+            setStructuredResume((prev) => ({ ...prev, summary: text, summaryTitle: prev.summaryTitle || "Summary" }));
+        } else if (editing.kind === "contact") {
+            if (text) setStructuredResume((prev) => ({ ...prev, contact: text }));
+        } else {
+            const id = editing.id;
+            markHandled([text]);
+            let linked: string | undefined;
+            setStructuredResume((prev) => ({
+                ...prev,
+                jobs: prev.jobs.map((job) => ({
+                    ...job,
+                    bullets: text
+                        ? job.bullets.map((b) => {
+                              if (b.id !== id) return b;
+                              linked = b.suggestionId;
+                              // The person typed it: their numbers now count.
+                              return { ...b, text, exampleNumbers: undefined, suggestionId: undefined };
+                          })
+                        : job.bullets.filter((b) => b.id !== id),
+                })),
+            }));
+            // A rewrite waiting on this line no longer fits what they wrote.
+            setSuggestions((prev) => prev.filter((s) => s.id !== linked || s.applied));
+        }
+        setEditing(null);
+    };
+
+    /** The original Word file for this resume, from this browser or the account. */
+    const loadOriginalDocx = async (): Promise<{ bytes: ArrayBuffer; name: string } | null> => {
+        let resumeId = "";
+        let name = report.resumeName || "Resume.docx";
+        try {
+            const saved = JSON.parse(localStorage.getItem("useladder_last_resume_feedback") || "null");
+            if (saved?.id && saved.id !== "active-cv-feedback") resumeId = saved.id;
+            if (saved?.resumeName) name = saved.resumeName;
+            const user = JSON.parse(localStorage.getItem("useladder_user") || "null");
+            const local = (Array.isArray(user?.resumes) ? user.resumes : []).find((r: { id?: string; data?: string }) => r.id === resumeId && typeof r.data === "string" && r.data.startsWith("data:application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
+            if (local) {
+                const res = await fetch(local.data);
+                return { bytes: await res.arrayBuffer(), name };
+            }
+        } catch {
+            // Saved data is blocked: try the account copy.
+        }
+        if (!resumeId) return null;
+        const res = await fetch(`/api/resume/file?resumeId=${encodeURIComponent(resumeId)}`, { cache: "no-store" }).catch(() => null);
+        if (!res || !res.ok) return null;
+        return { bytes: await res.arrayBuffer(), name };
+    };
+
+    const [downloadNote, setDownloadNote] = useState<string | null>(null);
     const handleDownloadDocx = async () => {
+        setDownloadNote(null);
+        const original = await loadOriginalDocx().catch(() => null);
+        if (original) {
+            try {
+                const { file, unplaced } = await patchDocx(original.bytes, structuredResume);
+                const blob = new Blob([file as BlobPart], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = original.name.replace(/\.docx$/i, "").replace(/_\d{4}-\d{2}-\d{2}$/, "") + `_${new Date().toISOString().slice(0, 10)}.docx`;
+                a.click();
+                // Some browsers read the file after the click returns.
+                setTimeout(() => URL.revokeObjectURL(url), 10_000);
+                setCopiedDoc(true);
+                setTimeout(() => setCopiedDoc(false), 2000);
+                if (unconfirmedLines > 0) setDownloadNote(`Downloaded. ${unconfirmedLines === 1 ? "One line still has" : `${unconfirmedLines} lines still have`} suggested numbers you haven't confirmed: check they're true before you send it.`);
+                if (unplaced.length > 0) setDownloadNote(`${unplaced.length === 1 ? "One line" : `${unplaced.length} lines`} couldn't be placed in your file, so add ${unplaced.length === 1 ? "it" : "them"} in Word: ${unplaced.join(" / ")}`);
+                return;
+            } catch (err) {
+                console.warn("[resume] Couldn't edit the original file, building a fresh one:", err);
+            }
+        }
+        await buildFreshDocx();
+        setDownloadNote("This copy uses our standard layout. To keep your own formatting, upload your resume as a Word (.docx) file.");
+    };
+
+    // Standardized Resume Generator — EB Garamond widely accepted template.
+    // Used when there is no Word file to edit (a PDF or text upload).
+    const buildFreshDocx = async () => {
         try {
             const {
                 Document,
@@ -1402,17 +1734,18 @@ export default function ResumeFeedbackReport({
         }
     };
 
-    const highlightKeyword = (text: string, keyword?: string) => {
-        if (!keyword || !text.toLowerCase().includes(keyword.toLowerCase())) return text;
+    const highlightKeyword = (text: string, keyword?: string, original?: string) => {
+        const rest = (part: string) => (original !== undefined ? markNewNumbers(part, original, styles.placeholderMark) : part);
+        if (!keyword || !text.toLowerCase().includes(keyword.toLowerCase())) return rest(text);
         const idx = text.toLowerCase().indexOf(keyword.toLowerCase());
         const before = text.slice(0, idx);
         const match = text.slice(idx, idx + keyword.length);
         const after = text.slice(idx + keyword.length);
         return (
             <>
-                {before}
+                {rest(before)}
                 <span style={{ background: "#FEF08A", padding: "0 2px", borderRadius: 3, fontWeight: 700, color: "#854D0E", border: "1px solid #FDE68A" }}>{match}</span>
-                {after}
+                {rest(after)}
             </>
         );
     };
@@ -1472,6 +1805,16 @@ export default function ResumeFeedbackReport({
 
     const hasNoResume = hasMounted && !isAnalyzingNewResume && isEmptyResume(displayResume);
     const isDocLoading = !hasMounted || isAnalyzingNewResume;
+
+    // Once per visit, after the resume (and any refresh of an old review) is in place.
+    useEffect(() => {
+        if (!hasMounted || isDocLoading || isRefreshingReview || planTriedRef.current) return;
+        if (structuredResume.jobs.every((job) => job.bullets.length === 0)) return;
+        planTriedRef.current = true;
+        void runPlan();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hasMounted, isDocLoading, isRefreshingReview, structuredResume]);
+
 
     const radius = 38;
     const circumference = 2 * Math.PI * radius;
@@ -1668,21 +2011,15 @@ export default function ResumeFeedbackReport({
                                     Updating your review with the latest checks…
                                 </p>
                             )}
-                            {!isDocLoading && liveGaps.length > 0 && (
-                                <section className={styles.scoreGaps} aria-labelledby="score-gaps-title">
-                                    <h3 id="score-gaps-title" className={styles.scoreGapsTitle}>What&rsquo;s lowering your score</h3>
-                                    <ol className={styles.scoreGapsList}>
-                                        {liveGaps.map((gap) => (
-                                            <li key={gap.area} className={styles.scoreGapItem}>
-                                                <div className={styles.scoreGapTop}>
-                                                    <span className={styles.scoreGapName}>{gap.title}</span>
-                                                    <span className={styles.scoreGapPoints}>up to +{gap.points}</span>
-                                                </div>
-                                                <p className={styles.scoreGapDetail}>{gap.detail}</p>
-                                            </li>
-                                        ))}
-                                    </ol>
-                                </section>
+                            {/* Contact details can't be written for them: point to the line instead. */}
+                            {!isDocLoading && liveAtsResult.metrics.contactPoints < 10 && (
+                                <div className={styles.scoreGaps}>
+                                    <span className={styles.scoreGapName}>Complete your contact details</span>
+                                    <p className={styles.scoreGapDetail}>Put your full name, email and phone number or LinkedIn link at the top.</p>
+                                    <button type="button" className={styles.scoreGapAction} onClick={() => startEditing({ kind: "contact" }, structuredResume.contact || "")}>
+                                        Edit contact line
+                                    </button>
+                                </div>
                             )}
                             <div className={styles.suggestionsToolbar}>
                                 <span className={styles.suggestionsCountLabel}>
@@ -1702,22 +2039,46 @@ export default function ResumeFeedbackReport({
                                 )}
                             </div>
 
+                            {unconfirmedLines > 0 && (
+                                <p className={styles.scoreGapDetail} style={{ margin: 0 }}>
+                                    {unconfirmedLines === 1 ? "One line has" : `${unconfirmedLines} lines have`} suggested numbers. Check each is true, then press &ldquo;Numbers are right&rdquo; on the line so your score counts it.
+                                </p>
+                            )}
+                            {planState === "working" && (
+                                <p role="status" className={styles.scoreGapDetail} style={{ margin: 0 }}>
+                                    Checking every line for what will raise your score…
+                                </p>
+                            )}
+                            {planState === "error" && (
+                                <p role="alert" className={styles.scoreGapError}>
+                                    We couldn&rsquo;t finish checking your resume.{" "}
+                                    <button
+                                        type="button"
+                                        className={styles.scoreGapAction}
+                                        onClick={() => {
+                                            setPlanState("idle");
+                                            void runPlan();
+                                        }}
+                                    >
+                                        Try again
+                                    </button>
+                                </p>
+                            )}
+
                             {/* Suggestions List — identical rewrites are filtered, section is marked okay */}
-                            {isDocLoading ? (
+                            {isDocLoading || (planState === "working" && suggestions.length === 0) ? (
                                 <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
                                     {[1, 2, 3].map((i) => (
                                         <div key={i} className={styles.docSkeletonCard} style={{ height: "115px", borderRadius: "10px" }} />
                                     ))}
                                 </div>
-                            ) : suggestions.length === 0 ? (
+                            ) : suggestions.length === 0 && planState !== "working" ? (
                                 <div style={{ background: "#F0FDF4", border: "1px solid #DCFCE7", borderRadius: 10, padding: "0.9rem 1rem", display: "flex", gap: 8, alignItems: "flex-start" }}>
                                     <CheckCircle size={18} weight="fill" color="#16A34A" style={{ flexShrink: 0, marginTop: 1 }} />
                                     <div>
-                                        <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "#166534" }}>No lines need rewriting</div>
+                                        <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "#166534" }}>Your resume is in good shape</div>
                                         <div style={{ fontSize: "0.76rem", color: "#15803D", lineHeight: 1.45, marginTop: 3 }}>
-                                            {liveGaps.length > 0
-                                                ? "Your lines read well on their own. The fixes above are what will raise your score."
-                                                : "Nothing here needs rewriting. Lines that could be stronger would be listed here."}
+                                            Nothing here needs changing. Anything that could raise your score would be listed here.
                                         </div>
                                     </div>
                                 </div>
@@ -1770,7 +2131,12 @@ export default function ResumeFeedbackReport({
 
 
                                         {/* Original — full, red callout for edits, or target context for additions */}
-                                        {sug.type === "addition" ? (
+                                        {sug.type === "summary" || sug.type === "skills" ? (
+                                            <div className={styles.suggestionTargetSnippet} style={{ background: "#F1F5F9", borderLeft: "2px solid #64748B", color: "#334155", display: "block", WebkitLineClamp: "unset", overflow: "visible", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
+                                                <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>New section</span>
+                                                {sug.type === "summary" ? "A summary under your name and contact details" : "A skills section"}
+                                            </div>
+                                        ) : sug.type === "addition" ? (
                                             <div className={styles.suggestionTargetSnippet} title="Target Role" style={{ background: "#F1F5F9", borderLeft: "2px solid #64748B", color: "#334155", display: "block", WebkitLineClamp: "unset", overflow: "visible", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
                                                 <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#475569", display: "block", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>Target Role</span>
                                                 Add new bullet to <strong>{sug.targetJobLabel || "Experience"}</strong>
@@ -1785,12 +2151,20 @@ export default function ResumeFeedbackReport({
                                         {/* Improvement — green bg */}
                                         <div className={styles.suggestionProposedBox}>
                                             <strong>Improvement:</strong>{" "}
-                                            {sug.fusedKeyword ? highlightKeyword(sug.proposedText, sug.fusedKeyword) : sug.proposedText}
+                                            {sug.fusedKeyword ? (
+                                                highlightKeyword(sug.proposedText, sug.fusedKeyword, sug.type === "edit" ? sug.targetSnippet : undefined)
+                                            ) : sug.type === "skills" ? (
+                                                <span style={{ whiteSpace: "pre-line" }}>{sug.proposedText}</span>
+                                            ) : sug.type === "summary" ? (
+                                                sug.proposedText
+                                            ) : (
+                                                markNewNumbers(sug.proposedText, sug.targetSnippet, styles.placeholderMark)
+                                            )}
                                         </div>
 
-                                        {sug.type !== "addition" && introducesNumbers(sug.targetSnippet, sug.proposedText) && (
+                                        {sug.type !== "addition" && sug.type !== "summary" && sug.type !== "skills" && introducesNumbers(sug.targetSnippet, sug.proposedText) && (
                                             <p style={{ margin: "0.45rem 0 0", fontSize: "0.72rem", lineHeight: 1.4, color: "#92400E", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 6, padding: "0.35rem 0.5rem" }}>
-                                                The numbers here are examples. Change them to your real ones before you send this, and your score will count them.
+                                                The highlighted numbers are estimates from the rest of your resume. Once it&rsquo;s in, press &ldquo;Numbers are right&rdquo; on the line if they&rsquo;re true, or Edit to change them.
                                             </p>
                                         )}
 
@@ -1829,7 +2203,7 @@ export default function ResumeFeedbackReport({
 
                             {/* Missing Keywords Box — now with Fuse into experience */}
                             {report.missingKeywords && report.missingKeywords.length > 0 && (
-                                <div style={{ background: "#FFFFFF", border: "1px solid #E4E4E7", borderRadius: "10px", padding: "1rem" }}>
+                                <div id="missing-keywords" style={{ background: "#FFFFFF", border: "1px solid #E4E4E7", borderRadius: "10px", padding: "1rem" }}>
                                     <div style={{ marginBottom: "0.5rem" }}>
                                         <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "#0F172A" }}>
                                             Missing High-Impact Keywords
@@ -1932,6 +2306,12 @@ export default function ResumeFeedbackReport({
                                 </div>
                             </div>
 
+                            {downloadNote && (
+                                <p role="status" className={styles.scoreGapDetail} style={{ margin: 0, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 7, padding: "0.55rem 0.85rem" }}>
+                                    {downloadNote}
+                                </p>
+                            )}
+
                             {savedSuccess && (
                                 <div style={{ color: "#15803D", background: "#F0FDF4", border: "1px solid #DCFCE7", padding: "0.55rem 0.85rem", borderRadius: 7, fontSize: "0.78rem" }}>
                                     Saved to your profile.
@@ -1994,16 +2374,32 @@ export default function ResumeFeedbackReport({
                                 <div className={styles.docHeader}>
                                     <h1 className={styles.docName}>{displayResume.name}</h1>
                                     <p className={styles.docSubtitle}>{displayResume.headline}</p>
-                                    <p className={styles.docSubtitle} style={{ marginTop: "0.25rem", color: "#94A3B8" }}>
-                                        {renderWithLinks(displayResume.contact)}
-                                    </p>
+                                    {isEditing({ kind: "contact" }) ? (
+                                        <LineEditor value={editDraft} onChange={setEditDraft} onSave={saveEdit} onCancel={() => setEditing(null)} label="Contact line" />
+                                    ) : (
+                                        <p className={styles.docSubtitle} style={{ marginTop: "0.25rem", color: "#94A3B8" }}>
+                                            {renderWithLinks(displayResume.contact)}
+                                            <button type="button" className={styles.docEditBtn} onClick={() => startEditing({ kind: "contact" }, structuredResume.contact || "")}>
+                                                Edit
+                                            </button>
+                                        </p>
+                                    )}
                                 </div>
 
                                 {/* Professional Summary — only if present in original */}
-                                {displayResume.summary && displayResume.summary.trim() && (
+                                {((displayResume.summary && displayResume.summary.trim()) || isEditing({ kind: "summary" })) && (
                                     <div className={styles.docSection}>
                                         <h2 className={styles.docSectionHeader}>{displayResume.summaryTitle || "Professional Summary"}</h2>
-                                        <p className={styles.docSummaryText}>{displayResume.summary}</p>
+                                        {isEditing({ kind: "summary" }) ? (
+                                            <LineEditor value={editDraft} onChange={setEditDraft} onSave={saveEdit} onCancel={() => setEditing(null)} label="Summary" rows={4} />
+                                        ) : (
+                                            <p className={styles.docSummaryText}>
+                                                {markPlaceholders(displayResume.summary || "", styles.placeholderMark)}
+                                                <button type="button" className={styles.docEditBtn} onClick={() => startEditing({ kind: "summary" }, structuredResume.summary || "")}>
+                                                    Edit
+                                                </button>
+                                            </p>
+                                        )}
                                     </div>
                                 )}
 
@@ -2108,7 +2504,38 @@ export default function ResumeFeedbackReport({
                                                                                     title={b.suggestionId ? "Click to view coach suggestion" : undefined}
                                                                                 >
                                                                                     <span className={styles.docBulletDot}>•</span>
-                                                                                    <span style={{ flex: 1 }}>{b.text}</span>
+                                                                                    {isEditing({ kind: "bullet", id: b.id }) ? (
+                                                                                        <span style={{ flex: 1 }} onClick={(e) => e.stopPropagation()}>
+                                                                                            <LineEditor value={editDraft} onChange={setEditDraft} onSave={saveEdit} onCancel={() => setEditing(null)} label="Resume line" hint="Leave it empty and save to remove the line." />
+                                                                                        </span>
+                                                                                    ) : (
+                                                                                        <span style={{ flex: 1 }}>
+                                                                                            {markPlaceholders(b.text.replace(/^[•·●\u25CF]\s*/, ""), styles.placeholderMark)}
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                className={styles.docEditBtn}
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation();
+                                                                                                    startEditing({ kind: "bullet", id: b.id }, b.text);
+                                                                                                }}
+                                                                                            >
+                                                                                                Edit
+                                                                                            </button>
+                                                                                            {b.exampleNumbers && (
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    className={styles.docConfirmBtn}
+                                                                                                    onClick={(e) => {
+                                                                                                        e.stopPropagation();
+                                                                                                        confirmNumbers(b.id);
+                                                                                                    }}
+                                                                                                    title="These numbers are true for you"
+                                                                                                >
+                                                                                                    Numbers are right
+                                                                                                </button>
+                                                                                            )}
+                                                                                        </span>
+                                                                                    )}
                                                                                     {matchingSug && !isApplied && (
                                                                                         <span style={{ fontSize: "0.68rem", color: "#2563EB", background: "#DBEAFE", padding: "0.1rem 0.4rem", borderRadius: "4px", fontWeight: 600, flexShrink: 0, fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" }}>
                                                                                             Suggestion Available
@@ -2208,5 +2635,38 @@ export default function ResumeFeedbackReport({
 
             </main>
         </div>
+    );
+}
+
+
+/** Editing one part of the resume in place: Enter or Save keeps it, Escape or Cancel leaves it. */
+function LineEditor({ value, onChange, onSave, onCancel, label, hint, rows = 2 }: { value: string; onChange: (v: string) => void; onSave: () => void; onCancel: () => void; label: string; hint?: string; rows?: number }) {
+    return (
+        <span className={styles.lineEditor}>
+            <textarea
+                aria-label={label}
+                autoFocus
+                rows={rows}
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        onSave();
+                    } else if (e.key === "Escape") {
+                        onCancel();
+                    }
+                }}
+            />
+            <span className={styles.lineEditorRow}>
+                {hint && <span className={styles.lineEditorHint}>{hint}</span>}
+                <button type="button" className={styles.lineEditorCancel} onClick={onCancel}>
+                    Cancel
+                </button>
+                <button type="button" className={styles.lineEditorSave} onClick={onSave}>
+                    Save
+                </button>
+            </span>
+        </span>
     );
 }

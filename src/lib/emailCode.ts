@@ -11,27 +11,13 @@ import { createHmac, randomInt, timingSafeEqual } from "crypto";
 import dbConnect from "@/lib/mongodb";
 import EmailCode, { type EmailCodePurpose } from "@/models/EmailCode";
 import { sendEmail } from "@/lib/email";
+import { codeEmail } from "@/lib/emailTemplates";
 
 export type { EmailCodePurpose } from "@/models/EmailCode";
 
 export const CODE_TTL_MINUTES = 10;
 export const RESEND_COOLDOWN_SECONDS = 60;
 const MAX_ATTEMPTS = 5;
-
-const EMAILS: Record<EmailCodePurpose, { subject: (code: string) => string; intro: string }> = {
-    verify: {
-        subject: (code) => `Your get prepped verification code: ${code}`,
-        intro: "Use this code to verify your email and finish creating your account:",
-    },
-    reset: {
-        subject: (code) => `Your get prepped password reset code: ${code}`,
-        intro: "Use this code to reset your password:",
-    },
-    "change-email": {
-        subject: (code) => `Your get prepped email change code: ${code}`,
-        intro: "Use this code to make this your get prepped email address:",
-    },
-};
 
 function hashCode(email: string, purpose: EmailCodePurpose, code: string): string {
     const secret = process.env.AUTH_SECRET || process.env.JWT_SECRET || "";
@@ -67,14 +53,7 @@ export async function issueEmailCode(email: string, purpose: EmailCodePurpose): 
         { upsert: true }
     );
 
-    const { subject, intro } = EMAILS[purpose];
-    const footer = `It expires in ${CODE_TTL_MINUTES} minutes. If you didn't request it, you can ignore this email.`;
-    await sendEmail({
-        to: email,
-        subject: subject(code),
-        text: `${intro}\n\n${code}\n\n${footer}`,
-        html: `<p>${intro}</p><p style="font-size:28px;font-weight:700;letter-spacing:6px">${code}</p><p>${footer}</p>`,
-    });
+    await sendEmail({ to: email, ...codeEmail(purpose, code, CODE_TTL_MINUTES) });
     return true;
 }
 
