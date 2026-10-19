@@ -135,6 +135,8 @@ export function toSafeUser(user: any) {
         hasPassword: Boolean(user.password),
         systemRole: isAdmin ? "admin" : "user",
         isAdmin,
+        // When the account was made, so the dashboard can tell a brand-new one.
+        createdAt: user.createdAt ? new Date(user.createdAt).toISOString() : null,
     };
 }
 

@@ -40,6 +40,8 @@ export interface EmailContent {
     notes?: string[];
     /** Why this person got this email. */
     reason: string;
+    /** A link to stop emails like this one (tips and reminders, never account or payment emails). */
+    unsubscribeUrl?: string;
 }
 
 export interface RenderedEmail {
@@ -167,7 +169,7 @@ ${notes}
 </table>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
 <tr><td style="padding:16px 12px 0;text-align:center;font-size:12px;line-height:1.55;color:${COLORS.faint};">
-${e(content.reason)}${contactLine() ? `<br>${e(contactLine())}` : ""}
+${e(content.reason)}${content.unsubscribeUrl ? ` <a href="${e(content.unsubscribeUrl)}" style="color:${COLORS.faint};text-decoration:underline;">Stop these emails</a>` : ""}${contactLine() ? `<br>${e(contactLine())}` : ""}
 </td></tr>
 </table>
 </td></tr>
@@ -190,6 +192,7 @@ ${e(content.reason)}${contactLine() ? `<br>${e(contactLine())}` : ""}
         "",
         "—",
         content.reason,
+        content.unsubscribeUrl ? `Stop these emails: ${content.unsubscribeUrl}` : "",
         contactLine(),
     ]
         .filter((line) => line !== undefined)

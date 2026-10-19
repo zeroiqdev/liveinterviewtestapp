@@ -43,6 +43,12 @@ export interface IUser extends Document {
     resumes: IResume[];
     /** When they last opened the app. */
     lastSeenAt?: Date;
+    /** When the day-1 resume email went out (sent once). */
+    onboardingResumeEmailAt?: Date;
+    /** When the day-2 weekly tip email went out (sent once). */
+    onboardingTipEmailAt?: Date;
+    /** They asked to stop tips and reminders (account, payment and security emails still go out). */
+    tipEmailsOff?: boolean;
     /** When the welcome email went out (it's sent once). */
     welcomeEmailSentAt?: Date;
     /** When they last opened the notifications list. */
@@ -100,6 +106,9 @@ const UserSchema = new Schema<IUser>(
         lastSeenAt: { type: Date },
         notificationsSeenAt: { type: Date },
         welcomeEmailSentAt: { type: Date },
+        onboardingResumeEmailAt: { type: Date },
+        onboardingTipEmailAt: { type: Date },
+        tipEmailsOff: { type: Boolean },
         location: {
             country: { type: String },
             region: { type: String },
