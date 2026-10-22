@@ -157,7 +157,6 @@ export default function LandingPage() {
                             <span className={styles.heroNoWrap}>Big career moves</span> <br className={styles.heroDesktopBr} />
                             <span>start with showing up prepared.</span>
                         </h1>
-                        <p className={styles.heroStory}>We help talents prepare for their dream job, from the resume to the final round.</p>
                     </div>
                     <button
                         type="button"

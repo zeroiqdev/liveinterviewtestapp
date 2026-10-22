@@ -5,6 +5,7 @@ import styles from "@/components/dashboard.module.css";
 import css from "./jobs.module.css";
 import { CompanyLogo } from "./CompanyLogo";
 import { cleanJobTitle } from "../dashboard/utils";
+import { safeExternalUrl } from "@/utils/safeUrl";
 
 interface JobRowProps {
     job: JobItem;
@@ -53,9 +54,9 @@ function JobRowComponent({ job, isLast, onOpenDesc, onPractice }: JobRowProps) {
                 >
                     <Play size={12} weight="fill" /> Practice
                 </button>
-                {job.url && job.url !== "#" && (
+                {safeExternalUrl(job.url) && (
                     <a
-                        href={job.url}
+                        href={safeExternalUrl(job.url)!}
                         target="_blank"
                         rel="noreferrer"
                         style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "30px", height: "30px", borderRadius: "6px", background: "#F8FAFC", color: "#64748B", border: "1px solid #CBD5E1", textDecoration: "none" }}

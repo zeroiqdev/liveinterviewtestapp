@@ -14,6 +14,7 @@ import {
 } from "./utils";
 import { matchResumeToJob } from "@/lib/atsScorer";
 import { RECRUITER_AVATAR } from "./constants";
+import { safeExternalUrl } from "@/utils/safeUrl";
 
 export interface StoredResumeOption {
     id: string;
@@ -524,9 +525,9 @@ function JobDescModalComponent({
 
                 {/* ── Modal Footer with Apply to Job Button ── */}
                 <div className={styles.jobModalFooter}>
-                    {job.url && job.url !== "#" && (
+                    {safeExternalUrl(job.url) && (
                         <a
-                            href={job.url}
+                            href={safeExternalUrl(job.url)!}
                             target="_blank"
                             rel="noreferrer"
                             className={styles.jobModalApplyBtn}

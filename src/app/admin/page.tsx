@@ -40,6 +40,7 @@ import type { RoleItem } from "@/app/api/roles/route";
 import type { QuestionItem } from "@/app/api/questions/route";
 import type { JobItem } from "@/app/api/jobs/route";
 import type { ScraperSource } from "@/app/api/jobs/sources/route";
+import { safeExternalUrl } from "@/utils/safeUrl";
 
 type AdminTab = "overview" | "metrics" | "discounts" | "roles" | "questions" | "jobs" | "feedback" | "tips" | "users";
 type JobsSubTab = "listings" | "sources";
@@ -1218,9 +1219,9 @@ export default function AdminPage() {
                                                         <td style={{ fontSize: "12px", color: "#64748B" }}>{j.datePosted}</td>
                                                         <td style={{ textAlign: "right" }}>
                                                             <div style={{ display: "inline-flex", gap: "6px" }}>
-                                                                {j.url && j.url !== "#" && (
+                                                                {safeExternalUrl(j.url) && (
                                                                     <a
-                                                                        href={j.url}
+                                                                        href={safeExternalUrl(j.url)!}
                                                                         target="_blank"
                                                                         rel="noreferrer"
                                                                         className={styles.secondaryBtn}

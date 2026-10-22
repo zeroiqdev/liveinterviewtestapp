@@ -1,12 +1,14 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { SITE_URL } from "@/lib/site";
+import { getJwtSecretKey } from "@/lib/sessionToken";
 
 /**
  * Links that stop tips and reminders for one address. Signed, so nobody can
  * turn off someone else's emails by guessing a link.
  */
 function sign(email: string): string {
-    const secret = process.env.AUTH_SECRET || process.env.JWT_SECRET || "";
+    // Throws when the secret is missing, rather than signing with an empty key.
+    const secret = getJwtSecretKey();
     return createHmac("sha256", secret).update(`email-opt-out:${email.toLowerCase()}`).digest("base64url").slice(0, 32);
 }
 

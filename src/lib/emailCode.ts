@@ -11,6 +11,7 @@ import { createHmac, randomInt, timingSafeEqual } from "crypto";
 import dbConnect from "@/lib/mongodb";
 import EmailCode, { type EmailCodePurpose } from "@/models/EmailCode";
 import { sendEmail } from "@/lib/email";
+import { getJwtSecretKey } from "@/lib/sessionToken";
 import { codeEmail } from "@/lib/emailTemplates";
 
 export type { EmailCodePurpose } from "@/models/EmailCode";
@@ -20,7 +21,8 @@ export const RESEND_COOLDOWN_SECONDS = 60;
 const MAX_ATTEMPTS = 5;
 
 function hashCode(email: string, purpose: EmailCodePurpose, code: string): string {
-    const secret = process.env.AUTH_SECRET || process.env.JWT_SECRET || "";
+    // Throws when the secret is missing, rather than signing with an empty key.
+    const secret = getJwtSecretKey();
     return createHmac("sha256", secret).update(`${purpose}:${email}:${code}`).digest("hex");
 }
 
