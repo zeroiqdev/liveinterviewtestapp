@@ -4,7 +4,7 @@ import { emailFromOptOut, optOutUrl } from "../src/lib/emailOptOut";
 import { resumeNudgeEmail, resumeReviewEmail, weeklyTipEmail } from "../src/lib/emailTemplates";
 import { resumeStanding } from "../src/lib/onboardingEmails";
 
-process.env.AUTH_SECRET = process.env.AUTH_SECRET || "test-secret";
+process.env.AUTH_SECRET = process.env.AUTH_SECRET || "test-secret-that-is-at-least-32-characters-long";
 
 describe("first-days emails", () => {
     it("signs opt-out links so one address can't turn off another's emails", () => {

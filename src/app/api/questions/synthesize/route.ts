@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { synthesizeQuestionsForRole, synthesizeQuestionsForSession } from "@/engine/questionSynthesizer";
-import { requireAuth } from "@/lib/session";
+import { requireAdmin } from "@/lib/session";
 import { LIMITS, rateLimit } from "@/lib/rateLimit";
 import { serverError } from "@/lib/apiError";
 
 export async function POST(req: NextRequest) {
     try {
-        const authResult = await requireAuth(req);
+        // Fills the shared question bank, so only admins may run it.
+        const authResult = await requireAdmin(req);
         if ("errorResponse" in authResult) {
             return authResult.errorResponse;
         }
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
                 role,
                 company,
                 interviewType,
-                count: count || 4,
+                count: Math.min(Math.max(Number(count) || 4, 1), 10),
             });
             return NextResponse.json({ success: true, count: questions.length, questions });
         }
