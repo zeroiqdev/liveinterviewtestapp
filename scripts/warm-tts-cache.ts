@@ -11,7 +11,7 @@
  *   npm run warm-tts-cache -- --persona recruiter --region nigeria  # One voice only
  *
  * Idempotent — safe to re-run, skips already-cached entries.
- * Processes sequentially to respect ElevenLabs rate limits.
+ * Processes sequentially to respect the voice provider's rate limits.
  */
 
 import { readFileSync } from "fs";

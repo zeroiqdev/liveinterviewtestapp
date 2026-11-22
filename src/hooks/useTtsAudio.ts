@@ -301,7 +301,7 @@ export function getStoredJobRegion(): string {
 /**
  * useTtsAudio Hook
  *
- * Plays AI interviewer speech via the ElevenLabs + Cloudflare R2 + MongoDB TTS pipeline.
+ * Plays AI interviewer speech via the server TTS pipeline (Azure/Gemini/Spitch + Cloudflare R2 + MongoDB cache).
  * Uses playId concurrency guards to strictly prevent multiple simultaneous audio streams.
  */
 export function useTtsAudio() {

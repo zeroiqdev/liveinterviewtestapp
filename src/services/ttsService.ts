@@ -4,7 +4,7 @@
  * Orchestrates the full TTS pipeline:
  *   1. Resolve voice config for (persona, region)
  *   2. Check MongoDB cache
- *   3. On miss: synthesize via ElevenLabs, upload to Cloudflare R2, cache in MongoDB
+ *   3. On miss: synthesize via the voice's provider (Azure, Gemini or Spitch), upload to Cloudflare R2, cache in MongoDB
  *   4. Concurrency guard prevents duplicate synthesis for the same key
  *
  * Usage:
@@ -26,8 +26,6 @@
 import { createHash } from "crypto";
 import dbConnect from "@/lib/mongodb";
 import TtsCacheModel from "@/models/TtsCache";
-import { synthesizeSpeech } from "@/lib/elevenlabs";
-import { synthesizeYarnGptSpeech } from "@/lib/yarngpt";
 import { synthesizeAzureSpeech } from "@/lib/azureTts";
 import { synthesizeGeminiSpeech } from "@/lib/geminiTts";
 import { synthesizeSpitchSpeech } from "@/lib/spitchTts";
@@ -75,17 +73,15 @@ const inFlight = new Map<string, Promise<string>>();
 
 /**
  * Computes a deterministic SHA-256 hash for cache deduplication.
- * The hash key is: (provider === "elevenlabs" ? "" : `${provider}:`) + text + voiceId + JSON.stringify(voiceSettings || {})
- * ElevenLabs keeps an empty prefix so existing cache entries stay valid.
+ * The hash key is: `${provider}:` + text + voiceId + JSON.stringify(audioSettings || {})
  */
 export function computeCacheHash(
   text: string,
   voiceId: string,
-  voiceSettings?: Record<string, unknown>,
-  provider: string = "elevenlabs"
+  audioSettings: Record<string, unknown> | undefined,
+  provider: VoiceProvider
 ): string {
-  const prefix = provider === "elevenlabs" ? "" : `${provider}:`;
-  const payload = prefix + text + voiceId + JSON.stringify(voiceSettings || {});
+  const payload = `${provider}:` + text + voiceId + JSON.stringify(audioSettings || {});
   return createHash("sha256").update(payload).digest("hex");
 }
 
@@ -114,7 +110,7 @@ function resolveVoice(text: string, persona: Persona, jobRegion: string) {
 }
 
 function voiceKey(text: string, voiceEntry: VoiceEntry) {
-  const provider = voiceEntry.provider || "elevenlabs";
+  const { provider } = voiceEntry;
   // Whatever shapes the audio is part of the cache key, so tuning pacing or
   // voice settings re-synthesizes instead of replaying stale clips.
   const audioSettings = (
@@ -122,9 +118,7 @@ function voiceKey(text: string, voiceEntry: VoiceEntry) {
       ? voiceEntry.prosody
       : provider === "gemini"
         ? voiceEntry.gemini
-        : provider === "spitch"
-          ? voiceEntry.spitch
-          : voiceEntry.voiceSettings
+        : voiceEntry.spitch
   ) as Record<string, unknown> | undefined;
   const hash = computeCacheHash(text, voiceEntry.voiceId, audioSettings, provider);
   return { voiceEntry, provider, audioSettings, hash };
@@ -255,7 +249,7 @@ async function audioForVoice(
   turnId?: string
 ): Promise<CachedAudioResult> {
   const { voiceEntry, provider, audioSettings, hash } = voiceKey(text, entry);
-  const { voiceId, voiceSettings, prosody, label } = voiceEntry;
+  const { voiceId, prosody, label } = voiceEntry;
 
   // Join an identical synthesis already running (e.g. a prefetch) first.
   const runningFlight = inFlight.get(hash);
@@ -295,11 +289,7 @@ async function audioForVoice(
         if (provider === "gemini" && voiceEntry.gemini) return synthesizeGeminiSpeech(text, voiceId, voiceEntry.gemini);
         if (provider === "spitch" && voiceEntry.spitch) return synthesizeSpitchSpeech(text, voiceId, voiceEntry.spitch);
         if (provider === "azure") return synthesizeAzureSpeech(text, voiceId, prosody);
-        if (provider === "yarngpt") return synthesizeYarnGptSpeech(text, voiceId);
-        if (!voiceSettings) {
-          throw new Error(`Missing voiceSettings for ElevenLabs voice ${voiceId}`);
-        }
-        return synthesizeSpeech(text, voiceId, voiceSettings);
+        throw new Error(`${label} (${provider}) is missing its provider options`);
       });
 
       // Upload to Cloudflare R2 Storage

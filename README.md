@@ -6,7 +6,7 @@ get prepped is an intelligent AI interview simulation and coaching platform. It 
 
 ## Features
 
-- **Interactive AI Interview Simulation**: Real-time audio and text-based mock interviews powered by Google Gemini and ElevenLabs/YarnGPT/Azure text-to-speech.
+- **Interactive AI Interview Simulation**: Real-time audio and text-based mock interviews powered by Google Gemini and Azure text-to-speech.
 - **Realtime Voice Interviews**: Speech-to-speech interviews over Azure Voice Live, through a WebSocket relay that keeps the Azure key server-side.
 - **Dynamic Probing Engine**: Adapts questioning in real-time based on candidate responses, STAR method criteria, and technical depth.
 - **Personalized Coaching & Feedback**: In-depth post-interview performance breakdowns analyzing vocabulary, technical depth, clarity, filler words, and actionable improvement tips.
@@ -22,7 +22,7 @@ get prepped is an intelligent AI interview simulation and coaching platform. It 
 - **Database**: MongoDB (Mongoose) for audio caching & user analytics
 - **Storage**: Cloudflare R2 (S3-compatible persistent audio storage)
 - **AI / LLM**: Google Gemini API (`@google/genai` / REST)
-- **Text-to-Speech**: ElevenLabs, YarnGPT & Azure Speech
+- **Text-to-Speech**: Azure Speech (optional Gemini and Spitch voices for Nigerian interviews)
 - **Realtime voice**: Azure Voice Live via `server/voiceLiveRelay.ts`
 - **Auth**: signed JWT session cookie; Google sign-in, password, or emailed one-time code (Resend)
 
@@ -55,8 +55,6 @@ Key environment variables to configure in `.env.local` (see `.env.example` for t
 - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`: Google sign-in
 - `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`: Nigerian TTS voices and realtime voice interviews
 - `GEMINI_API_KEY`: Google Gemini API key
-- `ELEVENLABS_API_KEY`: ElevenLabs API key
-- `YARNGPT_API_KEY`: YarnGPT API key (for Nigerian localized accents)
 - `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PUBLIC_DOMAIN`: Cloudflare R2 credentials
 
 ### 4. Run the development server

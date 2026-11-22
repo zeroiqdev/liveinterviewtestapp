@@ -15,7 +15,6 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1115.0",
     "@breezystack/lamejs": "^1.2.7",
-    "@elevenlabs/elevenlabs-js": "^2.64.0",
     "@mingcute/react": "^3.0.2",
     "@phosphor-icons/react": "^2.1.10",
     "bcryptjs": "^3.0.3",
@@ -23,9 +22,9 @@
     "dotenv": "^16.6.1",
     "jose": "^6.2.12",
     "mammoth": "^1.12.3",
-    "mongoose": "^8.24.3",
+    "mongoose": "^8.24.10",
     "nanoid": "^6.0.1",
-    "next": "16.4.2",
+    "next": "16.4.6",
     "pizzip": "^3.2.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
@@ -33,7 +32,7 @@
     "tsx": "^4.23.12",
     "unpdf": "^1.8.1",
     "ws": "^8.22.0",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -42,7 +41,7 @@
     "@types/react-dom": "^19",
     "@types/ws": "^8.18.2",
     "eslint": "^9",
-    "eslint-config-next": "16.0.7",
+    "eslint-config-next": "16.4.6",
     "typescript": "^5"
   }
 }

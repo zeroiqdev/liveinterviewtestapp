@@ -66,7 +66,7 @@ function claimToken(jti: string, expSeconds: number): boolean {
     return true;
 }
 
-// Azure neural voices usable by Voice Live (ElevenLabs voices are not).
+// Azure neural voices usable by Voice Live.
 const VOICE_BY_REGION: Record<string, string> = {
     nigeria: "en-NG-EzinneNeural",
     uk: "en-GB-RyanNeural",
