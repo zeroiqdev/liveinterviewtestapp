@@ -19,7 +19,7 @@ export async function sendWelcomeOnce(email: string): Promise<void> {
             { new: true }
         ).lean();
         if (!user) return;
-        await sendEmail({ to: email, ...welcomeEmail({ name: user.name, role: user.role, siteUrl: SITE_URL }) });
+        await sendEmail({ to: email, sender: "hello", ...welcomeEmail({ name: user.name, role: user.role, siteUrl: SITE_URL }) });
     } catch (err) {
         // A missed welcome must never block signing in.
         console.warn("[welcome] Not sent:", (err as Error).message);

@@ -72,8 +72,12 @@ export async function middleware(req: NextRequest) {
         return NextResponse.redirect(new URL("/dashboard", req.url));
     }
 
-    // 4. Pass session headers down to routes
+    // 4. Pass session headers down to routes. Drop any the client sent first,
+    // so a route can never mistake a forged header for a verified session.
     const requestHeaders = new Headers(req.headers);
+    for (const name of ["x-user-id", "x-user-email", "x-user-role", "x-is-admin"]) {
+        requestHeaders.delete(name);
+    }
     if (session) {
         requestHeaders.set("x-user-id", session.userId);
         requestHeaders.set("x-user-email", session.email);

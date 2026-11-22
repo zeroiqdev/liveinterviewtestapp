@@ -6,7 +6,6 @@
  * by pointing its key at a different entry.
  */
 
-import type { VoiceSettings } from "@/lib/elevenlabs";
 import type { GeminiVoiceOptions } from "@/lib/geminiTts";
 import type { SpitchVoiceOptions } from "@/lib/spitchTts";
 import { normalizeRegion } from "@/utils/regionNormalizer";
@@ -14,7 +13,7 @@ import { normalizeRegion } from "@/utils/regionNormalizer";
 // ─── Types ──────────────────────────────────────────────────────────
 
 export type Persona = "coach" | "recruiter";
-export type VoiceProvider = "elevenlabs" | "yarngpt" | "azure" | "gemini" | "spitch";
+export type VoiceProvider = "azure" | "gemini" | "spitch";
 
 /** Azure SSML pacing. Part of the TTS cache key, so changing it re-synthesizes. */
 export interface AzureProsody {
@@ -25,9 +24,8 @@ export interface AzureProsody {
 }
 
 export interface VoiceEntry {
-  provider?: VoiceProvider; // Defaults to "elevenlabs"
+  provider: VoiceProvider;
   voiceId: string;
-  voiceSettings?: VoiceSettings;
   prosody?: AzureProsody; // Azure only
   gemini?: GeminiVoiceOptions; // Gemini only
   spitch?: SpitchVoiceOptions; // Spitch only

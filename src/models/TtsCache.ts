@@ -2,7 +2,7 @@
  * TtsCache Mongoose Model
  *
  * Stores synthesized TTS audio metadata and URLs.
- * _id is a SHA-256 hash of (text + voiceId + voiceSettings) for deduplication.
+ * _id is a SHA-256 hash of (provider + text + voiceId + audio settings) for deduplication.
  * Region is stored explicitly for easier querying/debugging.
  *
  * Follows the same pattern as UserStats.ts.
@@ -15,9 +15,9 @@ export interface ITtsCache {
   text: string;          // The synthesized text
   persona: string;       // "coach" | "recruiter"
   region: string;        // Normalized region key
-  provider?: string;     // "elevenlabs" | "yarngpt"
+  provider?: string;     // "azure" | "gemini" | "spitch"
   voiceId: string;       // Voice ID or character name used
-  voiceSettings: Record<string, unknown>; // Voice settings used
+  voiceSettings: Record<string, unknown>; // Provider audio settings (prosody, style, speed)
   audioUrl: string;      // Public URL to the audio file
   createdAt: Date;
   lastUsedAt: Date;
@@ -29,7 +29,7 @@ const TtsCacheSchema: Schema = new Schema(
     text: { type: String, required: true },
     persona: { type: String, required: true, enum: ["coach", "recruiter"] },
     region: { type: String, required: true },
-    provider: { type: String, default: "elevenlabs" },
+    provider: { type: String },
     voiceId: { type: String, required: true },
     voiceSettings: { type: Schema.Types.Mixed, required: true },
     audioUrl: { type: String, required: true },
