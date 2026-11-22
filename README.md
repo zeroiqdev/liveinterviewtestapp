@@ -50,7 +50,9 @@ cp .env.example .env.local
 Key environment variables to configure in `.env.local` (see `.env.example` for the full list):
 - `AUTH_SECRET` (**required**): random string of at least 32 characters for signing sessions (`openssl rand -base64 48`)
 - `MONGODB_URI`: MongoDB connection string
-- `RESEND_API_KEY`, `EMAIL_FROM`: send verification and password reset codes (in development, codes are printed to the server console when unset)
+- `RESEND_API_KEY`, `EMAIL_FROM`: send email through Resend (in development, codes are printed to the server console when unset). `EMAIL_FROM` is the hello sender (welcome, onboarding, tips, referrals) and the fallback for the senders below
+- `EMAIL_FROM_ACCOUNT`, `EMAIL_FROM_BILLING` (optional): separate senders for sign-up/reset codes and for payment receipts
+- `NEXT_PUBLIC_CONTACT_EMAIL`: support address shown on the privacy page and in email footers; replies to account emails go here
 - `ADMIN_EMAILS`: comma-separated admin emails (admin rights apply once the address is verified)
 - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`: Google sign-in
 - `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`: Nigerian TTS voices and realtime voice interviews

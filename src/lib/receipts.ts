@@ -29,9 +29,20 @@ export function formatNaira(amount: number): string {
     return `₦${Math.round(amount).toLocaleString("en-NG")}`;
 }
 
-/** Price per pass, for the line on the receipt; whole naira. */
-export function pricePerPass(amount: number, passes: number): number {
-    return passes > 0 ? Math.round(amount / passes) : amount;
+/**
+ * Price per pass, for the line on the receipt, or null when the total doesn't
+ * split into whole naira per pass. Bundles are priced as a whole (₦6,500 for
+ * seven), and a rounded ₦929 × 7 wouldn't add up to the total shown.
+ */
+export function pricePerPass(amount: number, passes: number): number | null {
+    if (passes <= 0) return amount;
+    return Number.isInteger(amount / passes) ? amount / passes : null;
+}
+
+/** "Day Pass" → "Day Pass (1 pass)"; a label that already counts its passes is left as is. */
+export function receiptItem(label: string, passes: number): string {
+    if (/\b\d+\s+(?:\w+\s+)?pass(?:es)?\b/i.test(label)) return label;
+    return `${label} (${passes} ${passes === 1 ? "pass" : "passes"})`;
 }
 
 export function receiptDate(value: Date | string): string {
@@ -57,7 +68,7 @@ export function receiptEmail(details: ReceiptDetails, receiptUrl: string): { sub
         ],
         rows: [
             { label: "Date paid", value: receiptDate(details.paidAt) },
-            { label: `${details.label} (${details.passes} ${passWord} × ${formatNaira(pricePerPass(details.amount, details.passes))})`, value: total },
+            { label: receiptItem(details.label, details.passes), value: total },
             { label: "Total paid", value: total, strong: true },
         ],
         button: { label: "View or save your receipt", url: receiptUrl },

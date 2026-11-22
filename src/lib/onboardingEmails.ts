@@ -70,7 +70,7 @@ export async function sendOnboardingEmails(now: Date = new Date()): Promise<{ re
             const email = standing
                 ? resumeReviewEmail({ name: user.name, role: user.role, score: standing.score, topFix: standing.topFix, siteUrl: SITE_URL, unsubscribeUrl })
                 : resumeNudgeEmail({ name: user.name, role: user.role, siteUrl: SITE_URL, unsubscribeUrl });
-            await sendEmail({ to: user.email, ...email });
+            await sendEmail({ to: user.email, sender: "hello", ...email });
             resume++;
         } catch (err) {
             failed++;
@@ -85,7 +85,7 @@ export async function sendOnboardingEmails(now: Date = new Date()): Promise<{ re
         if (!user) break;
         try {
             const thisWeek = await approvedTipFor(user.roleFamily || "", week);
-            await sendEmail({ to: user.email, ...weeklyTipEmail({ name: user.name, tip: thisWeek, siteUrl: SITE_URL, unsubscribeUrl: optOutUrl(user.email) }) });
+            await sendEmail({ to: user.email, sender: "hello", ...weeklyTipEmail({ name: user.name, tip: thisWeek, siteUrl: SITE_URL, unsubscribeUrl: optOutUrl(user.email) }) });
             tip++;
         } catch (err) {
             failed++;

@@ -154,14 +154,14 @@ describe("sendEmail", () => {
             return new Response("ok", { status: 200 });
         }) as typeof fetch;
         try {
-            await sendEmail({ to: "a@example.com", subject: "s", text: "t", html: "h" });
+            await sendEmail({ to: "a@example.com", sender: "hello", subject: "s", text: "t", html: "h" });
             assert.equal(sentFrom, "get prepped <no-reply@example.com>");
 
             globalThis.fetch = (async () => new Response('{"message":"Invalid from"}', { status: 422 })) as typeof fetch;
             const origError = console.error;
             console.error = () => undefined;
             try {
-                await assert.rejects(sendEmail({ to: "a@example.com", subject: "s", text: "t", html: "h" }), EmailSendError);
+                await assert.rejects(sendEmail({ to: "a@example.com", sender: "hello", subject: "s", text: "t", html: "h" }), EmailSendError);
             } finally {
                 console.error = origError;
             }

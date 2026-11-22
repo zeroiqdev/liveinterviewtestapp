@@ -43,7 +43,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }, []);
 
     const userName = user?.name || (user?.email ? user.email.split("@")[0] : "User");
-    const userEmail = user?.email || "hello@getprepped.com";
+    const userEmail = user?.email || "";
     const initials = userName.slice(0, 2).toUpperCase();
 
     if (pathname === "/" || pathname === "/landing" || pathname === "/pricing" || pathname === "/terms" || pathname === "/privacy" || pathname === "/onboarding" || pathname === "/try" || pathname === "/login" || pathname === "/dashboard" || pathname === "/profile" || pathname.startsWith("/payment") || pathname === "/interview" || pathname === "/feedback" || pathname === "/admin" || pathname === "/jobs" || pathname === "/resume-feedback" || pathname.startsWith("/resume-feedback")) {

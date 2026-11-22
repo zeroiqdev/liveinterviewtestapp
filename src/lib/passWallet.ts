@@ -106,7 +106,7 @@ async function emailReceipt(reference: string): Promise<void> {
             },
             `${SITE_URL}/payment/receipt/${encodeURIComponent(purchase.reference)}`
         );
-        await sendEmail({ to: purchase.email, subject, text, html });
+        await sendEmail({ to: purchase.email, sender: "billing", subject, text, html });
     } catch (err) {
         console.warn("[passWallet] Receipt email not sent:", (err as Error).message);
     }

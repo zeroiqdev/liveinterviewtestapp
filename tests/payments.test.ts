@@ -4,7 +4,7 @@ import { createHmac } from "node:crypto";
 import { FREE_INTERVIEWS, decideStart, offerFor, priceForPasses } from "../src/lib/passes";
 import { baseUrlFor, createCheckout, isPaidInFull, verifyWebhook } from "../src/lib/bachs";
 import { discountedAmount } from "../src/lib/discounts";
-import { formatNaira, pricePerPass, receiptDate, receiptEmail, receiptNumber } from "../src/lib/receipts";
+import { formatNaira, pricePerPass, receiptDate, receiptEmail, receiptItem, receiptNumber } from "../src/lib/receipts";
 
 describe("pass prices", () => {
     it("match the pricing page", () => {
@@ -111,8 +111,14 @@ describe("receipts", () => {
     
     it("receipt amounts are whole naira, per pass and in total", () => {
         assert.equal(formatNaira(6500), "₦6,500");
-        assert.equal(pricePerPass(6500, 7), 929);
+        // A bundle doesn't split into whole naira per pass: no rounded price that wouldn't add up.
+        assert.equal(pricePerPass(6500, 7), null);
         assert.equal(pricePerPass(1500, 1), 1500);
+        assert.equal(pricePerPass(8500, 10), 850);
+        assert.equal(receiptItem("1-Week Bundle (7 passes)", 7), "1-Week Bundle (7 passes)");
+        assert.equal(receiptItem("12 passes", 12), "12 passes");
+        assert.equal(receiptItem("Day Pass", 1), "Day Pass (1 pass)");
+        assert.equal(receiptItem("3 free passes (code WELCOME)", 3), "3 free passes (code WELCOME)");
         assert.equal(receiptDate("2026-10-14T23:30:00Z"), "15 October 2026");
     });
     
@@ -123,6 +129,7 @@ describe("receipts", () => {
         );
         assert.match(email.subject, /GP-M2X9K1-A1B2C3/);
         assert.match(email.text, /Total paid: ₦6,500/);
+        assert.match(email.text, /^1-Week Bundle \(7 passes\): ₦6,500$/m);
         assert.match(email.html, /payment\/receipt\/gp_m2x9k1_a1b2c3d4e5f6/);
         assert.ok(!email.html.includes("<b>Okafor</b>"));
     });

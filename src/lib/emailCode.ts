@@ -55,7 +55,7 @@ export async function issueEmailCode(email: string, purpose: EmailCodePurpose): 
         { upsert: true }
     );
 
-    await sendEmail({ to: email, ...codeEmail(purpose, code, CODE_TTL_MINUTES) });
+    await sendEmail({ to: email, sender: "account", ...codeEmail(purpose, code, CODE_TTL_MINUTES) });
     return true;
 }
 

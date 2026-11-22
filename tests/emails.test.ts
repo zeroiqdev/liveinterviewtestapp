@@ -4,6 +4,7 @@ import { renderEmail } from "../src/lib/emailLayout";
 import { codeEmail, welcomeEmail } from "../src/lib/emailTemplates";
 import { receiptEmail } from "../src/lib/receipts";
 import { roleAddedEmail } from "../src/lib/roleRequests";
+import { fromAddress, replyToAddress } from "../src/lib/email";
 
 const all = () => [
     codeEmail("verify", "483920", 10),
@@ -52,5 +53,60 @@ describe("emails", () => {
 
     it("never says AI", () => {
         for (const email of all()) assert.doesNotMatch(`${email.subject} ${email.text}`, /\bAI\b/);
+    });
+});
+
+describe("email senders", () => {
+    const KEYS = ["EMAIL_FROM", "EMAIL_FROM_ACCOUNT", "EMAIL_FROM_BILLING", "NEXT_PUBLIC_CONTACT_EMAIL"] as const;
+    function withEnv(values: Partial<Record<(typeof KEYS)[number], string>>, run: () => void) {
+        const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+        for (const k of KEYS) delete process.env[k];
+        Object.assign(process.env, values);
+        try {
+            run();
+        } finally {
+            for (const k of KEYS) {
+                if (saved[k] === undefined) delete process.env[k];
+                else process.env[k] = saved[k];
+            }
+        }
+    }
+
+    it("sends each kind of email from its own address", () => {
+        withEnv(
+            {
+                EMAIL_FROM: "get prepped <hello@getprepped.test>",
+                EMAIL_FROM_ACCOUNT: "get prepped <login@getprepped.test>",
+                EMAIL_FROM_BILLING: "get prepped <billing@getprepped.test>",
+            },
+            () => {
+                assert.equal(fromAddress("hello"), "get prepped <hello@getprepped.test>");
+                assert.equal(fromAddress("account"), "get prepped <login@getprepped.test>");
+                assert.equal(fromAddress("billing"), "get prepped <billing@getprepped.test>");
+            }
+        );
+    });
+
+    it("falls back to EMAIL_FROM when a sender isn't set", () => {
+        withEnv({ EMAIL_FROM: "get prepped <hello@getprepped.test>" }, () => {
+            assert.equal(fromAddress("account"), "get prepped <hello@getprepped.test>");
+            assert.equal(fromAddress("billing"), "get prepped <hello@getprepped.test>");
+        });
+        withEnv({}, () => assert.equal(fromAddress("hello"), ""));
+    });
+
+    it("tolerates quote marks pasted into the hosting dashboard", () => {
+        withEnv({ EMAIL_FROM_BILLING: '"get prepped <billing@getprepped.test>"' }, () => {
+            assert.equal(fromAddress("billing"), "get prepped <billing@getprepped.test>");
+        });
+    });
+
+    it("sends replies to account emails to the contact inbox, and leaves the rest alone", () => {
+        withEnv({ NEXT_PUBLIC_CONTACT_EMAIL: "support@getprepped.test" }, () => {
+            assert.equal(replyToAddress("account"), "support@getprepped.test");
+            assert.equal(replyToAddress("billing"), undefined);
+            assert.equal(replyToAddress("hello"), undefined);
+        });
+        withEnv({}, () => assert.equal(replyToAddress("account"), undefined));
     });
 });

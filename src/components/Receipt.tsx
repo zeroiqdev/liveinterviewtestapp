@@ -118,7 +118,10 @@ export default function Receipt({ reference }: { reference: string }) {
                                         <span>24 hours of interviews per pass, starting when you begin the first one</span>
                                     </td>
                                     <td className={styles.num}>{receipt.passes}</td>
-                                    <td className={styles.num}>{formatNaira(pricePerPass(receipt.amount, receipt.passes))}</td>
+                                    <td className={styles.num}>{(() => {
+                                        const each = pricePerPass(receipt.amount, receipt.passes);
+                                        return each === null ? "—" : formatNaira(each);
+                                    })()}</td>
                                     <td className={styles.num}>{formatNaira(receipt.amount)}</td>
                                 </tr>
                             </tbody>

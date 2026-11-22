@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
         for (const email of request.emails ?? []) {
             const message = roleAddedEmail({ requested: request.role, role: role.title, siteUrl: SITE_URL });
             try {
-                await sendEmail({ to: email, ...message });
+                await sendEmail({ to: email, sender: "hello", ...message });
                 sent++;
             } catch (err) {
                 failed++;

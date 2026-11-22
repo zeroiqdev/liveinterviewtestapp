@@ -116,7 +116,7 @@ async function grantDueRewards(inviterEmail: string): Promise<void> {
             { upsert: true }
         );
         try {
-            await sendEmail({ to: inviterEmail, ...referralRewardEmail({ name: inviter.name, friends: qualified, siteUrl: SITE_URL }) });
+            await sendEmail({ to: inviterEmail, sender: "hello", ...referralRewardEmail({ name: inviter.name, friends: qualified, siteUrl: SITE_URL }) });
         } catch (err) {
             console.warn("[referrals] Reward email not sent:", (err as Error).message);
         }
